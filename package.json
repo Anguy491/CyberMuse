@@ -18,7 +18,9 @@
     "tauri": "pnpm --filter @cybermuse/desktop tauri",
     "test": "vitest run --config tooling/vitest.unit.config.ts",
     "test:contracts": "vitest run --config tooling/vitest.contract.config.ts",
-    "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
+    "test:m2:performance": "vite build --config tooling/vite.m2-benchmark.config.ts && node artifacts/m2/benchmark-bundle/m2-realtime-benchmark.mjs",
+    "test:m2:quality": "vite build --config tooling/vite.m2-quality.config.ts && node artifacts/m2/quality-bundle/m2-quality-report.mjs",
+    "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

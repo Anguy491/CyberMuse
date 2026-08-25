@@ -5,7 +5,7 @@
 | 状态 | Baseline |
 | 版本 | 0.1.0 |
 | 责任域 | 桌面端与实时音频 |
-| 上游依据 | FR-009 至 FR-016、NFR-003 至 NFR-007、ADR-003/004 |
+| 上游依据 | FR-009 至 FR-016、NFR-003 至 NFR-007、ADR-003/004/011 |
 | 关联文件 | `data-model.md`、`test-strategy.md`、Desktop `AGENTS.md` |
 
 ## 时钟模型
@@ -51,20 +51,20 @@ microphone MediaStreamSource
 - 默认窗口 4,096 samples，hop 1,024 samples。
 - 48 kHz 下窗口约 85.3 ms、hop 约 21.3 ms。
 - 低音范围无法可靠覆盖时，M2 可通过 ADR 改为 8,192 窗口或多窗口策略，但必须重新验证 NFR-003。
-- Worklet 维护有界 ring buffer；Worker 落后时丢弃最旧未处理窗口并计数，不阻塞音频线程。
+- Worklet 使用两个预分配窗口 buffer，最多保留一个 in-flight 和一个 pending；Worker 归还 transferable buffer 后再复用。Worker 落后时覆盖最旧 pending 窗口并计数，不等待、不增长队列，也不阻塞音频线程。
 
 ## 检测与过滤
 
 处理顺序固定：
 
 1. 计算 RMS 和 peak，拒绝非有限样本。
-2. RMS 低于校准 noise floor 加 10 dB 时标记无声；初始保守下限为 -50 dBFS。
+2. noise floor 初始为 -60 dBFS，只在低 clarity 窗口以 0.02 学习率更新；RMS 低于 `max(-50 dBFS, noiseFloor + 10 dB)` 时标记无声。
 3. Pitchy 输出 `hz` 和 clarity；初始有效阈值为 0.85。
 4. 有效范围初始为 65.41–1,046.50 Hz（C2–C6）；范围外标记低置信度，不做八度折叠。
 5. 对最近 5 个有效 MIDI 值取中位数；超过 150 ms 的无声会清空窗口。
 6. 输出 `PitchObservation`，保留原始 `hz`、平滑 `midi` 和 drop counter。
 
-阈值是 M2 要验证的基线；修改必须有夹具结果和 ADR，不得只为提高评分而降低过滤。
+上述阈值和窗口已由 ADR-011 接受为 M2 算法基线；修改必须有夹具、性能结果和后续 ADR，不得只为提高评分而降低过滤。
 
 ## 参考匹配
 
@@ -121,4 +121,3 @@ Worker 每个 hop 最多发一个观察。Practice view model：
 ## Session buffer
 
 只保存有效或说明性无声观察的降采样数据，目标间隔不小于 20 ms。单次 session 上限 60 分钟；超过上限时提示结束并保存，防止无限内存增长。PCM 不保存。数据量或 payload 超过契约上限时分块提交或由 Rust 管理临时 session 文件，具体方式在 M3 通过 ADR 锁定。
-

@@ -44,6 +44,7 @@
 - 输出：麦克风权限/设备流；PitchObservation；音调/静音/噪声质量报告；1,000 观察延迟和 CPU/RAM 报告。
 - 必跑验证：TC-DEV-001、TC-PIT-001、TC-PERF-001、TC-PERF-004、AudioWorklet boundary review；至少一台 Windows 11 实机。
 - 退出：NFR-003/006/007 达标；阈值和窗口经 Accepted ADR 确认；资源清理无增长；用户确认。
+- 门禁记录（2026-08-25）：自动质量/性能、Windows 11 USB/48 kHz 完整路径、30 分钟 soak、权限 allow/deny、默认↔USB 切换、unplug/replug 和资源 teardown 已形成证据；用户随后完成剩余人工验收，明确确认 M2 完成并授权编写 M3 交接。built-in/Bluetooth 与 44.1 kHz 实机在当前环境不可用，30 分钟 working set 余量较小，按 RISK-019 接受至 M6 复验。M3 可开始。
 
 ## M3 — Fixture-based Practice
 

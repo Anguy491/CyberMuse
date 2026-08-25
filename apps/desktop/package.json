@@ -9,6 +9,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@cybermuse/audio": "workspace:*",
     "@cybermuse/contracts": "workspace:*",
     "@cybermuse/domain": "workspace:*",
     "@tauri-apps/api": "2.11.1",

@@ -42,7 +42,7 @@ describe("M1 desktop shell", () => {
     );
     expect(
       screen.getByRole("button", { name: "请求麦克风权限" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     expectThreeLayers();
   });
 

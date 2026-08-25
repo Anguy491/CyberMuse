@@ -83,6 +83,10 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toContain("@media (forced-colors: active)");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(css).toMatch(
+      /\.audio-readout,[\s\S]*\.level-meter,[\s\S]*border-color: CanvasText/,
+    );
+    expect(css).toMatch(/\.level-meter__fill[\s\S]*background: Highlight/);
   });
 
   it("does not use prohibited depth or transient UI treatments", async () => {

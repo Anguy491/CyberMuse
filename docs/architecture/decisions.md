@@ -111,6 +111,18 @@
 - 影响：UI 实现必须遵守 `ui-design-system.md`；默认主题跟随 Windows，M1 建立双主题 tokens、基础组件和本地字体 fallback 证据，M2/M3 验证实时与灰度可辨识，M6 完成 WCAG 2.2 AA 相关证据。新增视觉依赖仍需 ADR-007 审批。
 - 相关需求/风险：FR-007/010/012/013/018/020、NFR-003/005/013/014/016/017/018/020/021、RISK-015/017。
 
+## ADR-011 — M2 实时音高参数与有界传输
+
+- 状态：Accepted
+- 日期：2026-08-25
+- 背景：M2 需要在 Windows WebView2 中把麦克风窗口从 AudioWorklet 安全送到 Worker，并锁定可复现实测的实时 F0 基线。
+- 选项：主线程/React 处理 PCM；Worklet 内执行检测；Worklet 采集并以有界 transferable buffer 传给 Pitchy Worker。
+- 决定：使用 4,096 samples 窗口、1,024 samples hop、65.41–1,046.50 Hz 范围、0.85 clarity、5 点有效 MIDI 中位数和 150 ms 无声重置；noise floor 初始为 -60 dBFS，以 0.02 学习率仅从低 clarity 窗口更新，gate 取 `max(-50 dBFS, noiseFloor + 10 dB)`。Worklet 预分配两个 `Float32Array`，最多保留一个 in-flight 与一个 pending 窗口；Worker 落后时覆盖最旧 pending 窗口并累计 drop counter。
+- 理由：合成质量矩阵覆盖 C3–C5、44.1/48 kHz、偏音、颤音、滑音、谐波、静音、噪声和非有限输入且满足 FR-011；打包 analyzer 的 1,000 个有效观察 P95/P99 软件延迟为 42.999/43.113 ms，低于 NFR-003。固定容量避免音频线程等待和无界队列。
+- 影响：参数变更必须同时更新 fixture、性能报告与后续 ADR；该 Accepted 决定只确认算法和传输基线，不替代真实麦克风、设备切换或 30 分钟发布构建 soak，M2 门禁仍受 RISK-019 阻止。
+- 被替代条目：无；细化 ADR-003，不改变其线程边界。
+- 相关需求/风险：FR-010/011、NFR-003/005/006/007、RISK-001/002/003/014/019。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

@@ -4,6 +4,7 @@ export type PageStateKind =
   | "ready"
   | "recoverable_error"
   | "fatal_error"
+  | "permission_required"
   | "permission_denied";
 
 interface PageStateProps {
@@ -19,6 +20,7 @@ const stateLabels: Record<PageStateKind, string> = {
   ready: "✓ READY",
   recoverable_error: "△ ERROR",
   fatal_error: "× FATAL",
+  permission_required: "◇ ACTION REQUIRED",
   permission_denied: "⊘ PERMISSION DENIED",
 };
 

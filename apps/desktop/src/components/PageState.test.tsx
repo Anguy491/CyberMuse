@@ -9,6 +9,7 @@ const kinds: PageStateKind[] = [
   "ready",
   "recoverable_error",
   "fatal_error",
+  "permission_required",
   "permission_denied",
 ];
 

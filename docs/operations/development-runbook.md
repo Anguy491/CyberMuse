@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Active for M1; analyzer commands activate in M4 |
+| 状态 | Active for M3; analyzer commands activate in M4 |
 | 版本 | 0.1.0 |
 | 责任域 | 开发、验证、故障排查与发布 |
 | 上游依据 | Milestone Specs、AGENTS、Test Strategy |
@@ -72,6 +72,36 @@ pnpm tauri dev
 开发服务器只用于迭代；涉及 Tauri、WebView2、音频、路径和 sidecar 的验收使用发布或近发布构建。
 
 M1 当前发布构建产物为 `target/release/cybermuse-desktop.exe`，`bundle.active=false`，不生成安装器；安装、升级和卸载证据属于 M6。系统 WebView2 的运行时诊断行为记录在 `docs/delivery/evidence/m1-foundation.md` 与 `RISK-018`，不得通过未受支持的 Chromium 参数把连接隐藏成通过。
+
+## M2：Realtime Pitch Lab
+
+自动质量与性能报告使用与应用相同的打包 analyzer 代码，不下载模型、不访问麦克风，也不代替真实设备验收：
+
+```powershell
+pnpm test:m2:quality
+pnpm test:m2:performance
+```
+
+`test:m2:quality` 必须覆盖 44.1/48 kHz、C3–C5、±cents、颤音、滑音、八度干扰、静音、粉红噪声、非有限样本与恢复。`test:m2:performance` 必须至少记录 1,000 个有效观察的软件 P50/P95/P99，并运行 60 秒 CPU/RSS 基线。生成 JSON 位于 Git 忽略的 `artifacts/m2`，门禁证据把关键指标和命令结果抄入提交内 Markdown，不提交原始 PCM。
+
+真实 Windows 11 验收使用发布构建；只有操作人员在理解用途后点击 Audio Settings 的 `REQUEST MICROPHONE`，自动化不得代替用户批准隐私权限：
+
+```powershell
+pnpm tauri build
+Start-Process -FilePath .\target\release\cybermuse-desktop.exe
+$m2Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+.\tooling\m2-windows-soak.ps1 -DurationSeconds 1800 -OutputPath ".\artifacts\m2\windows-microphone-soak-$m2Stamp.json"
+```
+
+在 soak 期间保持音高输入并记录以下匿名证据：
+
+- 权限首次请求、允许、拒绝和随后恢复；启动时确认没有自动请求。
+- 可取得的 built-in、USB 和 Bluetooth 输入类别；不记录设备 label、序列号或完整路径。缺失类别写 `not available`，不得写通过。
+- 44.1 kHz 与 48 kHz（设备支持时）、默认设备变化、手动切换、设备占用、mute/unmute、unplug/replug。
+- UI 中 observation latency P50/P95/P99、drop count、AudioContext/track/node/Worklet/Worker/listener 数量的起止值，以及应用 underrun 数量。
+- `windows-microphone-soak` 的完整 30 分钟进程树 CPU P95、working set P95/growth、handle P95；脚本拒绝覆盖已有证据。
+
+停止或切换后，旧 MediaStreamTrack、source、Worklet、Worker、MessagePort、AudioContext 与监听器必须全部归零；再启动不得复用 ended track。真实完整路径至少收集 1,000 个有效观察，NFR-003 要求 P95 ≤100 ms、P99 ≤150 ms；NFR-007 要求 60 秒总 CPU P95 ≤25%、working set P95 ≤750 MB；NFR-006 要求 30 分钟无应用处理造成的 underrun。未满足或未执行任何一项时登记风险并阻止 M2 门禁。
 
 ## M4：Analyzer 环境约定
 

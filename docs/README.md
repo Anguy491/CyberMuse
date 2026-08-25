@@ -43,10 +43,12 @@
 
 共 25 份核心 Markdown 文档：2 个入口/索引、3 个 `AGENTS.md`、5 个产品文档、7 个架构文档、3 个质量文档、4 个交付文档和 1 个运行手册。上表将根 README 计入入口，将本文件计入索引。
 
-实现阶段的可重跑证据和机器可读清单不是新的事实源，也不计入上述 25 份核心文档：
+实现阶段的可重跑证据、交接任务说明和机器可读清单不是新的事实源，也不计入上述 25 份核心文档：
 
 - [M1 Desktop Foundation 证据](delivery/evidence/m1-foundation.md)
-- [M1 依赖审批清单](quality/dependencies.json)
+- [M2 Realtime Pitch Lab 证据](delivery/evidence/m2-realtime-pitch-lab.md)
+- [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
+- [M1–M2 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)
 
 ## 事实源规则

@@ -5,6 +5,7 @@ export default defineConfig({
     environment: "jsdom",
     include: [
       "packages/domain/src/**/*.test.ts",
+      "packages/audio/src/**/*.test.ts",
       "apps/desktop/src/**/*.test.{ts,tsx}",
     ],
     exclude: ["**/*.contract.test.ts"],

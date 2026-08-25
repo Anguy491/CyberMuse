@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "milestone": "M1",
+  "milestone": "M2",
   "reviewDate": "2026-08-25",
   "reviewer": "Codex repository dependency review",
   "policy": "dependency-license-policy.md",
@@ -12,6 +12,25 @@
     "decision": "approved"
   },
   "directDependencies": [
+    {
+      "ecosystem": "npm",
+      "name": "pitchy",
+      "version": "4.1.0",
+      "scope": "production",
+      "license": "MIT",
+      "purpose": "McLeod pitch detection inside the realtime Web Worker",
+      "owningModule": "packages/audio",
+      "sourceRepository": "https://github.com/ianprime0509/pitchy",
+      "artifactUrl": "https://registry.npmjs.org/pitchy/-/pitchy-4.1.0.tgz",
+      "distributionForm": "Bundled ESM JavaScript in the local Web Worker",
+      "alternativesConsidered": "A new independent McLeod implementation would avoid a dependency but add DSP correctness and maintenance risk; pitchfinder was rejected because its current package metadata declares GPL-3.0. Pitchy matches ADR-003 and is isolated behind the CyberMuse analyzer adapter.",
+      "copyright": "Copyright (c) Ian Johnson; retain the upstream MIT license text.",
+      "requiredNotices": "Include pitchy and fft.js MIT copyright/license material in M6 THIRD_PARTY_NOTICES.",
+      "securityAndMaintenance": "Exact ESM release and registry integrity are locked. Version 4.1.0 was published 2024-01-04 and remains latest as reviewed 2026-08-25; the low release cadence is accepted for this small isolated DSP dependency, with deterministic fixtures guarding replacement.",
+      "transitiveReport": "One production dependency: fft.js@4.0.4, MIT, registry integrity sha512-f9c00hphOgeQTlDyavwTtu6RiK8AIFjD6+jvXkNkpeQ7rirK3uFWVpalkoS4LAwbdX7mfZ8aoBfFVQX1Re/8aw==.",
+      "registryIntegrity": "sha512-E8nQ8svBroGSMcc3qu2KvLHIuRYAIfrSkqDKWhjgj3WizseqWQXjQ+Q5t4g1CU73R5Euk+DAinyNFDK+KZw7zA==",
+      "decision": "approved"
+    },
     {
       "ecosystem": "npm",
       "name": "react",

@@ -1,0 +1,13 @@
+{
+  "name": "@cybermuse/audio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cybermuse/domain": "workspace:*",
+    "pitchy": "4.1.0"
+  }
+}

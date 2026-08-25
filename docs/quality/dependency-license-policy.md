@@ -74,7 +74,9 @@ M1 机器可读清单位于 [`dependencies.json`](dependencies.json)；本文保
 
 ## 候选组件门禁
 
-架构提到的 Tauri、React、Vite、Rust crates、Pitchy、Python audio 工具、SwiftF0 和分离模型均为候选或技术方向，只有在对应里程碑完成当前版本与传递依赖审查后才算批准。特别是人声分离模型必须分别审查 wrapper、推断 engine 和具体权重。
+架构提到的 Tauri、React、Vite、Rust crates、Python audio 工具、SwiftF0 和分离模型均为候选或技术方向，只有在对应里程碑完成当前版本与传递依赖审查后才算批准。特别是人声分离模型必须分别审查 wrapper、推断 engine 和具体权重。
+
+M2 已批准 `pitchy@4.1.0` 用于本地 Web Worker 的 McLeod 音高检测；直接许可证为 MIT，唯一生产传递依赖 `fft.js@4.0.4` 也为 MIT。两者通过 `pnpm-lock.yaml` 固定版本与 registry integrity，Pitchy 隔离在 `packages/audio` adapter 后；独立实现因 DSP 正确性/维护风险未选，声明 GPL-3.0 的 `pitchfinder` 未采用。精确 artifact、copyright、维护状态、替代方案和 notice 要求记录在 [`dependencies.json`](dependencies.json)，M6 汇总 `THIRD_PARTY_NOTICES`。
 
 M1 首批 UI 字体候选为：
 
