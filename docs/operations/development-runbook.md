@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Active for M3; analyzer commands activate in M4 |
+| 状态 | Active for M4 |
 | 版本 | 0.1.0 |
 | 责任域 | 开发、验证、故障排查与发布 |
 | 上游依据 | Milestone Specs、AGENTS、Test Strategy |
@@ -133,23 +133,44 @@ M3 session 固定只存在当前 Practice 页面内存，容量为 180,000 个�
 ## M4：Analyzer 环境约定
 
 ```powershell
-Set-Location analyzer
-uv sync --frozen --all-groups
-uv run ruff format --check .
-uv run ruff check .
-uv run mypy .
-uv run pytest
-uv run pytest -m contract
+Set-Location D:\projects\cyberMuse
+pnpm analyzer:check
+pnpm build:analyzer
+pnpm test:m4:contracts
+pnpm test:m4:quality
+pnpm test:m4:performance
+pnpm test:m4:network
+pnpm test:m4:supply
 ```
 
-sidecar 契约检查使用构建后的 binary，不把“Python 模块可运行”当作打包成功：
+`analyzer:check` 在两个冻结 `uv` 环境运行 Ruff format/check、mypy 和 pytest；`build:analyzer` 产生 Python analyzer、隔离的 Spleeter engine、LGPL shared FFmpeg 与 build-time runtime manifest。契约和 network 检查使用构建后的 binary，不把“Python 模块可运行”当作打包成功。质量套件使用程序生成音频，性能套件在 CPU-only 路径完成 30 秒 warm-up、5 次冷启动和 3/5/10 分钟各 3 次实测。
+
+打包 analyzer 直接探针：
 
 ```powershell
-cybermuse-analyzer.exe --version --json
-cybermuse-analyzer.exe analyze --request <fixture-request.json>
+.\artifacts\m4\tauri-resources\analyzer\cybermuse-analyzer.exe --version --json
+.\artifacts\m4\tauri-resources\analyzer\cybermuse-analyzer.exe analyze --request <approved-request.json>
 ```
 
-测试和安装命令禁止访问真实模型 host；模型下载集成使用本地测试服务器和小型假资产。
+`test:m4:network` 的下载集成只使用本地测试服务器和小型假资产；生产下载只允许机器清单中的两个 HTTPS host/path、精确大小和 SHA-256，并禁用代理、限制重定向和响应大小。Analyzer 本身不含下载代码。
+
+### 干净 Windows 11 x64 smoke
+
+开发机先组装可转移目录；该目录包含发布候选 sidecar、LGPL FFmpeg、两项已授权模型、6 秒原创音频、逐文件 SHA-256 manifest 和独立 smoke 脚本：
+
+```powershell
+pnpm tauri build
+pnpm prepare:m4:clean-windows
+```
+
+将 `artifacts\m4\clean-windows-package` 整体转移到一台未安装 Python、Rust/Cargo 或 uv 的干净 Windows 11 x64 VM/主机，转移后禁用 VM 网络；保持 Microsoft Defender 启用。在该机使用系统 Windows PowerShell 运行：
+
+```powershell
+Set-Location <clean-windows-package>
+.\m4-clean-windows-smoke.ps1 -PackageRoot . -EvidencePath .\clean-windows-evidence.json
+```
+
+脚本先验证 package manifest 和主机条件，再由 Defender 扫描目录，清空子进程环境，运行真实 6 秒分析，每 100 ms 观察 analyzer 进程树 TCP/UDP，并复核 manifest 中三个产物的 SHA-256。只有 analyzer exit `0`、末条 protocol 为 `completed`、stderr 为空、零网络端点、零 Defender threat 且三个开发工具均不在 PATH 时才可把匿名 evidence JSON 回填至 `artifacts/m4`。按 ADR-015，该证据不阻止本机个人使用范围的 M4，但在首次向朋友提供内测包之前必须完成，且最迟是 M6 硬门禁；`-SkipDefender` 仅供脚本诊断，不能形成门禁证据。
 
 ## 模型安装与缓存
 

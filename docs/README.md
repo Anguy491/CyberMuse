@@ -19,7 +19,7 @@
 | 入口 | [根 README](../README.md) | Baseline | 项目导航 |
 | 治理 | [根 AGENTS](../AGENTS.md) | Active | 全仓库规则 |
 | 治理 | [Desktop AGENTS](../apps/desktop/AGENTS.md) | Active | 桌面与实时音频 |
-| 治理 | [Analyzer AGENTS](../analyzer/AGENTS.md) | Prepared | 离线分析器 |
+| 治理 | [Analyzer AGENTS](../analyzer/AGENTS.md) | Active | 离线分析器 |
 | 产品 | [Product Brief](product/product-brief.md) | Baseline | 产品边界 |
 | 产品 | [Functional Requirements](product/functional-requirements.md) | Baseline | 功能行为 |
 | 产品 | [Non-functional Requirements](product/non-functional-requirements.md) | Baseline | 质量属性 |
@@ -48,9 +48,11 @@
 - [M1 Desktop Foundation 证据](delivery/evidence/m1-foundation.md)
 - [M2 Realtime Pitch Lab 证据](delivery/evidence/m2-realtime-pitch-lab.md)
 - [M3 Fixture-based Practice 证据](delivery/evidence/m3-fixture-practice.md)
+- [M4 Offline Analyzer 证据](delivery/evidence/m4-offline-analyzer.md)
 - [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
-- [M1–M3 依赖审批清单](quality/dependencies.json)
+- [M1–M4 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)
+- [M4 Analyzer JSON Schemas v1](../schemas/analyzer-request.schema.json)
 
 ## 事实源规则
 

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/tauri-analyzer.schema.json",
+  "title": "CyberMuse M4 Tauri command and event payload",
+  "oneOf": [
+    { "$ref": "#/$defs/startAnalysis" },
+    { "$ref": "#/$defs/jobRequest" },
+    { "$ref": "#/$defs/installModel" },
+    { "$ref": "#/$defs/analysisProgress" },
+    { "$ref": "#/$defs/modelProgress" }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "analysisId": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "version": {
+      "type": "object",
+      "required": ["apiVersion"],
+      "properties": { "apiVersion": { "const": 1 } }
+    },
+    "startAnalysis": {
+      "allOf": [
+        { "$ref": "#/$defs/version" },
+        {
+          "type": "object",
+          "required": ["songId"],
+          "properties": { "songId": { "$ref": "#/$defs/sha256" } }
+        }
+      ]
+    },
+    "jobRequest": {
+      "allOf": [
+        { "$ref": "#/$defs/version" },
+        {
+          "type": "object",
+          "required": ["jobId"],
+          "properties": { "jobId": { "$ref": "#/$defs/uuid" } }
+        }
+      ]
+    },
+    "installModel": {
+      "allOf": [
+        { "$ref": "#/$defs/version" },
+        {
+          "type": "object",
+          "required": ["modelId", "version", "consentToken"],
+          "properties": {
+            "modelId": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "consentToken": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    },
+    "analysisProgress": {
+      "allOf": [
+        { "$ref": "#/$defs/version" },
+        {
+          "type": "object",
+          "required": ["jobId", "songId", "stage", "stageProgress", "progress"],
+          "properties": {
+            "jobId": { "$ref": "#/$defs/uuid" },
+            "songId": { "$ref": "#/$defs/sha256" },
+            "stage": {
+              "enum": [
+                "probe",
+                "normalize",
+                "separate",
+                "pitch",
+                "postprocess",
+                "write"
+              ]
+            },
+            "stageProgress": { "type": "number", "minimum": 0, "maximum": 1 },
+            "progress": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      ]
+    },
+    "modelProgress": {
+      "allOf": [
+        { "$ref": "#/$defs/version" },
+        {
+          "type": "object",
+          "required": [
+            "jobId",
+            "modelId",
+            "downloadedBytes",
+            "totalBytes",
+            "status"
+          ],
+          "properties": {
+            "jobId": { "$ref": "#/$defs/uuid" },
+            "modelId": { "type": "string", "minLength": 1 },
+            "downloadedBytes": { "type": "integer", "minimum": 0 },
+            "totalBytes": { "type": "integer", "minimum": 1 },
+            "status": { "enum": ["downloading", "verifying", "installing"] }
+          }
+        }
+      ]
+    }
+  }
+}

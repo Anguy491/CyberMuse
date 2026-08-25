@@ -9,13 +9,16 @@
     "pnpm": "11.16.0"
   },
   "scripts": {
+    "analyzer:check": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-analyzer-check.ps1",
     "build": "pnpm --filter @cybermuse/desktop build",
+    "build:analyzer": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/build-m4-analyzer.ps1",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:contracts && pnpm license:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "license:check": "node tooling/check-licenses.mjs",
     "lint": "eslint . --max-warnings 0",
-    "tauri": "pnpm --filter @cybermuse/desktop tauri",
+    "prepare:m4:clean-windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/prepare-m4-clean-windows.ps1",
+    "tauri": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/tauri.ps1",
     "test": "vitest run --config tooling/vitest.unit.config.ts",
     "test:contracts": "vitest run --config tooling/vitest.contract.config.ts",
     "test:m2:performance": "vite build --config tooling/vite.m2-benchmark.config.ts && node artifacts/m2/benchmark-bundle/m2-realtime-benchmark.mjs",
@@ -23,6 +26,11 @@
     "test:m3:a11y": "vitest run apps/desktop/src/pages/PracticePage.test.tsx apps/desktop/src/signal-ui.test.ts --config tooling/vitest.unit.config.ts",
     "test:m3:performance": "vite build --config tooling/vite.m3-performance.config.ts && node artifacts/m3/performance-bundle/m3-performance-report.mjs",
     "test:m3:quality": "vite build --config tooling/vite.m3-quality.config.ts && node artifacts/m3/quality-bundle/m3-quality-report.mjs",
+    "test:m4:contracts": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-contracts.ps1",
+    "test:m4:network": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-network.ps1",
+    "test:m4:performance": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-analyzer-performance.ps1",
+    "test:m4:quality": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-quality.ps1",
+    "test:m4:supply": "node tooling/m4-supply-chain.mjs",
     "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p packages/scoring/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {

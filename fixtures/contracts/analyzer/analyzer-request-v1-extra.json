@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+  "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "requestedAnalysisId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "inputPath": "D:\\歌曲\\original.flac",
+  "stagingPath": "D:\\tmp\\jobs\\4ab0c16f-1234-4abc-8def-1234567890ab",
+  "expectedDurationMs": 180000,
+  "pipelineVersion": "m4-production-v1",
+  "roots": {
+    "songRoot": "D:\\歌曲",
+    "stagingRoot": "D:\\tmp\\jobs",
+    "modelRoot": "D:\\models",
+    "toolRoot": "D:\\resources",
+    "futureRootPolicy": "local-only"
+  },
+  "models": [
+    {
+      "modelId": "swiftf0",
+      "version": "0.1.2",
+      "engine": "onnxruntime-cpu",
+      "path": "D:\\models\\swiftf0.whl",
+      "sha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+      "licenseExpression": "MIT",
+      "futureField": true
+    }
+  ],
+  "tools": [
+    {
+      "toolId": "ffmpeg",
+      "version": "n9.0.1",
+      "path": "D:\\resources\\ffmpeg.exe",
+      "sha256": "f4326d7a480fb9e81a34440e775a70ebcf263a0c5fbc45678ffc594a9a7eccf3"
+    }
+  ],
+  "config": {
+    "sampleRateHz": 48000,
+    "pitchMinHz": 65,
+    "pitchMaxHz": 1046.5,
+    "confidenceThreshold": 0.45,
+    "maxInterpolatedGapMs": 50,
+    "futureOption": false
+  },
+  "futureDiagnosticHint": "ignored"
+}

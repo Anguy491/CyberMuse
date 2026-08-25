@@ -1,0 +1,55 @@
+[build-system]
+requires = ["uv_build==0.12.5"]
+build-backend = "uv_build"
+
+[project]
+name = "cybermuse-analyzer"
+version = "0.1.0"
+description = "Offline, local-first CyberMuse song analyzer sidecar"
+requires-python = "==3.12.*"
+license = "LicenseRef-Proprietary"
+dependencies = [
+  "numpy==2.5.2",
+  "onnxruntime==1.29.0",
+]
+
+[project.scripts]
+cybermuse-analyzer = "cybermuse_analyzer.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy==1.17.1",
+  "pyinstaller==6.15.0",
+  "pytest==8.4.2",
+  "ruff==0.12.11",
+]
+
+[tool.uv]
+required-version = "==0.12.5"
+
+[tool.uv.build-backend]
+module-name = "cybermuse_analyzer"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+mypy_path = "src"
+files = ["src", "tests", "scripts"]
+exclude = ["^engines[\\\\/]"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "contract: cross-language and CLI protocol contract tests",
+  "quality: deterministic algorithm quality tests",
+  "network: tests that assert the offline/network boundary",
+]

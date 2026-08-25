@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/reference-track.schema.json",
+  "title": "CyberMuse ReferenceTrack",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "durationMs",
+    "hopMs",
+    "minHz",
+    "maxHz",
+    "frames"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "durationMs": { "type": "integer", "minimum": 1, "maximum": 1200000 },
+    "hopMs": { "type": "integer", "minimum": 1, "maximum": 1000 },
+    "minHz": { "type": "number", "exclusiveMinimum": 0 },
+    "maxHz": { "type": "number", "exclusiveMinimum": 0 },
+    "frames": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pitchFrame" }
+    }
+  },
+  "$defs": {
+    "pitchFrame": {
+      "type": "object",
+      "required": ["timeMs", "hz", "midi", "confidence", "voiced"],
+      "properties": {
+        "timeMs": { "type": "integer", "minimum": 0 },
+        "hz": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "midi": { "type": ["number", "null"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "voiced": { "type": "boolean" },
+        "interpolated": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "voiced": { "const": false } },
+            "required": ["voiced"]
+          },
+          "then": {
+            "properties": {
+              "hz": { "type": "null" },
+              "midi": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "voiced": { "const": true } },
+            "required": ["voiced"]
+          },
+          "then": {
+            "properties": {
+              "hz": { "type": "number", "exclusiveMinimum": 0 },
+              "midi": { "type": "number" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

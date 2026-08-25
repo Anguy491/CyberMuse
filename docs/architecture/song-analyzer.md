@@ -37,11 +37,11 @@ manifest 最后写入。Rust 验证 JSON、路径、哈希、时长和必需产�
 
 ### 3. `separate`
 
-通过已批准、商业友好且权重许可明确的分离模型生成 vocals/instrumental。首批候选为 `python-audio-separator` 推理封装和 Meta Demucs v4；二者不是互斥实现，前者可以加载后者。工具、推断 engine 和具体权重在 M4 spike 中分别评测；采用前必须通过依赖策略，不能因 Python 包或代码仓库是 MIT 就推定具体权重可分发。
+使用 `Spleeter 2.4.2`、`2stems 1.4.0` MIT 权重和 `TensorFlow Intel 2.12.1` CPU engine 生成 vocals/instrumental。为限制峰值内存，歌曲按 30 秒核心区和两侧最多 12 秒上下文切块，每块使用独立 engine，重叠处只保留核心样本；输出统一为 48 kHz、stereo、PCM24。Analyzer 只把已批准的本地权重路径交给独立 `cybermuse-spleeter-engine.exe`，engine 不具备下载入口。
 
 ### 4. `pitch`
 
-在 vocals 上运行连续单音 F0 模型。首选候选是 SwiftF0；M4 必须以许可证、CPU 性能、Windows 打包和黄金夹具准确性决定是否接受。输出原始 `hz`、confidence、voicing 和模型 timestamps。
+在 vocals 上使用 `SwiftF0 0.1.2` MIT ONNX 权重和 `ONNX Runtime 1.29.0` CPU engine 运行连续单音 F0。输出原始 `hz`、confidence、voicing 和模型 timestamp；默认 confidence 阈值为 0.45，范围为 65–1,046.5 Hz，hop 为 16 ms。
 
 ### 5. `postprocess`
 
@@ -55,28 +55,26 @@ manifest 最后写入。Rust 验证 JSON、路径、哈希、时长和必需产�
 
 先写临时文件并 flush，再生成哈希与 manifest；将 `analysis.json.tmp` 原子替换为 `analysis.json`。stdout 发 `completed` 后不得继续修改产物。
 
-## M4 分离候选登记
+## M4 模型与工具决定
 
-以下记录只允许用于 M4 spike 设计，不代表生产批准，不允许在 M0 下载包或权重。初步事实核对日期为 2026-08-25；M4 必须重新固定版本、artifact URL 和证据。
+| 层级 | 选定项 | artifact | 许可 | 状态与理由 |
+|---|---|---|---|---|
+| 分离 wrapper/engine | `spleeter 2.4.2` + `tensorflow-intel 2.12.1` | Python locks 固定 | MIT / Apache-2.0 | `approved`；真实质量、CPU 分块、Windows 打包和断网路径通过 |
+| 分离权重 | `spleeter-2stems@1.4.0` | 73,109,797 bytes；SHA-256 `f3a90b…bd692` | MIT | `approved`；显式用户同意后由 Rust 下载 |
+| F0 engine | `onnxruntime 1.29.0` | CPython 3.12 Windows wheel 固定 | MIT | `approved`；CPU-only |
+| F0 权重 | `swiftf0@0.1.2` wheel | 379,040 bytes；SHA-256 `212715…e717` | MIT | `approved`；wheel 内 ONNX 模型独立登记 |
+| 解码 | BtbN FFmpeg `n9.0.1-6-g9d4ca21220` shared | archive SHA-256 `f551da…91267` | LGPL-2.1-or-later | `approved-special-review`；无 GPL/nonfree flags，独立进程调用 |
+| 拒绝候选 | Meta Demucs v4 / `htdemucs` 官方权重 | 未进入产品或测试路径 | scientific/research-only | `rejected`；代码仓库 MIT 不覆盖受限权重 |
+| 拒绝候选 | `python-audio-separator` runtime wrapper | 未进入产品或测试路径 | wrapper MIT | `rejected`；动态模型发现/下载扩大网络与复现边界 |
 
-| ID | 候选 | 层级与用途 | 初步许可依据 | 主要价值 | M4 阻塞项 | 状态 |
-|---|---|---|---|---|---|---|
-| `CAND-SEP-001` | [`python-audio-separator`](https://github.com/nomadkaraoke/python-audio-separator) | Python 推理 wrapper；统一调用 MDX、MDXC、VR、Demucs 等架构 | wrapper 仓库声明 MIT；具体 engine、传递依赖和权重另审 | Python API、CPU 路径、多模型适配、分块与常见格式处理较完整 | 默认会下载缺失模型/远端模型元数据；内建模型识别不能替代完整 SHA-256；需验证禁网、取消、进度、PyInstaller 和输出幅度/采样率 | `spike-only` |
-| `CAND-SEP-002` | [Meta Demucs v4](https://github.com/facebookresearch/demucs)（首测 `htdemucs`） | 具体分离 engine/架构与权重候选；生成 vocals，并合成其余 stems 为 instrumental | 仓库声明 MIT；选定权重的来源、许可覆盖范围、SHA-256、大小和 notice 仍须独立证明 | 官方模型、公开质量基线、CPU 模式、float32 输出和 Python 调用路径 | Meta 仓库已于 2025-01-01 归档；CPU/RAM/包体积、Windows 打包、四 stem 全推理成本及权重 lineage 待验证 | `spike-only` |
+精确 URL、完整 SHA-256、传递许可证、替代方案和 notice 义务位于 `docs/quality/dependencies.json`；决定依据见 ADR-013。
 
-候选关系与公平比较：
+## 质量与资源预算
 
-- `python-audio-separator` 是 wrapper，不是一个可单独比较质量的分离模型；报告必须同时写明它实际加载的 engine、权重和参数。
-- 首轮使用同一份来源与哈希已记录、仅限隔离 spike 的 `htdemucs` artifact，对比“直接 Demucs Python API”和“`python-audio-separator` + Demucs”，隔离 wrapper 对离线性、输出、性能、取消和打包的影响；只有完成全部门禁后才能转为 approved。
-- 只有某个非 Demucs vocals/instrumental 权重先完成独立许可审查时，才增加第三条 `python-audio-separator` 模型路线；不得使用库的动态默认模型作为可复现依据。
-
-CyberMuse adapter 必须覆盖 wrapper/engine 默认行为：
-
-- 模型只由 Rust 按 FR-019 下载、完整 SHA-256 校验并原子安装；Analyzer 缺少本地批准 artifact 时返回 `ANALYZER_MODEL_MISSING`，不得自动联网。
-- 禁止运行时获取远端模型列表、配置或元数据；M4 要通过断网和受控网络捕获证明没有隐式请求。
-- 输入与输出格式、采样率、幅度处理、stem 合成规则和随机性参数必须固定并进入 cache fingerprint；不得让默认归一化静默改变契约。
-- M4 对 3、5、10 分钟输入记录 wall time、CPU 实时倍数、峰值 RAM、临时空间、sidecar 包体积和冷启动；质量同时报告 stem 指标与下游 voiced recall、gross pitch error、median cents error。
-- 归档或低维护候选必须记录未修复 CVE/兼容问题、可维护 fork 策略和替代路线；没有可承担的维护路径时不得 approved。
+- F0 门槛：voiced recall ≥ 0.90、gross pitch error ≤ 5%、gross octave error ≤ 1%、median absolute error ≤ 25 cents、静音/粉红噪声 false voiced ≤ 10%、timestamp P95 ≤ 8 ms。
+- 分离门槛：vocal 与 instrumental SI-SDR improvement 均不低于 0 dB，重建相对误差不高于 -30 dB。
+- CPU 性能门槛：3/5/10 分钟各三次，P95 realtime factor ≤ 0.35、峰值进程树 working set ≤ 1.75 GiB、临时空间峰值 ≤ 1.10 GiB；冷启动 P95 ≤ 3 秒，两个 sidecar 合计 ≤ 1.25 GiB，正常运行 stderr 为 0。
+- 门槛已经固化在质量/性能脚本，不能通过删除断言、降阈值或减少默认三次测量绕过；实测值记录在 M4 evidence 与 `artifacts/m4` 报告。
 
 ## 进度模型
 

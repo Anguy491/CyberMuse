@@ -1,0 +1,23 @@
+{
+  "failed": {
+    "schemaVersion": 1,
+    "type": "failed",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 1,
+    "error": {
+      "schemaVersion": 1,
+      "code": "ANALYZER_MODEL_MISSING",
+      "messageKey": "analyzer.error.modelMissing",
+      "stage": null,
+      "retryable": true,
+      "safeDetails": { "modelId": "swiftf0" },
+      "diagnosticId": "fixture"
+    }
+  },
+  "cancelled": {
+    "schemaVersion": 1,
+    "type": "cancelled",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 1
+  }
+}

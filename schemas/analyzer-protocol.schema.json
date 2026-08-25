@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/analyzer-protocol.schema.json",
+  "title": "CyberMuse Analyzer stdout message",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/progress" },
+    { "$ref": "#/$defs/warning" },
+    { "$ref": "#/$defs/completed" },
+    { "$ref": "#/$defs/failed" },
+    { "$ref": "#/$defs/cancelled" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["schemaVersion", "type", "jobId"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "type": { "type": "string" },
+        "jobId": { "type": "string", "format": "uuid" }
+      }
+    },
+    "sequenced": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["sequence"],
+          "properties": { "sequence": { "type": "integer", "minimum": 1 } }
+        }
+      ]
+    },
+    "hello": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["protocolMajor", "analyzerVersion"],
+          "properties": {
+            "type": { "const": "hello" },
+            "protocolMajor": { "const": 1 },
+            "analyzerVersion": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "progress": {
+      "allOf": [
+        { "$ref": "#/$defs/sequenced" },
+        {
+          "type": "object",
+          "required": ["stage", "stageProgress", "progress"],
+          "properties": {
+            "type": { "const": "progress" },
+            "stage": {
+              "enum": [
+                "probe",
+                "normalize",
+                "separate",
+                "pitch",
+                "postprocess",
+                "write"
+              ]
+            },
+            "stageProgress": { "type": "number", "minimum": 0, "maximum": 1 },
+            "progress": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      ]
+    },
+    "warning": {
+      "allOf": [
+        { "$ref": "#/$defs/sequenced" },
+        {
+          "type": "object",
+          "required": ["warning"],
+          "properties": {
+            "type": { "const": "warning" },
+            "warning": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "completed": {
+      "allOf": [
+        { "$ref": "#/$defs/sequenced" },
+        {
+          "type": "object",
+          "required": ["manifestRelativePath"],
+          "properties": {
+            "type": { "const": "completed" },
+            "manifestRelativePath": { "const": "analysis.json" }
+          }
+        }
+      ]
+    },
+    "failed": {
+      "allOf": [
+        { "$ref": "#/$defs/sequenced" },
+        {
+          "type": "object",
+          "required": ["error"],
+          "properties": {
+            "type": { "const": "failed" },
+            "error": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "cancelled": {
+      "allOf": [
+        { "$ref": "#/$defs/sequenced" },
+        { "type": "object", "properties": { "type": { "const": "cancelled" } } }
+      ]
+    }
+  }
+}

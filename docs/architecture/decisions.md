@@ -135,6 +135,42 @@
 - 被替代条目：无；细化 ADR-004/005，不改变 M2 Worklet/Worker 实时边界。
 - 相关需求/风险：FR-012/013/014/016、NFR-004/005/017、RISK-008/015/017。
 
+## ADR-013 — M4 分离、F0 与本地模型供应链
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：M4 必须在 Windows 11 x64 CPU-only、离线分析、商业友好许可证和可打包性之间选择完整的 wrapper、engine、权重与解码组合；代码仓库许可证不能替代具体权重审查。
+- 选项：Meta Demucs v4/`htdemucs`；`python-audio-separator` 动态 wrapper；Spleeter 2stems；SwiftF0、CREPE 或启发式 F0；系统解码或 FFmpeg。
+- 决定：分离使用 `spleeter 2.4.2` + `tensorflow-intel 2.12.1` + `spleeter-2stems@1.4.0` MIT 权重；F0 使用 `swiftf0@0.1.2` MIT ONNX 权重 + `onnxruntime 1.29.0`；解码使用 BtbN `n9.0.1-6-g9d4ca21220` LGPL shared FFmpeg。模型只由 Rust 在 exact SHA-256 consent 后经 HTTPS allowlist 下载、大小/哈希验证并原子安装；Analyzer 永不联网。Meta 官方权重因 scientific/research-only 条款拒绝，`python-audio-separator` 因动态模型发现/下载边界拒绝。
+- 理由：所选两项权重与代码许可均可独立证明为 MIT；真实合成黄金矩阵中 F0 voiced recall 1.0、gross/octave error 0、median 4.111 cents，分离 vocal/instrumental SI-SDR improvement 12.860/15.406 dB；完整打包路径可在 CPU 完成且网络捕获为零端点。
+- 影响：Spleeter/TensorFlow 保持在独立 Python 3.11 onedir sidecar，主 analyzer 使用 Python 3.12；30 秒核心 + 12 秒上下文分块把 10 分钟峰值 working set 限制在 1.43 GiB 量级，但运行资源约 1.18 GB。模型删除后不得静默重下；升级任何 package、权重、FFmpeg 或模型 SHA 都要重跑许可证、质量、性能、断网和干净机验证。
+- 被替代条目：无；落实 ADR-002/005/006/007。
+- 相关需求/风险：FR-004/005/006/019、NFR-008/009/014/016/019/021、RISK-003/004/005/006/007/011/012/016。
+
+## ADR-014 — M4 analyzer 质量、性能与进程预算
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：只证明模型“能运行”会掩盖八度错误、分离残留、长歌 RAM/磁盘膨胀和无法取消；门禁需要固定且不可由实现者临时放宽的阈值。
+- 选项：只记录平均值；按单一短 fixture 验收；固定多维质量阈值并对 3/5/10 分钟各重复三次。
+- 决定：F0 门槛为 voiced recall ≥0.90、gross pitch error ≤5%、octave error ≤1%、median absolute error ≤25 cents、静音/粉红噪声 false voiced ≤10%、timestamp P95 ≤8 ms；分离双 stem SI-SDR improvement 均 ≥0 dB、重建误差 ≤-30 dB。性能门槛为 cold-start P95 ≤3 秒、3/5/10 分钟 realtime factor P95 ≤0.35、峰值进程树 working set ≤1.75 GiB、临时空间 ≤1.10 GiB、sidecar 合计 ≤1.25 GiB、正常 stderr 0；默认每时长三次。
+- 理由：最终 i7-12700/32 GiB Windows 11 CPU-only 隔离采集的 3/5/10 分钟 P95 RTF 为 0.264/0.268/0.262，峰值 working set 为 1.41/1.53/1.51 GB，冷启动 P95 为 292 ms；预算留有明确余量，同时会阻止未分块实现曾出现的 10 分钟 11.66 GB 峰值回归。取消 command 同步在 500 ms 内进入 `cancelling`，sidecar 最多 5 秒后被强制终止。
+- 影响：门槛写入可执行测试脚本；改变模型、分块、阈值、进度权重或包结构必须新增替代 ADR 并保留三次分布、峰值和失败原因。当前本机结果不单独证明 NFR-021 的跨机器可复现性；clean-host 验证的里程碑安排由 ADR-015 约束。
+- 被替代条目：无；细化 ADR-002/005。
+- 相关需求/风险：FR-004/005/006、NFR-008/009/020/021、RISK-003/004/006/007/020。
+
+## ADR-015 — 本机个人使用门禁与跨机器分发门禁分离
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：M4 的实现、真实模型、离线、质量、性能、供应链和本机 release 已有完整证据；当前产品目标是先由用户在开发机个人使用，尚不需要证明安装包可在任意干净 Windows 主机运行。当前 Windows 11 Home 不提供 Windows Sandbox，把 clean-host 作为 M4 硬门禁会阻止本机使用，却不增加当前使用场景的正确性。
+- 选项：继续阻止 M4 直到取得 VM；永久删除 clean-host 要求；批准本机范围并把 clean-host 保留为首次外部内测/M6 前的硬门禁。
+- 决定：采用第三项。M4 以“本机个人使用”范围通过人工门禁，M5 可开始；`TC-BUILD-001`、独立 Defender 扫描和无开发工具环境 smoke 延期到首次向朋友交付内测包之前，且不得晚于 M6 退出。延期期间不得声称当前产物具备跨机器可移植性，不得向外部提供安装包。
+- 理由：本机门禁回答“当前用户能否安全、离线地运行和练习”，clean-host 门禁回答“分发包是否不依赖开发机且可在其他机器运行”；两者风险和触发时点不同。保留已生成的 hash manifest 与 smoke 脚本，使分发前验证仍可复现。
+- 影响：RISK-020 由 M4 blocker 改为用户接受并延期的分发风险；NFR-021 尚未完全满足，只是不再阻止本机范围 M4。任何朋友内测、公开安装包、签名或 release candidate 都必须先关闭该风险。
+- 被替代条目：细化 M4 原 clean-host 解释，不删除 NFR-021 或 M6 的 TC-BUILD-001。
+- 相关需求/风险：NFR-020/021、TC-BUILD-001、RISK-007/020。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

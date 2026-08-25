@@ -66,6 +66,7 @@
 - 输出：完整 pipeline、NDJSON、取消、manifest/cache、CPU benchmark、模型/FFmpeg 审查、Accepted 模型 ADR 或明确替代方案。
 - 必跑验证：TC-AN-001..004、TC-ANPERF-001、TC-MOD-001、TC-NET-001、TC-SUP-001、跨语言 fixture。
 - 退出：代码与每个权重许可批准；CPU-only 可完成；算法阈值通过；sidecar 可打包；用户确认。
+- 门禁记录（2026-08-26）：真实 Spleeter/SwiftF0 pipeline、取消/缓存/原子提交、跨语言契约、模型同意与供应链、CPU-only 3/5/10 分钟、离线网络捕获、本机 sidecar/Tauri release 均通过。用户明确确认采用“本机个人使用”范围并批准 M4；独立干净 Windows 11 的 `TC-BUILD-001`/Defender 证据按 ADR-015 与 RISK-020 延期到首次向朋友提供内测包之前，且最迟在 M6 退出前完成。M4 gate 已批准，M5 可开始；该批准不授权对外分发或把当前产物称为跨机器 release candidate。
 
 ## M5 — Import-to-Practice
 

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "analysisId": "0123456789abcdef0123456789abcdef",
+  "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "inputSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "createdAt": "2026-08-25T01:02:03Z",
+  "pipelineVersion": "0.1.0",
+  "configFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "durationMs": 60,
+  "models": [
+    {
+      "modelId": "spleeter-2stems",
+      "version": "1.4.0",
+      "engine": "tensorflow-cpu",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "licenseExpression": "MIT"
+    },
+    {
+      "modelId": "swiftf0",
+      "version": "0.1.2",
+      "engine": "onnxruntime-cpu",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "licenseExpression": "MIT"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "instrumental",
+      "relativePath": "instrumental.wav",
+      "mediaType": "audio/wav",
+      "sizeBytes": 1024,
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "durationMs": 60,
+      "sampleRateHz": 48000,
+      "channels": 2
+    },
+    {
+      "kind": "vocals",
+      "relativePath": "vocals.wav",
+      "mediaType": "audio/wav",
+      "sizeBytes": 1024,
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "durationMs": 60,
+      "sampleRateHz": 48000,
+      "channels": 2
+    },
+    {
+      "kind": "reference_track",
+      "relativePath": "reference-track.json",
+      "mediaType": "application/json",
+      "sizeBytes": 512,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "durationMs": 60,
+      "sampleRateHz": null,
+      "channels": null
+    }
+  ],
+  "referenceTrackRelativePath": "reference-track.json",
+  "warnings": []
+}

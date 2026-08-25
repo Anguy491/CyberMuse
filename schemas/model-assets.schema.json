@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/model-assets.schema.json",
+  "title": "CyberMuse model catalog or installed manifest",
+  "oneOf": [{ "$ref": "#/$defs/catalog" }, { "$ref": "#/$defs/manifest" }],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "model": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "modelId",
+        "version",
+        "engine",
+        "sourceUrl",
+        "licenseExpression",
+        "licenseUrl",
+        "sizeBytes",
+        "sha256",
+        "artifactName",
+        "supportedHardware"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "modelId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "engine": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "sourceUrl": { "type": "string", "pattern": "^https://" },
+        "licenseExpression": { "type": "string", "minLength": 1 },
+        "licenseUrl": { "type": "string", "pattern": "^https://" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "artifactName": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "supportedHardware": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "required": ["schemaVersion", "models"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/model" }
+        }
+      }
+    },
+    "manifest": {
+      "allOf": [
+        { "$ref": "#/$defs/model" },
+        {
+          "type": "object",
+          "required": ["acceptedAt"],
+          "properties": {
+            "acceptedAt": { "type": "string", "format": "date-time" }
+          }
+        }
+      ]
+    }
+  }
+}

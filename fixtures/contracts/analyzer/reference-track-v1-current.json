@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "durationMs": 60,
+  "hopMs": 20,
+  "minHz": 65.41,
+  "maxHz": 1046.5,
+  "frames": [
+    {
+      "timeMs": 0,
+      "hz": null,
+      "midi": null,
+      "confidence": 0.1,
+      "voiced": false
+    },
+    { "timeMs": 20, "hz": 220, "midi": 57, "confidence": 0.99, "voiced": true },
+    {
+      "timeMs": 40,
+      "hz": 221,
+      "midi": 57.0785,
+      "confidence": 0.8,
+      "voiced": true,
+      "interpolated": true
+    }
+  ]
+}

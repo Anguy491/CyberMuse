@@ -2,13 +2,15 @@ import { useState } from "react";
 
 import { AudioSettingsPage } from "./pages/AudioSettingsPage";
 import { LibraryPage } from "./pages/LibraryPage";
+import { ModelAssetsPage } from "./pages/ModelAssetsPage";
 import { PracticePage } from "./pages/PracticePage";
 
-type PageId = "library" | "practice" | "audio";
+type PageId = "library" | "practice" | "models" | "audio";
 
 const navigation: ReadonlyArray<{ id: PageId; label: string }> = [
   { id: "library", label: "歌曲库" },
   { id: "practice", label: "练习" },
+  { id: "models", label: "模型" },
   { id: "audio", label: "音频设置" },
 ];
 
@@ -49,6 +51,7 @@ export function App() {
 
       {page === "library" ? <LibraryPage /> : null}
       {page === "practice" ? <PracticePage /> : null}
+      {page === "models" ? <ModelAssetsPage /> : null}
       {page === "audio" ? <AudioSettingsPage /> : null}
     </div>
   );

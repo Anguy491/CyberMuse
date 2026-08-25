@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/analyzer-control.schema.json",
+  "title": "CyberMuse Analyzer stdin control",
+  "type": "object",
+  "required": ["schemaVersion", "type", "jobId"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "type": { "const": "cancel" },
+    "jobId": { "type": "string", "format": "uuid" }
+  }
+}

@@ -27,6 +27,12 @@
   },
   "bundle": {
     "active": false,
-    "targets": "all"
+    "targets": "all",
+    "resources": {
+      "../../../artifacts/m4/tauri-resources/analyzer/": "analyzer",
+      "../../../artifacts/m4/tauri-resources/spleeter-engine/": "spleeter-engine",
+      "../../../artifacts/m4/tauri-resources/ffmpeg/": "ffmpeg",
+      "../../../artifacts/m4/tauri-resources/runtime-manifest.json": "runtime-manifest.json"
+    }
   }
 }

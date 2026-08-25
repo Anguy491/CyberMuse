@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "modelId": "swiftf0",
+  "version": "0.1.2",
+  "engine": "onnxruntime-cpu",
+  "sourceUrl": "https://files.pythonhosted.org/approved-artifact.whl",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://github.com/lars76/swift-f0/blob/main/LICENSE",
+  "sizeBytes": 379040,
+  "sha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+  "artifactName": "swift_f0-0.1.2-py3-none-any.whl",
+  "supportedHardware": ["cpu-x86_64"],
+  "acceptedAt": "2026-08-25T00:00:00Z"
+}

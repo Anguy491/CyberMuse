@@ -88,12 +88,9 @@ M1 首批 UI 字体候选为：
 
 M1 已决定使用 Segoe UI、Cascadia Mono、Consolas 和通用字体族的系统 fallback，不打包或请求远程字体/图标。`CAND-UI-001..003` 继续保持 `spike-only`，本里程碑未下载、批准或分发其 artifact；该选择降低供应链与断网启动风险，不改变未来重新审批条件。
 
-M4 首批分离候选为：
+M4 生产组合已通过精确 artifact 审查：Spleeter `2stems` v1.4 权重和 SwiftF0 `0.1.2` wheel 均为 MIT；Spleeter/TensorFlow CPU 与 SwiftF0/ONNX Runtime 分别隔离在打包 sidecar 中；FFmpeg 使用 BtbN `n9.0.1-6-g9d4ca21220` win64 LGPL shared 构建。下载 URL、字节数、SHA-256、直接/传递许可证、例外和替代方案只以 [`dependencies.json`](dependencies.json) 的固定记录为准，本文不建立浮动批准。
 
-- `CAND-SEP-001` `python-audio-separator`：wrapper 代码为 MIT 初步证据；状态仅为 `spike-only`。不得把其支持列表、自动下载结果或默认模型视为 approved 清单。
-- `CAND-SEP-002` Meta Demucs v4/`htdemucs`：仓库 MIT 声明为代码与项目级初步证据；具体权重 artifact 的许可覆盖、训练来源、SHA-256、大小和 notice 未完成前仍为 `spike-only`。官方仓库已归档，维护状态必须进入审批记录。
-
-二者可以组合使用，但组合不会继承批准状态：`python-audio-separator`、Demucs engine、`htdemucs` 权重、PyTorch/ONNX Runtime、FFmpeg 和其他传递依赖必须各自有证据。候选的动态版本与 artifact 信息只记录在 M4 依赖清单，不在本文写浮动批准。
+`python-audio-separator` 因运行时动态模型行为未采用；Meta Demucs v4/`htdemucs` 官方权重因研究用途限制未采用。其代码仓库许可证不能替代具体权重许可证，未来若重新评估必须作为新 artifact 完整复审，不能继承 M4 批准。
 
 ## FFmpeg
 

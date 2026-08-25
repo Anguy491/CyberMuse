@@ -1,0 +1,32 @@
+{
+  "startAnalysis": {
+    "apiVersion": 1,
+    "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "cancelAnalysis": {
+    "apiVersion": 1,
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab"
+  },
+  "installModel": {
+    "apiVersion": 1,
+    "modelId": "swiftf0",
+    "version": "0.1.2",
+    "consentToken": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717"
+  },
+  "analysisProgress": {
+    "apiVersion": 1,
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "stage": "pitch",
+    "stageProgress": 0.5,
+    "progress": 0.775
+  },
+  "modelProgress": {
+    "apiVersion": 1,
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "modelId": "swiftf0",
+    "downloadedBytes": 1000,
+    "totalBytes": 379040,
+    "status": "downloading"
+  }
+}

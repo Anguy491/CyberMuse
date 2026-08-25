@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+  "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "requestedAnalysisId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "inputPath": "D:\\CyberMuse 测试\\歌曲 根目录\\很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段很长的路径段\\原始 歌曲.flac",
+  "stagingPath": "D:\\CyberMuse 测试\\tmp\\jobs\\4ab0c16f-1234-4abc-8def-1234567890ab",
+  "expectedDurationMs": 180000,
+  "pipelineVersion": "m4-production-v1",
+  "roots": {
+    "songRoot": "D:\\CyberMuse 测试\\歌曲 根目录",
+    "stagingRoot": "D:\\CyberMuse 测试\\tmp\\jobs",
+    "modelRoot": "D:\\CyberMuse 测试\\models",
+    "toolRoot": "D:\\CyberMuse 测试\\resources"
+  },
+  "models": [
+    {
+      "modelId": "spleeter-2stems",
+      "version": "1.4.0",
+      "engine": "tensorflow-cpu",
+      "path": "D:\\CyberMuse 测试\\models\\spleeter-2stems\\1.4.0\\2stems.tar.gz",
+      "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+      "licenseExpression": "MIT"
+    },
+    {
+      "modelId": "swiftf0",
+      "version": "0.1.2",
+      "engine": "onnxruntime-cpu",
+      "path": "D:\\CyberMuse 测试\\models\\swiftf0\\0.1.2\\swift_f0-0.1.2-py3-none-any.whl",
+      "sha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+      "licenseExpression": "MIT"
+    }
+  ],
+  "tools": [
+    {
+      "toolId": "ffmpeg",
+      "version": "n9.0.1-6-g9d4ca21220",
+      "path": "D:\\CyberMuse 测试\\resources\\ffmpeg\\ffmpeg.exe",
+      "sha256": "f4326d7a480fb9e81a34440e775a70ebcf263a0c5fbc45678ffc594a9a7eccf3"
+    },
+    {
+      "toolId": "ffprobe",
+      "version": "n9.0.1-6-g9d4ca21220",
+      "path": "D:\\CyberMuse 测试\\resources\\ffmpeg\\ffprobe.exe",
+      "sha256": "1c9b4e13cdc83bf7a4e2f40a69716a62eddc6810a7a6abaacbc568ffaf77c8e9"
+    },
+    {
+      "toolId": "spleeter-engine",
+      "version": "0.1.0",
+      "path": "D:\\CyberMuse 测试\\resources\\spleeter-engine\\cybermuse-spleeter-engine.exe",
+      "sha256": "679b1827d939642bd662f78f4a16b950c5a9b0c0d112769059940dcbeb306e1d"
+    }
+  ],
+  "config": {
+    "sampleRateHz": 48000,
+    "pitchMinHz": 65,
+    "pitchMaxHz": 1046.5,
+    "confidenceThreshold": 0.45,
+    "maxInterpolatedGapMs": 50
+  }
+}

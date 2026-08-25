@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "milestone": "M3",
-  "reviewDate": "2026-08-25",
+  "milestone": "M4",
+  "reviewDate": "2026-08-26",
   "reviewer": "Codex repository dependency review",
   "policy": "dependency-license-policy.md",
   "reviewDefaults": {
     "copyright": "Retain the upstream copyright and license text shipped in the exact package artifact.",
     "requiredNotices": "Preserve upstream LICENSE/NOTICE material; aggregate production notices for M6.",
     "securityAndMaintenance": "Exact version is locked. Updates require a new license, maintenance and vulnerability review.",
-    "transitiveReport": "JavaScript: pnpm licenses list --json; Rust: cargo metadata --locked --filter-platform x86_64-pc-windows-msvc. tooling/check-licenses.mjs rejects forbidden or unknown production licenses.",
+    "transitiveReport": "JavaScript: pnpm licenses list --json; Rust: cargo metadata --locked --filter-platform x86_64-pc-windows-msvc; Python: both uv.lock files plus exact installed distribution metadata. tooling/check-licenses.mjs rejects forbidden or unknown production licenses, and tooling/m4-supply-chain.mjs verifies the distributed binaries, models and runtime manifest.",
     "decision": "approved"
   },
   "directDependencies": [
@@ -368,6 +368,239 @@
       "artifactUrl": "https://crates.io/api/v1/crates/windows-sys/0.61.2/download",
       "distributionForm": "Linked Windows API bindings",
       "alternativesConsidered": "Delete-then-rename is not atomic on Windows; a store plugin would add a larger dependency surface."
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "sha2",
+      "version": "0.11.0",
+      "scope": "production",
+      "license": "MIT OR Apache-2.0",
+      "purpose": "Streaming SHA-256 verification for models, tools, requests and analyzer artifacts",
+      "owningModule": "apps/desktop/src-tauri",
+      "sourceRepository": "https://github.com/RustCrypto/hashes",
+      "artifactUrl": "https://crates.io/api/v1/crates/sha2/0.11.0/download",
+      "distributionForm": "Linked into desktop executable",
+      "alternativesConsidered": "Windows CNG would add platform-specific unsafe bindings and duplicate the portable test implementation."
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "time",
+      "version": "0.3.55",
+      "scope": "production",
+      "license": "MIT OR Apache-2.0",
+      "purpose": "RFC 3339 timestamps for model consent and atomic manifests",
+      "owningModule": "apps/desktop/src-tauri",
+      "sourceRepository": "https://github.com/time-rs/time",
+      "artifactUrl": "https://crates.io/api/v1/crates/time/0.3.55/download",
+      "distributionForm": "Linked into desktop executable",
+      "alternativesConsidered": "Hand-written calendar and timezone formatting is error-prone; timestamps remain metadata-only and never drive audio."
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "ureq",
+      "version": "3.4.0",
+      "scope": "production",
+      "license": "MIT OR Apache-2.0",
+      "purpose": "Explicitly consented, allowlisted HTTPS model downloads with streaming limits and cancellation",
+      "owningModule": "apps/desktop/src-tauri",
+      "sourceRepository": "https://github.com/algesten/ureq",
+      "artifactUrl": "https://crates.io/api/v1/crates/ureq/3.4.0/download",
+      "distributionForm": "Linked into desktop executable with rustls and without default features",
+      "alternativesConsidered": "A Tauri HTTP plugin adds a broader IPC capability; reqwest adds an async runtime not otherwise required."
+    },
+    {
+      "ecosystem": "python",
+      "name": "numpy",
+      "version": "2.5.2",
+      "scope": "production",
+      "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "purpose": "Bounded PCM arrays and reference-track post-processing in the main analyzer",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/numpy/numpy",
+      "artifactUrl": "https://files.pythonhosted.org/packages/7f/b9/87fea2769fe1c47c1b5b01d8310772c9d1a85d485de7cf386ef7a3332b02/numpy-2.5.2-cp312-cp312-win_amd64.whl",
+      "distributionForm": "Bundled in the analyzer sidecar; wheel SHA-256 28ac63476ec7651484215ee7fa15a1f78b57c14621f01e392afe17b9a1390ce4",
+      "alternativesConsidered": "Pure Python arrays are too slow and memory-inefficient; Rust DSP would require a new model adapter and duplicate validation."
+    },
+    {
+      "ecosystem": "python",
+      "name": "onnxruntime",
+      "version": "1.29.0",
+      "scope": "production",
+      "license": "MIT",
+      "purpose": "CPU-only SwiftF0 ONNX inference",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/microsoft/onnxruntime",
+      "artifactUrl": "https://files.pythonhosted.org/packages/b4/80/5b28f1f1111210fc4a336ddbc6950f468ebf9a6a265420568f4f43fa33ce/onnxruntime-1.29.0-cp312-cp312-win_amd64.whl",
+      "distributionForm": "Bundled CPU runtime in the analyzer sidecar; wheel SHA-256 4acf2b4948b7ede87221ca6332344b8facdc8059d6ac751a7d367d04532b02dd",
+      "alternativesConsidered": "TensorFlow for both stages increases coupling and bundle size; a custom ONNX evaluator is outside scope."
+    },
+    {
+      "ecosystem": "python",
+      "name": "spleeter",
+      "version": "2.4.2",
+      "scope": "production",
+      "license": "MIT",
+      "purpose": "Two-stem TensorFlow graph and preprocessing used by the isolated separation engine",
+      "owningModule": "analyzer/engines/spleeter",
+      "sourceRepository": "https://github.com/deezer/spleeter",
+      "artifactUrl": "https://files.pythonhosted.org/packages/04/ff/6a9c2348de86b8a0e2ce8e72d3235d91f05a6dbc1a2eb809b51749023b7d/spleeter-2.4.2-py3-none-any.whl",
+      "distributionForm": "Only modules reached by the two-stem engine are bundled; wheel SHA-256 11b6aad050f89752e3752e08d8f69c69b699929157424e47c00e3e4db21073f9",
+      "alternativesConsidered": "Meta Demucs weights are research-only; python-audio-separator adds dynamic model discovery/download behavior."
+    },
+    {
+      "ecosystem": "python",
+      "name": "tensorflow-intel",
+      "version": "2.12.1",
+      "scope": "production",
+      "license": "Apache-2.0",
+      "purpose": "Windows x64 CPU execution for the approved Spleeter graph",
+      "owningModule": "analyzer/engines/spleeter",
+      "sourceRepository": "https://github.com/tensorflow/tensorflow",
+      "artifactUrl": "https://files.pythonhosted.org/packages/d4/60/1ca023f19c8c22e283f5fd3fd209dbe11c8fb7a5078fc4ff247738eab74d/tensorflow_intel-2.12.1-cp311-cp311-win_amd64.whl",
+      "distributionForm": "Bundled in the isolated Spleeter sidecar; wheel SHA-256 f9fdbdaf075db41c7fafd9f61bb296112b81bf93e47718907b4321f09c911a92",
+      "alternativesConsidered": "Current TensorFlow drops native Windows GPU support and newer Spleeter combinations were incompatible; CPU 2.12.1 is exact and proven by the benchmark."
+    },
+    {
+      "ecosystem": "python",
+      "name": "pyinstaller",
+      "version": "6.15.0",
+      "scope": "build",
+      "license": "GPL-2.0-or-later WITH PyInstaller-bootloader-exception",
+      "purpose": "Create self-contained Windows one-directory analyzer sidecars",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/pyinstaller/pyinstaller",
+      "artifactUrl": "https://files.pythonhosted.org/packages/09/ab/6a45186c7f8e34c422faecd72580116a67d068158c57faa2d2f6d01faa7f/pyinstaller-6.15.0-py3-none-win_amd64.whl",
+      "distributionForm": "Build tool only; its bootloader is distributed under the upstream explicit exception; wheel SHA-256 cbea297e16eeda30b41c300d6ec2fd2abea4dbd8d8a32650eeec36431c94fcd9",
+      "alternativesConsidered": "Nuitka adds a compiler/toolchain and its own commercial conditions; requiring a user Python environment fails clean-machine delivery."
+    },
+    {
+      "ecosystem": "python",
+      "name": "mypy",
+      "version": "1.17.1",
+      "scope": "development",
+      "license": "MIT",
+      "purpose": "Strict analyzer type checking",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/python/mypy",
+      "artifactUrl": "https://files.pythonhosted.org/packages/89/b8/7409477be7919a0608900e6320b155c72caab4fef46427c5cc75f85edadd/mypy-1.17.1-cp312-cp312-win_amd64.whl",
+      "distributionForm": "Development tool only",
+      "alternativesConsidered": "Pyright would add a second Node-based analyzer and different annotation semantics."
+    },
+    {
+      "ecosystem": "python",
+      "name": "pytest",
+      "version": "8.4.2",
+      "scope": "development",
+      "license": "MIT",
+      "purpose": "Analyzer, protocol, failure-injection and engine tests",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/pytest-dev/pytest",
+      "artifactUrl": "https://files.pythonhosted.org/packages/a8/a4/20da314d277121d6534b3a980b29035dcd51e6744bd79075a6ce8fa4eb8d/pytest-8.4.2-py3-none-any.whl",
+      "distributionForm": "Development tool only",
+      "alternativesConsidered": "unittest lacks the marker, parametrization and fixture ergonomics used by the required contract matrix."
+    },
+    {
+      "ecosystem": "python",
+      "name": "ruff",
+      "version": "0.12.11",
+      "scope": "development",
+      "license": "MIT",
+      "purpose": "Deterministic Python formatting and linting",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/astral-sh/ruff",
+      "artifactUrl": "https://files.pythonhosted.org/packages/08/a5/34276984705bfe069cd383101c45077ee029c3fe3b28225bf67aa35f0647/ruff-0.12.11-py3-none-win_amd64.whl",
+      "distributionForm": "Development tool only",
+      "alternativesConsidered": "Separate Black, isort and Flake8 stacks add more packages and can disagree."
+    },
+    {
+      "ecosystem": "tool",
+      "name": "uv",
+      "version": "0.12.5",
+      "scope": "build",
+      "license": "MIT OR Apache-2.0",
+      "purpose": "Exact Python resolution, interpreter provisioning and frozen environment sync",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/astral-sh/uv",
+      "artifactUrl": "https://github.com/astral-sh/uv/releases/tag/0.12.5",
+      "distributionForm": "Developer build tool only; not shipped in the desktop resources",
+      "alternativesConsidered": "pip plus manually provisioned Python does not produce a single frozen cross-environment workflow."
+    },
+    {
+      "ecosystem": "runtime",
+      "name": "CPython",
+      "version": "3.12.14 and 3.11.13",
+      "scope": "production",
+      "license": "PSF-2.0",
+      "purpose": "Embedded runtimes for the main analyzer and legacy-compatible Spleeter engine",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/python/cpython",
+      "artifactUrl": "https://github.com/astral-sh/python-build-standalone",
+      "distributionForm": "Selected runtime files bundled by PyInstaller",
+      "alternativesConsidered": "A single Python version cannot satisfy both current ONNX Runtime and the tested TensorFlow/Spleeter Windows combination."
+    },
+    {
+      "ecosystem": "binary",
+      "name": "FFmpeg BtbN LGPL shared",
+      "version": "n9.0.1-6-g9d4ca21220",
+      "scope": "production",
+      "license": "LGPL-2.1-or-later",
+      "purpose": "Local decode, probing and deterministic PCM24 WAV conversion",
+      "owningModule": "analyzer/tool_manager",
+      "sourceRepository": "https://github.com/BtbN/FFmpeg-Builds",
+      "artifactUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-24-13-10/ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-shared-9.0.zip",
+      "distributionForm": "Unmodified shared LGPL runtime; archive SHA-256 f551da3fa645a2399b5e7422ffb07e05abfdb8b05e36fb7f7877a5ced8891267",
+      "alternativesConsidered": "Windows Media Foundation has codec/format variance; GPL-enabled static FFmpeg builds are forbidden.",
+      "artifactSha256": "f551da3fa645a2399b5e7422ffb07e05abfdb8b05e36fb7f7877a5ced8891267",
+      "sizeBytes": 67200663,
+      "decision": "approved-special-review"
+    },
+    {
+      "ecosystem": "model",
+      "name": "Spleeter 2stems",
+      "version": "1.4.0",
+      "scope": "production",
+      "license": "MIT",
+      "purpose": "CPU two-stem vocal and instrumental separation",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/deezer/spleeter",
+      "artifactUrl": "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz",
+      "distributionForm": "Explicitly user-downloaded model asset; never committed or silently redownloaded",
+      "alternativesConsidered": "Meta Demucs/htdemucs official weights are scientific/research-only; no-weight DSP approaches missed the separation quality target.",
+      "artifactSha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+      "sizeBytes": 73109797,
+      "licenseUrl": "https://github.com/deezer/spleeter/blob/master/LICENSE",
+      "decision": "approved"
+    },
+    {
+      "ecosystem": "model",
+      "name": "SwiftF0 model wheel",
+      "version": "0.1.2",
+      "scope": "production",
+      "license": "MIT",
+      "purpose": "Continuous CPU F0 estimation after vocal separation",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://github.com/lars76/swift-f0",
+      "artifactUrl": "https://files.pythonhosted.org/packages/eb/65/029ed8e87f77f5c1b171f6387e9c99509f1385c9d9a3c50b844c45bd26b4/swift_f0-0.1.2-py3-none-any.whl",
+      "distributionForm": "Explicitly user-downloaded wheel containing the ONNX model; never committed or silently redownloaded",
+      "alternativesConsidered": "CREPE/TensorFlow duplicates the heavy engine; heuristic autocorrelation did not meet robustness goals.",
+      "artifactSha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+      "sizeBytes": 379040,
+      "licenseUrl": "https://github.com/lars76/swift-f0/blob/main/LICENSE",
+      "decision": "approved"
+    },
+    {
+      "ecosystem": "runtime",
+      "name": "Microsoft Visual C++ Runtime",
+      "version": "14.51.36247.0",
+      "scope": "production",
+      "license": "Microsoft Visual Studio Redistributable",
+      "purpose": "App-local retail runtime required by ONNX Runtime on clean Windows 11",
+      "owningModule": "analyzer",
+      "sourceRepository": "https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist",
+      "artifactUrl": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+      "distributionForm": "Four permitted retail DLLs copied app-locally and pinned in runtime-manifest.json",
+      "alternativesConsidered": "A machine-wide prerequisite makes the sidecar fail on a clean host; static relinking of third-party Python wheels is unavailable.",
+      "decision": "approved-special-review"
     }
   ],
   "transitiveExceptions": [
@@ -383,6 +616,45 @@
       ],
       "reason": "Unmodified Tauri transitive crates. MPL-2.0 obligations remain limited to the covered source files; exact source repositories and license texts remain available through Cargo.lock/crates.io and must be included in M6 notices.",
       "decision": "approved"
+    },
+    {
+      "ecosystem": "python",
+      "license": "MPL-2.0",
+      "packages": [
+        "certifi@2026.7.22",
+        "pathspec@1.1.1"
+      ],
+      "reason": "Exact unmodified Python packages. certifi is bundled only as a certificate store used by upstream imports but the production analyzer performs no network I/O; pathspec is development-only. Preserve covered sources/license text.",
+      "decision": "approved"
+    },
+    {
+      "ecosystem": "cargo",
+      "license": "CDLA-Permissive-2.0",
+      "packages": [
+        "webpki-roots@1.0.9"
+      ],
+      "reason": "Unmodified Mozilla CA certificate data pulled by ureq/rustls. The Community Data License Agreement Permissive 2.0 permits use and redistribution with notice; no song, recording or analysis data is sent by this component.",
+      "decision": "approved"
+    }
+  ],
+  "pythonLicenseExceptions": [
+    {
+      "package": "pyinstaller@6.15.0",
+      "license": "GPL-2.0-or-later WITH PyInstaller-bootloader-exception",
+      "distributionForm": "Build tool; only the expressly excepted bootloader is present in generated executables",
+      "decision": "approved"
+    },
+    {
+      "package": "pyinstaller-hooks-contrib@2026.7",
+      "license": "Apache-2.0 AND GPL-2.0-or-later WITH PyInstaller-bootloader-exception",
+      "distributionForm": "Build-time hooks only; package code is not distributed",
+      "decision": "approved"
+    },
+    {
+      "package": "scipy@1.15.3",
+      "license": "BSD-3-Clause with GCC runtime components under GPL-3.0 WITH GCC-exception-3.1",
+      "distributionForm": "Resolved by Spleeter metadata but explicitly excluded from the production sidecar; runtime-manifest verification rejects its presence",
+      "decision": "approved-build-only"
     }
   ]
 }

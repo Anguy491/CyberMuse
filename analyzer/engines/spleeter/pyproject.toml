@@ -1,0 +1,43 @@
+[build-system]
+requires = ["uv_build==0.12.5"]
+build-backend = "uv_build"
+
+[project]
+name = "cybermuse-spleeter-engine"
+version = "0.1.0"
+description = "Network-disabled Spleeter 2-stem engine for CyberMuse"
+requires-python = "==3.11.*"
+license = "LicenseRef-Proprietary"
+dependencies = [
+  "spleeter==2.4.2",
+  "tensorflow-intel==2.12.1 ; sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+[project.scripts]
+cybermuse-spleeter-engine = "cybermuse_spleeter_engine.cli:main"
+
+[dependency-groups]
+dev = [
+  "pyinstaller==6.15.0",
+  "pytest==8.4.2",
+  "ruff==0.12.11",
+]
+
+[tool.uv]
+required-version = "==0.12.5"
+override-dependencies = [
+  "tensorflow-io-gcs-filesystem==0.32.0 ; sys_platform != 'win32'",
+]
+
+[tool.uv.build-backend]
+module-name = "cybermuse_spleeter_engine"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

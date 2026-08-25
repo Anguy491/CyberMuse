@@ -102,6 +102,70 @@ interface AnalysisManifest {
 `relativePath` 必须使用 `/`，不能包含盘符、开头 `/`、`..` 或符号链接逃逸。
 
 ```ts
+interface ModelAssetCatalogEntry {
+  schemaVersion: 1;
+  modelId: "spleeter-2stems" | "swiftf0";
+  version: string;
+  engine: "tensorflow-cpu" | "onnxruntime-cpu";
+  sourceUrl: string;
+  licenseExpression: "MIT";
+  licenseUrl: string;
+  sizeBytes: number;
+  sha256: string;
+  artifactName: string;
+  supportedHardware: ["cpu-x86_64"];
+}
+
+interface InstalledModelManifest extends ModelAssetCatalogEntry {
+  acceptedAt: string;
+}
+
+interface ModelStatus extends ModelAssetCatalogEntry {
+  displayName: string;
+  purpose: string;
+  installed: boolean;
+  valid: boolean;
+}
+```
+
+每个新安装写入 `<models>/<modelId>/<version>/model-manifest.json`，且 manifest 在 artifact 哈希和大小验证后才随目录原子提交。M4 开发预览曾写入 `model.json`；读端只为已验证的旧 artifact 提供只读兼容，新安装不得继续写旧名称。
+
+```ts
+interface AnalyzerRequest {
+  schemaVersion: 1;
+  jobId: string;
+  songId: string;
+  requestedAnalysisId: string;
+  inputPath: string;
+  stagingPath: string;
+  expectedDurationMs: number;
+  pipelineVersion: "m4-production-v1";
+  roots: {
+    songRoot: string;
+    stagingRoot: string;
+    modelRoot: string;
+    toolRoot: string;
+  };
+  models: Array<ModelFingerprint & { path: string }>;
+  tools: Array<{
+    toolId: "ffmpeg" | "ffprobe" | "spleeter-engine";
+    version: string;
+    path: string;
+    sha256: string;
+  }>;
+  config: {
+    sampleRateHz: 48000;
+    pitchMinHz: number;
+    pitchMaxHz: number;
+    confidenceThreshold: number;
+    maxInterpolatedGapMs: number;
+  };
+}
+```
+
+`AnalyzerRequest` 是一次性 staging 文件而非正式用户数据，但仍按 schema v1、1 MiB 上限、绝对路径和四个批准根校验。模型集合必须恰为两个 approved 模型，工具集合必须恰为三项受信 runtime；路径、普通文件类型、reparse point、大小和 SHA-256 均需验证。
+
+```ts
 type AnalyzerStage =
   | "probe"
   | "normalize"
@@ -125,10 +189,12 @@ interface AnalyzerJob {
   requestedAnalysisId: string;
   status: AnalyzerJobStatus;
   stage: AnalyzerStage | null;
+  stageProgress: number;          // 0..1, monotonic within stage
   progress: number;               // 0..1, monotonic
   startedAt: string | null;
   completedAt: string | null;
   error: AnalyzerError | null;
+  forcedTermination: boolean;
 }
 ```
 
@@ -195,6 +261,7 @@ type AnalyzerErrorCode =
   | "ANALYZER_DISK_FULL"
   | "ANALYZER_CANCELLED"
   | "ANALYZER_PROTOCOL_ERROR"
+  | "ANALYZER_OUTPUT_INVALID"
   | "ANALYZER_STAGE_FAILED"
   | "ANALYZER_INTERNAL";
 

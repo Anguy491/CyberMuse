@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "schemaVersion": 1,
+      "modelId": "spleeter-2stems",
+      "version": "1.4.0",
+      "displayName": "Spleeter 2 stems",
+      "purpose": "人声与伴奏分离",
+      "engine": "tensorflow-cpu",
+      "sourceUrl": "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz",
+      "licenseExpression": "MIT",
+      "licenseUrl": "https://github.com/deezer/spleeter/blob/master/LICENSE",
+      "sizeBytes": 73109797,
+      "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+      "artifactName": "2stems.tar.gz",
+      "supportedHardware": ["cpu-x86_64"]
+    },
+    {
+      "schemaVersion": 1,
+      "modelId": "swiftf0",
+      "version": "0.1.2",
+      "displayName": "SwiftF0",
+      "purpose": "连续歌声音高估计",
+      "engine": "onnxruntime-cpu",
+      "sourceUrl": "https://files.pythonhosted.org/packages/eb/65/029ed8e87f77f5c1b171f6387e9c99509f1385c9d9a3c50b844c45bd26b4/swift_f0-0.1.2-py3-none-any.whl",
+      "licenseExpression": "MIT",
+      "licenseUrl": "https://github.com/lars76/swift-f0/blob/main/LICENSE",
+      "sizeBytes": 379040,
+      "sha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+      "artifactName": "swift_f0-0.1.2-py3-none-any.whl",
+      "supportedHardware": ["cpu-x86_64"]
+    }
+  ]
+}

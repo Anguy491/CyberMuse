@@ -1,0 +1,81 @@
+[
+  {
+    "schemaVersion": 1,
+    "type": "hello",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "protocolMajor": 1,
+    "analyzerVersion": "0.1.0"
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 1,
+    "stage": "probe",
+    "stageProgress": 1,
+    "progress": 0.02
+  },
+  {
+    "schemaVersion": 1,
+    "type": "warning",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 2,
+    "warning": {
+      "code": "ANALYZER_LOW_COVERAGE",
+      "messageKey": "analyzer.warning.lowCoverage",
+      "safeDetails": { "coveragePercent": 32 }
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 3,
+    "stage": "normalize",
+    "stageProgress": 1,
+    "progress": 0.1
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 4,
+    "stage": "separate",
+    "stageProgress": 1,
+    "progress": 0.65
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 5,
+    "stage": "pitch",
+    "stageProgress": 1,
+    "progress": 0.9
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 6,
+    "stage": "postprocess",
+    "stageProgress": 1,
+    "progress": 0.97
+  },
+  {
+    "schemaVersion": 1,
+    "type": "progress",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 7,
+    "stage": "write",
+    "stageProgress": 1,
+    "progress": 1
+  },
+  {
+    "schemaVersion": 1,
+    "type": "completed",
+    "jobId": "4ab0c16f-1234-4abc-8def-1234567890ab",
+    "sequence": 8,
+    "manifestRelativePath": "analysis.json"
+  }
+]

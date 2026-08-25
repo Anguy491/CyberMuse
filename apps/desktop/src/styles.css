@@ -828,6 +828,115 @@ select {
   font-weight: 600;
 }
 
+.models-primary {
+  padding-left: 64px;
+}
+
+.model-index {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  color: var(--color-signal-text);
+  font-family: var(--font-data);
+  font-size: 28px;
+  font-weight: 600;
+  writing-mode: vertical-rl;
+}
+
+.model-list {
+  display: grid;
+  gap: 0;
+}
+
+.model-row {
+  display: grid;
+  gap: 20px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--color-border-visible);
+}
+
+.model-row__heading,
+.model-actions,
+.model-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.model-row h3 {
+  margin: 4px 0 0;
+  color: var(--color-text-display);
+  font-size: 20px;
+}
+
+.model-status {
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.model-metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  margin: 0;
+}
+
+.model-metadata > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.model-metadata dt {
+  color: var(--color-text-secondary);
+}
+
+.model-metadata dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.model-metadata a {
+  color: var(--color-interactive);
+}
+
+.consent-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 680px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.consent-control input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--color-signal);
+}
+
+.model-progress {
+  flex-wrap: wrap;
+}
+
+.model-progress label {
+  flex-basis: 100%;
+  color: var(--color-text-primary);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.model-progress progress {
+  flex: 1 1 240px;
+  height: 10px;
+  accent-color: var(--color-signal);
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding-right: 16px;
@@ -875,6 +984,10 @@ select {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .model-metadata {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .practice-metrics {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -904,6 +1017,12 @@ select {
   .loop-values {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .model-row__heading,
+  .model-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -930,6 +1049,11 @@ select {
   .seek-control input,
   .setting-row select {
     border-color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .model-progress progress,
+  .consent-control input {
     forced-color-adjust: auto;
   }
 

@@ -6,6 +6,7 @@
 - `contracts/song/song-v1-current.json`：当前 schema v1。
 - `contracts/song/song-v1-extra.json`：同主版本新增未知字段。
 - `contracts/song/song-v2-unsupported.json`：必须拒绝的未知主版本。
+- `contracts/analyzer/`：M4 `AnalyzerRequest`、NDJSON protocol/control、Tauri API、model asset、`AnalysisManifest` 与 `ReferenceTrack` 的当前、Unicode/长路径、扩展字段、各终态和未知主版本夹具。
 
 这些 JSON 由 CyberMuse 项目原创，可随仓库分发。
 

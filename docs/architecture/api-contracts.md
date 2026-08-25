@@ -47,8 +47,9 @@ interface AppError {
 | `get_app_settings` | `{apiVersion}` | `{settings: AppSettings}` | `SETTINGS_RECOVERED` |
 | `update_app_settings` | `{apiVersion, patch, expectedRevision}` | `{settings: AppSettings}` | `SETTINGS_CONFLICT`、`SETTINGS_INVALID` |
 | `get_model_status` | `{apiVersion}` | `{models: ModelStatus[]}` | `MODEL_STORE_UNAVAILABLE` |
-| `install_model` | `{apiVersion, modelId, version, consentToken}` | `{jobId}` | `CONSENT_REQUIRED`、`NETWORK_DENIED` |
-| `remove_model` | `{apiVersion, modelId, version}` | `{removed: true, reclaimedBytes}` | `MODEL_IN_USE` |
+| `install_model` | `{apiVersion, modelId, version, consentToken}` | `{jobId}` | `MODEL_NOT_APPROVED`、`MODEL_CONSENT_REQUIRED`、`MODEL_JOB_ALREADY_ACTIVE` |
+| `cancel_model_install` | `{apiVersion, jobId}` | `{jobId}` | `MODEL_JOB_NOT_FOUND`、`MODEL_JOB_ALREADY_TERMINAL` |
+| `remove_model` | `{apiVersion, modelId, version}` | `{removed, reclaimedBytes}` | `MODEL_IN_USE` |
 | `create_diagnostic_bundle` | `{apiVersion, destinationPath, consentToken}` | `{savedPath, sizeBytes}` | `CONSENT_REQUIRED`、`DIAGNOSTIC_REDACTION_FAILED` |
 
 ### Supporting shapes
@@ -125,6 +126,8 @@ type ModelTerminalEvent = {
 
 progress 可能合并或丢失，消费者必须用 job ID 查询最终状态；terminal 对每 job 最多一次。事件不包含 PCM、绝对路径或完整参考轨。
 
+`install_model.consentToken` 在 M4 中是 UI 已向用户展示的 exact model SHA-256；Rust 只接受 catalog 中相同 model/version/hash 的一次安装。仅 model manager 可联网；取消、hash/size 失败或异常重定向会清理下载 staging，正式模型目录不可部分可见。
+
 ## Analyzer CLI
 
 ### Commands
@@ -151,26 +154,47 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
   "inputPath": "D:\\...\\original.flac",
   "stagingPath": "D:\\...\\tmp\\jobs\\4ab0c16f",
   "expectedDurationMs": 234123,
-  "pipelineVersion": "0.1.0",
+  "pipelineVersion": "m4-production-v1",
+  "roots": {
+    "songRoot": "D:\\...\\data\\songs\\64-char-lowercase-sha256",
+    "stagingRoot": "D:\\...\\tmp\\jobs",
+    "modelRoot": "D:\\...\\models",
+    "toolRoot": "D:\\...\\resources"
+  },
   "models": [
     {
-      "modelId": "reference-f0",
-      "version": "approved-version",
-      "path": "D:\\...\\models\\reference-f0\\approved-version",
-      "sha256": "64-char-lowercase-hex"
+      "modelId": "spleeter-2stems",
+      "version": "1.4.0",
+      "engine": "tensorflow-cpu",
+      "path": "D:\\...\\models\\spleeter-2stems\\1.4.0\\2stems.tar.gz",
+      "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+      "licenseExpression": "MIT"
+    },
+    {
+      "modelId": "swiftf0",
+      "version": "0.1.2",
+      "engine": "onnxruntime-cpu",
+      "path": "D:\\...\\models\\swiftf0\\0.1.2\\swift_f0-0.1.2-py3-none-any.whl",
+      "sha256": "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717",
+      "licenseExpression": "MIT"
     }
+  ],
+  "tools": [
+    {"toolId":"ffmpeg","version":"n9.0.1-6-g9d4ca21220","path":"D:\\...\\resources\\ffmpeg\\ffmpeg.exe","sha256":"f4326d7a480fb9e81a34440e775a70ebcf263a0c5fbc45678ffc594a9a7eccf3"},
+    {"toolId":"ffprobe","version":"n9.0.1-6-g9d4ca21220","path":"D:\\...\\resources\\ffmpeg\\ffprobe.exe","sha256":"1c9b4e13cdc83bf7a4e2f40a69716a62eddc6810a7a6abaacbc568ffaf77c8e9"},
+    {"toolId":"spleeter-engine","version":"0.1.0","path":"D:\\...\\resources\\spleeter-engine\\cybermuse-spleeter-engine.exe","sha256":"679b1827d939642bd662f78f4a16b950c5a9b0c0d112769059940dcbeb306e1d"}
   ],
   "config": {
     "sampleRateHz": 48000,
-    "pitchMinHz": 65.41,
+    "pitchMinHz": 65.0,
     "pitchMaxHz": 1046.5,
-    "confidenceThreshold": 0.85,
+    "confidenceThreshold": 0.45,
     "maxInterpolatedGapMs": 50
   }
 }
 ```
 
-Rust canonicalize 并验证所有路径位于批准根目录；Python 再做防御性验证。请求文件权限仅限当前用户。
+Rust canonicalize 并验证所有路径位于批准根目录，校验 song/model/tool 内容哈希和 exact allowlist；Python 再做防御性验证。Spleeter engine 的 exact SHA-256 由构建生成的 `runtime-manifest.json` 在 Cargo 编译期嵌入，避免把 PyInstaller 非确定性 PE 哈希当作源代码常量。请求文件权限仅限当前用户，最大 1 MiB、最大 JSON 深度 32，拒绝 NaN/Infinity、reparse point 和根目录逃逸。
 
 ### stdout NDJSON
 
@@ -220,4 +244,3 @@ Rust 以 terminal message 为主要事实源，同时验证 exit code 一致；�
 - 同主版本可新增可选字段和新的 warning code；不得改变已有字段语义。
 - 新增 error code 时旧 UI 使用 `messageKey` 的通用回退。
 - 删除/重命名字段、改变单位或枚举语义需要主版本升级和迁移计划。
-

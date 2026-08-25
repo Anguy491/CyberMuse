@@ -26,6 +26,7 @@ const approvedLicenses = new Set([
   "BSD-2-Clause",
   "BSD-3-Clause",
   "CC0-1.0",
+  "CDLA-Permissive-2.0",
   "ISC",
   "MIT",
   "MIT-0",
@@ -33,6 +34,7 @@ const approvedLicenses = new Set([
   "Unicode-3.0",
   "Unlicense",
   "Zlib",
+  "PSF-2.0",
 ]);
 
 function fail(message) {
@@ -107,6 +109,9 @@ for (const name of [
   "tauri",
   "serde",
   "serde_json",
+  "sha2",
+  "time",
+  "ureq",
   "windows-sys",
 ]) {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -122,6 +127,109 @@ for (const name of [
   }
   if (!directKeys.has(packageKey("cargo", name, version))) {
     fail(`missing Cargo review for ${name}@${version}`);
+  }
+}
+
+for (const [name, version] of [
+  ["numpy", "2.5.2"],
+  ["onnxruntime", "1.29.0"],
+  ["spleeter", "2.4.2"],
+  ["tensorflow-intel", "2.12.1"],
+  ["mypy", "1.17.1"],
+  ["pyinstaller", "6.15.0"],
+  ["pytest", "8.4.2"],
+  ["ruff", "0.12.11"],
+]) {
+  if (!directKeys.has(packageKey("python", name, version))) {
+    fail(`missing Python review for ${name}@${version}`);
+  }
+}
+
+const pythonLicenseExceptions = new Set(
+  inventory.pythonLicenseExceptions
+    .filter((exception) => String(exception.decision).startsWith("approved"))
+    .map((exception) => exception.package),
+);
+const pythonMplExceptions = new Set(
+  inventory.transitiveExceptions
+    .filter(
+      (exception) =>
+        exception.ecosystem === "python" &&
+        exception.license === "MPL-2.0" &&
+        exception.decision === "approved",
+    )
+    .flatMap((exception) => exception.packages),
+);
+const pythonMetadataCode = String.raw`
+import importlib.metadata as metadata
+import json
+items = []
+for distribution in metadata.distributions():
+    name = distribution.metadata.get("Name")
+    if not name or name.lower().startswith("cybermuse-"):
+        continue
+    items.append({
+        "name": name,
+        "version": distribution.version,
+        "licenseExpression": distribution.metadata.get("License-Expression"),
+        "license": distribution.metadata.get("License"),
+        "classifiers": [
+            value for value in distribution.metadata.get_all("Classifier", [])
+            if value.startswith("License ::")
+        ],
+    })
+print(json.dumps(items))
+`;
+
+for (const pythonPath of [
+  "analyzer/.venv/Scripts/python.exe",
+  "analyzer/engines/spleeter/.venv/Scripts/python.exe",
+]) {
+  if (!existsSync(pythonPath)) {
+    fail(`missing frozen Python environment ${pythonPath}`);
+  }
+  const packages = JSON.parse(
+    execFileSync(pythonPath, ["-c", pythonMetadataCode], {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    }),
+  );
+  for (const dependency of packages) {
+    const key = `${dependency.name}@${dependency.version}`;
+    const evidence = [
+      dependency.licenseExpression,
+      dependency.license,
+      ...(dependency.classifiers ?? []),
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    if (evidence.length === 0 || /UNLICENSED/i.test(evidence)) {
+      fail(`unknown Python license for ${key}`);
+    }
+    if (
+      /AGPL|SSPL|GNU Affero|Server Side Public/i.test(evidence) &&
+      !pythonLicenseExceptions.has(key)
+    ) {
+      fail(`forbidden Python license for ${key}: ${evidence.slice(0, 240)}`);
+    }
+    if (/GPL/i.test(evidence) && !pythonLicenseExceptions.has(key)) {
+      fail(`unreviewed GPL-family Python metadata for ${key}`);
+    }
+    if (
+      /Mozilla Public License|MPL-2.0/i.test(evidence) &&
+      !pythonMplExceptions.has(key)
+    ) {
+      fail(`MPL-2.0 Python package lacks an exact exception: ${key}`);
+    }
+    if (
+      !/MIT|Apache|BSD|ISC|PSF|Python Software Foundation|MPL|Zlib|CC0|0BSD|Unlicense|GPL/i.test(
+        evidence,
+      )
+    ) {
+      fail(
+        `unreviewed Python license metadata for ${key}: ${evidence.slice(0, 240)}`,
+      );
+    }
   }
 }
 
@@ -160,6 +268,16 @@ const mplExceptions = new Set(
     )
     .flatMap((exception) => exception.packages),
 );
+const cargoSpecialExceptions = new Set(
+  inventory.transitiveExceptions
+    .filter(
+      (exception) =>
+        exception.ecosystem === "cargo" &&
+        exception.license === "CDLA-Permissive-2.0" &&
+        exception.decision === "approved",
+    )
+    .flatMap((exception) => exception.packages),
+);
 
 for (const dependency of cargoMetadata.packages) {
   if (!resolvedIds.has(dependency.id) || dependency.source === null) {
@@ -187,6 +305,14 @@ for (const dependency of cargoMetadata.packages) {
   ) {
     fail(
       `MPL-2.0 package lacks an exact exception: ${dependency.name}@${dependency.version}`,
+    );
+  }
+  if (
+    expression.includes("CDLA-Permissive-2.0") &&
+    !cargoSpecialExceptions.has(`${dependency.name}@${dependency.version}`)
+  ) {
+    fail(
+      `CDLA package lacks an exact exception: ${dependency.name}@${dependency.version}`,
     );
   }
 }

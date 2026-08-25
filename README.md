@@ -4,7 +4,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | M3 Gate Approved；M4 Ready |
+| 状态 | M4 本机个人使用门禁已批准；M5 Ready |
 | 产品版本 | v0.1（开发中） |
 | 文档版本 | 0.1.0 |
 | 版本 | 0.1.0 |
@@ -15,9 +15,11 @@ CyberMuse 的核心体验是：导入一首歌曲，生成可练习的参考音�
 
 ## 当前阶段
 
-M0、M1、M2、M3 已于 2026-08-25 经用户人工确认通过。M3 Fixture-based Practice 已实现本地确定性参考轨、AudioContext 单时钟播放、Pitch Lane、signed cents 与分项指标、A-B Loop 和页面内存 take/session；证据见 [M3 Fixture-based Practice Evidence](docs/delivery/evidence/m3-fixture-practice.md)。仓库现可按里程碑边界开始 M4 Offline Analyzer。
+M0、M1、M2、M3 已于 2026-08-25 经用户人工确认通过。M4 Offline Analyzer 已实现经精确哈希批准的模型安装、打包 Python sidecar、Spleeter 人声/伴奏分离、SwiftF0 连续参考轨、原子分析提交、取消/缓存/恢复与本地 Model Assets UI；用户于 2026-08-26 按 ADR-015 明确批准“本机个人使用”范围，证据见 [M4 Offline Analyzer Evidence](docs/delivery/evidence/m4-offline-analyzer.md)。M5 可开始。
 
-Python analyzer、模型、歌曲导入、持久 session、真实歌曲评分与正式 Review 仍受 M4–M6 门禁约束。M1 对系统 WebView2 诊断连接的接受边界继续有效，记录见 [M1 Foundation Evidence](docs/delivery/evidence/m1-foundation.md) 和 [RISK-018](docs/delivery/risk-register.md)。
+M4 批准不代表当前产物已经证明可跨机器分发。`RISK-020` 的干净 Windows 11 x64、Defender 和无开发工具 smoke 已延期为首次向朋友提供内测包之前的硬门禁，且最迟在 M6 完成。
+
+歌曲导入、持久 session、真实歌曲评分与正式 Review 仍受 M5–M6 门禁约束；M4 没有提前实现这些行为。M1 对系统 WebView2 诊断连接的接受边界继续有效，记录见 [M1 Foundation Evidence](docs/delivery/evidence/m1-foundation.md) 和 [RISK-018](docs/delivery/risk-register.md)。
 
 ## v0.1 核心能力
 
@@ -59,9 +61,13 @@ Python analyzer、模型、歌曲导入、持久 session、真实歌曲评分与
 ```powershell
 pnpm install --frozen-lockfile
 pnpm check
-pnpm test:m3:quality
-pnpm test:m3:performance
-pnpm test:m3:a11y
+pnpm analyzer:check
+pnpm build:analyzer
+pnpm test:m4:contracts
+pnpm test:m4:quality
+pnpm test:m4:performance
+pnpm test:m4:network
+pnpm test:m4:supply
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
@@ -73,4 +79,4 @@ pnpm tauri build
 
 ## 许可证状态
 
-CyberMuse 尚未选择对外发布许可证。生产依赖必须遵守[依赖与许可证策略](docs/quality/dependency-license-policy.md)，在完成审查前不得引入生产依赖或模型权重。
+CyberMuse 尚未选择对外发布许可证。生产依赖必须遵守[依赖与许可证策略](docs/quality/dependency-license-policy.md)；M4 已批准的精确版本、传递许可证、模型权重与二进制来源记录在[机器可读依赖清单](docs/quality/dependencies.json)，版本或 artifact 变化必须重新审查。
