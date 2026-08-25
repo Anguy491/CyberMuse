@@ -1,0 +1,126 @@
+# Test Strategy
+
+| 元数据 | 值 |
+|---|---|
+| 状态 | Baseline |
+| 版本 | 0.1.0 |
+| 责任域 | QA 与性能 |
+| 上游依据 | FR/NFR、architecture、API contracts |
+| 关联文件 | `requirements-traceability.md`、`definition-of-done.md`、`risk-register.md` |
+
+## 质量目标
+
+测试证明 CyberMuse 在支持环境中提供可解释、低延迟、数据安全的练习闭环。优先验证算法与时间语义、跨进程契约、失败恢复和隐私，而不是追求脱离风险的单一覆盖率数字。
+
+## 测试层级
+
+### 1. 静态检查
+
+- TypeScript strict typecheck、ESLint、格式检查。
+- Rust `clippy`、format check、禁止 panic 的边界审查。
+- Python Ruff、mypy、format check。
+- JSON Schema/fixture 校验、Markdown 链接和稳定 ID 检查。
+- 依赖许可证、漏洞和锁文件检查。
+- Signal UI dark/light token 对比度；禁用未登记颜色/字体/CDN、渐变、阴影、blur、skeleton、Toast 和基础自动可访问性检查。
+
+### 2. 单元测试
+
+- Domain：Hz/MIDI/cents、边界、null/非有限值。
+- Scoring：accuracy、bias、MAD stability、coverage、样本不足。
+- Audio：ring buffer、窗口中心时间、平滑、滞回、seek/loop reset。
+- Rust：路径 canonicalization、原子写入、哈希、状态机、错误映射。
+- Python：各 pipeline stage、后处理、指纹和 manifest。
+
+纯逻辑必须使用确定性时钟、随机种子和夹具，不访问麦克风、网络或真实模型下载。
+
+### 3. 契约测试
+
+- Tauri command success/error envelope 与版本拒绝。
+- Analyzer stdout 第一条 hello、sequence、progress 单调、唯一 terminal、exit code 一致。
+- stdin cancel、Unicode/长路径、单行大小和恶意 artifact path。
+- schema 旧版、当前版、额外字段、未知主版本。
+- TypeScript fixture、Rust serde 和 Python model 对同一 JSON 得到一致语义。
+
+### 4. 集成测试
+
+- 导入 staging → 内容哈希 → 正式歌曲资产。
+- Rust 启动 fake analyzer → 进度 → manifest 验证 → 原子提交。
+- 失败/取消/强制终止后保留最后有效 analysis。
+- PlaybackEngine + ReferenceTrack + scoring 的受控时钟集成。
+- session 保存、重启加载、删除级联与引用保护。
+- model 下载使用本地测试服务器，覆盖同意、哈希错误、中断和清理。
+
+### 5. 端到端测试
+
+发布构建覆盖：
+
+1. 空 Library → 导入短合法夹具 → 分析 → Practice → Review → 删除。
+2. 模型缺失 → 用户同意 → 下载/校验 → 恢复分析。
+3. 麦克风拒绝 → 设置恢复 → 设备选择 → 练习。
+4. 分析取消和重试。
+5. 应用重启后歌曲、设置、session 和 active analysis 一致。
+6. 离线环境使用已安装模型完成练习。
+
+UI 自动化不伪造硬件结论；真实麦克风/声卡行为归入人工矩阵。
+
+UI 视觉回归覆盖 Library、Import、Audio Settings、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对每屏恰好三层、一个无卡片 primary、一个 deliberate pattern break，以及字体/字号/字重预算。Canvas 测试同时断言可访问摘要和 legend，不以像素截图替代时间语义断言。
+
+M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动正常；Space Grotesk/Space Mono/Doto 候选未批准时只使用系统 fallback；采用后 artifact/hash/NOTICE 与依赖清单一致；字体文件缺失或加载失败时中英文内容、tabular 数字、44×44 px 命中区和主流程不破坏。
+
+### 6. 性能与 soak
+
+- 实时软件路径至少 1,000 个观察，报告 P50/P95/P99。
+- 10 分钟同步/漂移和 10 次 loop 边界测试。
+- 30 分钟练习、25 次 loop 的 CPU/RAM/node 数 soak。
+- 3、5、10 分钟歌曲 analyzer CPU 实时倍数、峰值 RAM、临时空间。
+- 1,000 首元数据（使用虚拟小资产）的 Library 启动和滚动基准，防止 O(total pitch frames) 加载。
+
+## 测试夹具
+
+| Fixture | 内容 | 主要用途 |
+|---|---|---|
+| `tone-a4-440` | 440 Hz 正弦/谐波，5 秒 | F0、cents、稳定性 |
+| `tone-a4-low-40c` | A4 低 40 cents | signed bias、等级 |
+| `scale-c3-c5` | 已知半音阶与静音间隔 | 范围、时间戳、coverage |
+| `vibrato-a4` | 5.5 Hz、±35 cents 调制 | 平滑不过度、非音符切分 |
+| `glissando` | C3 到 C4 连续滑音 | 连续 F0、尖峰处理 |
+| `octave-interference` | 基频较弱、二次谐波强 | gross pitch error |
+| `noise-and-breath` | 粉噪/气流/辅音样包络 | silence/confidence gate |
+| `corrupt-audio` | 截断/无音轨/错误扩展名 | 导入错误 |
+| `unicode-path-set` | 中文、空格、长路径 | Windows 路径契约 |
+| `fake-analyzer-streams` | 正常、乱序、超大、无 terminal NDJSON | sidecar 防御 |
+
+夹具优先程序生成。任何真实音乐片段必须短小、来源可证明、允许仓库分发，并在 `fixtures/README.md` 记录许可证；否则只用于本地人工测试且不提交。
+
+## 算法容限
+
+- 单音 F0：有效稳定区 median absolute error ≤ 15 cents，gross octave error = 0。
+- 实时 cents 公式：数值误差 ≤ 0.1 cents。
+- reference timestamps：相对真值绝对误差 P95 ≤ max(hopMs, 20 ms)。
+- 静音：至少 99% 帧 `voiced=false`；粉噪误报率 ≤ 2%。
+- analyzer 黄金集阈值在 M4 模型 spike 后可收紧；放宽必须由 Accepted ADR 和风险说明支持。
+
+## 失败注入
+
+必须覆盖：文件复制中断、磁盘空间不足、JSON 半写、sidecar 启动失败/崩溃/挂起、模型哈希错误、网络中断、权限拒绝、设备拔出、AudioContext suspend、seek/loop 竞争、session payload 超限和删除部分失败。
+
+## Windows 人工矩阵
+
+至少验证：
+
+- 内置麦克风、USB 麦克风和一种蓝牙设备（蓝牙限制可记录为已知风险）。
+- 44.1/48 kHz 输入、默认设备切换、设备占用和拔出。
+- 100% 与 150% 显示缩放、dark/light、键盘操作、灰度可读性、Windows forced-colors、reduced-motion 和断网字体 fallback。
+- 安装、升级同主版本、卸载保留/删除数据选择。
+- Windows Defender 常规扫描下 sidecar 启动。
+
+## 测试证据
+
+每个门禁保存：提交 ID、构建类型、命令、退出码、测试摘要、性能 JSON、环境清单、失败截图/日志的脱敏位置。硬件测试记录设备类别和能力，不记录可识别序列号。
+
+## Flaky 与豁免
+
+- 失败必须重现并修复；重跑成功不能自动判通过。
+- 判定 flaky 的测试登记 `RISK-###`，记录频率、所有者、隔离原因和修复里程碑。
+- Must 需求或安全/数据完整性测试不得豁免发布门禁。
+- 性能使用分布和固定 warm-up，不以单次最快值验收。

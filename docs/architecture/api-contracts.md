@@ -1,0 +1,223 @@
+# API Contracts
+
+| 元数据 | 值 |
+|---|---|
+| 状态 | Baseline |
+| 版本 | 0.1.0 |
+| 责任域 | TypeScript ↔ Rust ↔ Python 契约 |
+| 上游依据 | `data-model.md`、`architecture.md`、FR-003 至 FR-021 |
+| 关联文件 | `song-analyzer.md`、`requirements-traceability.md` |
+
+## 版本与通用 envelope
+
+所有命令 request/response 都含 `apiVersion: 1`。Tauri command 不以任意字符串或 panic 作为错误返回，而是：
+
+```ts
+type CommandResult<T> =
+  | { apiVersion: 1; ok: true; data: T }
+  | { apiVersion: 1; ok: false; error: AppError };
+
+interface AppError {
+  code: string;                  // stable UPPER_SNAKE_CASE
+  messageKey: string;            // UI localization key
+  retryable: boolean;
+  safeDetails: Record<string, string | number | boolean>;
+  diagnosticId: string;
+}
+```
+
+未知 `apiVersion` 返回 `API_VERSION_UNSUPPORTED`。payload 字符串使用 UTF-8；时间和 ID 遵循 Data Model。
+
+## Tauri commands
+
+| Command | Request | Success data | 关键错误 |
+|---|---|---|---|
+| `import_song` | `{apiVersion, sourcePath}` | `{song: Song, deduplicated: boolean}` | `AUDIO_UNSUPPORTED`、`SOURCE_UNREADABLE`、`DISK_SPACE_LOW` |
+| `list_songs` | `{apiVersion}` | `{songs: SongSummary[]}` | `STORE_UNAVAILABLE` |
+| `get_song` | `{apiVersion, songId}` | `{song: Song}` | `SONG_NOT_FOUND`、`SONG_DAMAGED` |
+| `delete_song` | `{apiVersion, songId, confirmationToken}` | `{deleted: true, reclaimedBytes}` | `CONFIRMATION_INVALID`、`DELETE_PARTIAL` |
+| `start_analysis` | `{apiVersion, songId}` | `{job: AnalyzerJob, cacheHit}` | `JOB_ALREADY_ACTIVE`、`MODEL_REQUIRED` |
+| `cancel_analysis` | `{apiVersion, jobId}` | `{job: AnalyzerJob}` | `JOB_NOT_FOUND`、`JOB_ALREADY_TERMINAL` |
+| `get_analysis_job` | `{apiVersion, jobId}` | `{job: AnalyzerJob}` | `JOB_NOT_FOUND` |
+| `get_practice_assets` | `{apiVersion, songId}` | `PracticeAssets` | `SONG_NOT_READY`、`ASSET_INVALID` |
+| `save_practice_session` | `{apiVersion, session: PracticeSession}` | `{sessionId, savedAt}` | `SESSION_INVALID`、`PAYLOAD_TOO_LARGE` |
+| `list_practice_sessions` | `{apiVersion, songId}` | `{sessions: SessionSummary[]}` | `SONG_NOT_FOUND` |
+| `get_practice_session` | `{apiVersion, sessionId}` | `{session: PracticeSession}` | `SESSION_NOT_FOUND`、`SCHEMA_UNSUPPORTED` |
+| `delete_practice_session` | `{apiVersion, sessionId}` | `{deleted: true}` | `SESSION_NOT_FOUND` |
+| `get_app_settings` | `{apiVersion}` | `{settings: AppSettings}` | `SETTINGS_RECOVERED` |
+| `update_app_settings` | `{apiVersion, patch, expectedRevision}` | `{settings: AppSettings}` | `SETTINGS_CONFLICT`、`SETTINGS_INVALID` |
+| `get_model_status` | `{apiVersion}` | `{models: ModelStatus[]}` | `MODEL_STORE_UNAVAILABLE` |
+| `install_model` | `{apiVersion, modelId, version, consentToken}` | `{jobId}` | `CONSENT_REQUIRED`、`NETWORK_DENIED` |
+| `remove_model` | `{apiVersion, modelId, version}` | `{removed: true, reclaimedBytes}` | `MODEL_IN_USE` |
+| `create_diagnostic_bundle` | `{apiVersion, destinationPath, consentToken}` | `{savedPath, sizeBytes}` | `CONSENT_REQUIRED`、`DIAGNOSTIC_REDACTION_FAILED` |
+
+### Supporting shapes
+
+```ts
+interface SongSummary {
+  songId: string;
+  displayName: string;
+  durationMs: number;
+  status: SongStatus;
+  importedAt: string;
+  lastPracticeAt: string | null;
+  localSizeBytes: number;
+}
+
+interface PracticeAssets {
+  songId: string;
+  analysisId: string;
+  instrumentalResourceUrl: string; // opaque, read-only, current app session
+  referenceTrack: ReferenceTrack;
+  durationMs: number;
+}
+
+interface SessionSummary {
+  sessionId: string;
+  songId: string;
+  analysisId: string;
+  startedAt: string;
+  durationMs: number;
+  metrics: SessionMetrics;
+}
+```
+
+`sourcePath` 和 `destinationPath` 只能来自本次用户文件对话框选择并由 Rust 验证；不得接受网页任意构造路径。`instrumentalResourceUrl` 是会话内只读能力 URL，不写入持久化 JSON。
+
+`save_practice_session` 单次 payload 上限 16 MiB，session 上限 60 分钟。M3 性能测试若证明接近上限，采用分块 Rust session writer，并以 ADR 替代该 command；在此之前不得静默截断。
+
+## Tauri events
+
+事件名和 payload：
+
+```ts
+type AnalysisProgressEvent = {
+  apiVersion: 1;
+  jobId: string;
+  songId: string;
+  stage: AnalyzerStage;
+  stageProgress: number;
+  progress: number;
+}; // "analysis://progress"
+
+type AnalysisTerminalEvent = {
+  apiVersion: 1;
+  job: AnalyzerJob;
+}; // "analysis://terminal"
+
+type ModelProgressEvent = {
+  apiVersion: 1;
+  jobId: string;
+  modelId: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  status: "downloading" | "verifying" | "installing";
+}; // "model://progress"
+
+type ModelTerminalEvent = {
+  apiVersion: 1;
+  jobId: string;
+  modelId: string;
+  status: "installed" | "cancelled" | "failed";
+  error: AppError | null;
+}; // "model://terminal"
+```
+
+progress 可能合并或丢失，消费者必须用 job ID 查询最终状态；terminal 对每 job 最多一次。事件不包含 PCM、绝对路径或完整参考轨。
+
+## Analyzer CLI
+
+### Commands
+
+```text
+cybermuse-analyzer.exe --version --json
+cybermuse-analyzer.exe analyze --request <absolute-request-json>
+```
+
+版本输出：
+
+```json
+{"schemaVersion":1,"name":"cybermuse-analyzer","version":"0.1.0","protocolMajor":1}
+```
+
+`analyze` 请求：
+
+```json
+{
+  "schemaVersion": 1,
+  "jobId": "4ab0c16f-...",
+  "songId": "64-char-lowercase-sha256",
+  "requestedAnalysisId": "32-char-lowercase-hex",
+  "inputPath": "D:\\...\\original.flac",
+  "stagingPath": "D:\\...\\tmp\\jobs\\4ab0c16f",
+  "expectedDurationMs": 234123,
+  "pipelineVersion": "0.1.0",
+  "models": [
+    {
+      "modelId": "reference-f0",
+      "version": "approved-version",
+      "path": "D:\\...\\models\\reference-f0\\approved-version",
+      "sha256": "64-char-lowercase-hex"
+    }
+  ],
+  "config": {
+    "sampleRateHz": 48000,
+    "pitchMinHz": 65.41,
+    "pitchMaxHz": 1046.5,
+    "confidenceThreshold": 0.85,
+    "maxInterpolatedGapMs": 50
+  }
+}
+```
+
+Rust canonicalize 并验证所有路径位于批准根目录；Python 再做防御性验证。请求文件权限仅限当前用户。
+
+### stdout NDJSON
+
+每行一个 UTF-8 JSON object，不允许 banner 或普通日志：
+
+```json
+{"schemaVersion":1,"type":"hello","jobId":"...","protocolMajor":1,"analyzerVersion":"0.1.0"}
+{"schemaVersion":1,"type":"progress","jobId":"...","sequence":1,"stage":"probe","stageProgress":1.0,"progress":0.02}
+{"schemaVersion":1,"type":"warning","jobId":"...","sequence":2,"warning":{"code":"LOW_VOCAL_CONFIDENCE","messageKey":"analyzer.warning.lowVocalConfidence","safeDetails":{"ratio":0.31}}}
+{"schemaVersion":1,"type":"completed","jobId":"...","sequence":3,"manifestRelativePath":"analysis.json"}
+```
+
+失败或取消：
+
+```json
+{"schemaVersion":1,"type":"failed","jobId":"...","sequence":3,"error":{"schemaVersion":1,"code":"ANALYZER_STAGE_FAILED","messageKey":"analyzer.error.stageFailed","stage":"separate","retryable":true,"safeDetails":{},"diagnosticId":"..."}}
+{"schemaVersion":1,"type":"cancelled","jobId":"...","sequence":3}
+```
+
+规则：第一条必须是 `hello`；`sequence` 从 1 严格递增（hello 无 sequence）；progress 单调；恰好一个 terminal；terminal 后 stdout 关闭。单行最大 64 KiB。
+
+### stdin control NDJSON
+
+```json
+{"schemaVersion":1,"type":"cancel","jobId":"..."}
+```
+
+未知控制类型写 stderr 并忽略；job ID 不匹配返回协议失败。stdin 关闭不等同取消。
+
+### Exit codes
+
+| Code | 意义 |
+|---:|---|
+| 0 | completed |
+| 2 | invalid request/protocol |
+| 3 | model missing/invalid |
+| 4 | unreadable/unsupported audio |
+| 5 | disk/storage failure |
+| 6 | cancelled |
+| 10 | internal/stage failure |
+
+Rust 以 terminal message 为主要事实源，同时验证 exit code 一致；缺 terminal、JSON 无效或不一致映射为 `ANALYZER_PROTOCOL_ERROR`。
+
+## 兼容性
+
+- `apiVersion`/`protocolMajor` 不匹配立即拒绝，不尝试猜测。
+- 同主版本可新增可选字段和新的 warning code；不得改变已有字段语义。
+- 新增 error code 时旧 UI 使用 `messageKey` 的通用回退。
+- 删除/重命名字段、改变单位或枚举语义需要主版本升级和迁移计划。
+

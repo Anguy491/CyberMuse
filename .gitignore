@@ -1,0 +1,46 @@
+# System and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# JavaScript / Tauri
+node_modules/
+dist/
+coverage/
+*.log
+apps/desktop/src-tauri/target/
+
+# Python analyzer
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
+analyzer/dist/
+analyzer/build/
+
+# Local audio, models, generated fixtures, and application data
+data/
+models/
+artifacts/
+fixtures/generated/
+*.wav
+*.mp3
+*.flac
+*.onnx
+*.pt
+*.pth
+
+# Keep explicitly licensed, tiny fixtures when added later
+!fixtures/README.md
+

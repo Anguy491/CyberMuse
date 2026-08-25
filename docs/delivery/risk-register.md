@@ -1,0 +1,45 @@
+# Risk Register
+
+| 元数据 | 值 |
+|---|---|
+| 状态 | Active |
+| 版本 | 0.1.0 |
+| 责任域 | 全项目风险治理 |
+| 上游依据 | FR/NFR、Architecture、Test Strategy |
+| 关联文件 | `milestone-specs.md`、`dependency-license-policy.md` |
+
+## 评分与处理
+
+概率/影响：Low、Medium、High。High 影响且 Medium/High 概率在目标里程碑门禁前必须降级或由用户明确接受；Critical 安全、隐私、数据丢失或许可证风险不可接受。
+
+| ID | 风险 | 概率 | 影响 | 责任域 | 触发器 | 缓解与验证 | 到期门禁 | 状态 |
+|---|---|---|---|---|---|---|---|---|
+| RISK-001 | WebView2 麦克风/AudioWorklet 在部分设备或权限状态不可用 | Medium | High | Desktop Audio | 授权后无流、Worklet 加载失败、设备切换崩溃 | M2 实机矩阵；功能检测；清晰降级；资源生命周期测试 | M2 | Open |
+| RISK-002 | 软件反馈延迟或抖动超过 100 ms P95 | Medium | High | Desktop Audio/QA | TC-PERF-001 失败 | profile Worklet/Worker/渲染；有界队列；节流；调整窗口需 ADR | M2 | Open |
+| RISK-003 | F0 八度错误、噪声误报或自然颤音被误判 | High | High | Audio/Analyzer | 黄金夹具 gross error、用户轨频繁跳八度 | confidence/RMS、范围、中位平滑；真实授权样本评测；不自动折叠八度 | M2/M4 | Open |
+| RISK-004 | 参考 F0 受分离残留或和声干扰而不可靠 | High | High | Analyzer/QA | voiced recall/median error 不达门禁 | 比较分离+F0 候选；warning/coverage；允许标记歌曲不适合而非虚假 ready | M4 | Open |
+| RISK-005 | 分离/F0 权重许可证与商业发布不兼容 | High | Critical | Compliance/Analyzer | 权重无明确商业再分发条款 | 包/wrapper/engine/权重分审；对 Meta Demucs 等候选核验具体 artifact，而非仅引用仓库 MIT；拒绝不清晰候选；评估用户自带模型或替代算法，但不绕过许可 | M4 | Open |
+| RISK-006 | CPU-only 分析时间、RAM 或临时磁盘不可接受 | High | High | Analyzer/QA | 3/5/10 分钟 benchmark 超出用户可容忍范围或系统不稳定 | chunk/模型候选/量化；可取消进度；磁盘预估；M4 ADR 固化预算 | M4 | Open |
+| RISK-007 | Python sidecar/PyInstaller 体积、启动、杀毒误报、DLL 冲突或上游停止维护 | Medium | High | Analyzer/Release | 干净机启动失败、Defender 隔离、缺 DLL、候选仓库归档或关键兼容问题无人维护 | 固定构建环境；签名计划；最小依赖；干净 Win11/Defender 测试；评估 Meta Demucs 归档影响、可维护 fork 和替代 engine | M4/M6 | Open |
+| RISK-008 | 多时钟造成播放、参考和用户轨漂移 | Medium | High | Desktop Audio | 10 分钟漂移 >20 ms、loop 边界累计 | AudioContext 单时钟；每次 seek/loop re-anchor；受控时钟和回环测试 | M3 | Open |
+| RISK-009 | 用户设备延迟差异导致正确音高在错误时间评分 | High | High | Audio UX | 同一用户稳定出现时间偏差、校准多峰 | 设备组合校准、置信度、手动偏移、设备变化失效；耳机引导 | M6 | Open |
+| RISK-010 | 崩溃/取消/磁盘不足损坏歌曲、analysis 或 session | Medium | Critical | Storage | 半写 JSON、active cache 失效、删除部分完成 | staging+原子替换；最后有效版本；故障注入；引用保护；空间预检 | M1/M5 | Open |
+| RISK-011 | 本地音频、路径或行为数据进入日志/网络 | Low | Critical | Privacy/Security | 网络捕获或诊断扫描发现禁字段 | 默认 deny；结构化 allowlist 日志；redaction；无遥测；诊断预览 | M6 | Open |
+| RISK-012 | 模型/更新下载被替换或部分文件被加载 | Low | Critical | Security/Release | 哈希不符、重定向异常、部分安装可见、wrapper 隐式下载模型或远端元数据 | TLS、allowlist、大小限制、SHA-256、staging、原子安装、manifest；禁用 `python-audio-separator` 自动下载并做断网/网络捕获测试 | M4/M6 | Open |
+| RISK-013 | 歌曲与模型占用大量磁盘，用户无法理解或清理 | High | Medium | Product/Storage | 导入/分析因空间失败、缓存持续增长 | 导入前估算；Library 占用；存储管理；引用感知清理；不自动删用户数据 | M5 | Open |
+| RISK-014 | 蓝牙音频模式切换、低质量输入或巨大延迟影响训练 | High | Medium | Audio UX | 蓝牙设备延迟/采样异常、双向模式音质下降 | 显示设备限制；建议有线/USB；校准；记录为支持限制而非掩盖 | M2/M6 | Open |
+| RISK-015 | 指标看似精确但误导用户，把表达性变化当错误 | Medium | High | Product/Scoring | 滑音/颤音被持续红色判错、单分数误导 | 连续轨、无声不评分、滞回、分项指标、限制性文案、夹具/用户评审 | M3/M6 | Open |
+| RISK-016 | 文档和实现契约漂移，自治开发跨越门禁 | Medium | High | Delivery/All | 未映射需求、接口字段分叉、提前实现后续功能 | 分层 AGENTS；traceability；同变更更新四文档；每里程碑人工 gate | 每个门禁 | Mitigated by process |
+| RISK-017 | Nothing-inspired 风格损害可读性、实时数据辨识或引入品牌/字体资产风险 | Medium | High | UI/Compliance/QA | 点阵字体用于正文、单屏层级/字体过多、颜色成为唯一状态、Pitch Lane 被装饰遮挡、仅一套主题达标、出现未审查 NDot/NType/logo/Glyph 资产或运行时字体请求 | 独立 CyberMuse Signal UI；dark/light semantic token 对比度；每屏三层/单一焦点；禁用渐变/阴影/blur/skeleton/Toast；Space Grotesk/Mono/Doto 仅经 OFL artifact 审查后自托管并保留系统 fallback；灰度/forced-colors/reduced-motion/键盘/断网字体测试 | M1/M3/M6 | Open |
+
+## 风险更新规则
+
+- 新风险使用下一个稳定 ID，不重用已关闭 ID。
+- 状态为 Open、Mitigating、Accepted、Closed、Materialized。
+- Materialized 风险转为缺陷/任务并保留原风险链接。
+- 关闭需要验证证据，不以“未再观察到”作为唯一理由。
+- 用户接受风险必须记录适用版本、理由、到期复审和用户可见限制。
+
+## M0 风险结论
+
+M0 不声称产品风险已解决；RISK-016 已通过文档结构降低。其他风险分别绑定 M1–M6 的实测门禁，不能因为文档完成而改为 Closed。
