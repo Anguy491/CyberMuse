@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Prepared for M0; runtime commands activate in M1/M4 |
+| 状态 | Active for M1; analyzer commands activate in M4 |
 | 版本 | 0.1.0 |
 | 责任域 | 开发、验证、故障排查与发布 |
 | 上游依据 | Milestone Specs、AGENTS、Test Strategy |
@@ -12,7 +12,7 @@
 
 - Windows 11 x64，PowerShell 7 优先；Windows PowerShell 命令也必须可执行。
 - Git。
-- M1 起：Node.js 当前受支持 LTS，准确 patch 写入 `.node-version`；pnpm 准确版本写入根 `package.json#packageManager`；Rust stable 准确版本写入 `rust-toolchain.toml`。
+- M1：Node.js `24.19.0`（`.node-version`）、pnpm `11.16.0`（根 `package.json#packageManager`）、Rust `1.98.0` x86_64-pc-windows-msvc（`rust-toolchain.toml`）。
 - M4 起：Python 3.12.x，准确 patch 写入 `.python-version`；使用 `uv` 和锁文件创建 analyzer 环境。
 - Visual Studio Build Tools、WebView2 Runtime 和 Tauri 所需 Windows 组件在 M1 工具链检查中验证。
 
@@ -20,7 +20,7 @@
 
 ## M0：文档仓库
 
-当前阶段仓库不含产品代码。检查文件：
+本节保留 M0 历史复核命令；M0 已于 2026-08-25 经用户人工确认通过。
 
 ```powershell
 Set-Location D:\projects\cyberMuse
@@ -48,6 +48,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:contracts
+pnpm license:check
 pnpm build
 pnpm tauri build
 ```
@@ -60,7 +61,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 ```
 
-`pnpm check` 在 M1 创建为 format、lint、typecheck、unit 和 contract 的无修改聚合命令。CI 和 Codex 交付使用 `pnpm check`，不能只运行受影响测试作为里程碑证据。
+`pnpm check` 是 format、lint、typecheck、unit、contract 和 license 的无修改聚合命令。CI 和 Codex 交付使用 `pnpm check`，不能只运行受影响测试作为里程碑证据。许可证脚本同时核对机器可读的 M1 直接依赖审批与 Windows 目标 Cargo 传递许可证。
 
 开发启动：
 
@@ -69,6 +70,8 @@ pnpm tauri dev
 ```
 
 开发服务器只用于迭代；涉及 Tauri、WebView2、音频、路径和 sidecar 的验收使用发布或近发布构建。
+
+M1 当前发布构建产物为 `target/release/cybermuse-desktop.exe`，`bundle.active=false`，不生成安装器；安装、升级和卸载证据属于 M6。系统 WebView2 的运行时诊断行为记录在 `docs/delivery/evidence/m1-foundation.md` 与 `RISK-018`，不得通过未受支持的 Chromium 参数把连接隐藏成通过。
 
 ## M4：Analyzer 环境约定
 

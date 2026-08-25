@@ -4,8 +4,8 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | M0 Documentation Baseline |
-| 产品版本 | v0.1（规划中） |
+| 状态 | M1 Gate Approved；M2 Ready |
+| 产品版本 | v0.1（开发中） |
 | 文档版本 | 0.1.0 |
 | 版本 | 0.1.0 |
 | 责任域 | 项目入口 |
@@ -15,7 +15,9 @@ CyberMuse 的核心体验是：导入一首歌曲，生成可练习的参考音�
 
 ## 当前阶段
 
-当前仓库仅包含开发前规范。M0 通过人工门禁前，不得创建产品实现代码、安装运行时依赖或下载模型资产。
+M0 与 M1 已于 2026-08-25 经用户人工确认通过。当前可开发 M2 Realtime Pitch Lab：麦克风权限/设备流、AudioWorklet/Worker 实时音高、输入电平、合成夹具和性能证据。Python analyzer、模型、歌曲导入、持久 session、真实歌曲评分与完整 Practice 行为仍受后续里程碑门禁约束。
+
+M1 已于 2026-08-25 经用户人工确认通过。用户接受将“干净启动无网络”解释为“无应用控制的外部请求、无用户数据外发”，并把系统 WebView2 必需诊断视为平台边界；接受记录见 [M1 Foundation Evidence](docs/delivery/evidence/m1-foundation.md) 和 [RISK-018](docs/delivery/risk-register.md)。仓库现可开始 M2 Realtime Pitch Lab。
 
 ## v0.1 核心能力
 
@@ -49,6 +51,22 @@ CyberMuse 的核心体验是：导入一首歌曲，生成可练习的参考音�
 3. 阅读任务涉及目录中更具体的 `AGENTS.md`。
 4. 只在当前里程碑允许范围内修改。
 5. 按 [`docs/delivery/definition-of-done.md`](docs/delivery/definition-of-done.md) 提供验证证据。
+
+## M1 验证
+
+工具链版本固定在 `.node-version`、`package.json#packageManager` 和 `rust-toolchain.toml`。在 Windows PowerShell 中运行：
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm check
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+pnpm build
+pnpm tauri build
+```
+
+完整环境与故障排查见[开发运行手册](docs/operations/development-runbook.md)。
 
 ## 许可证状态
 

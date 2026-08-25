@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "songId": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "displayName": "向前兼容.mp3",
+  "sourceExtension": "mp3",
+  "originalRelativePath": "data/songs/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/original.mp3",
+  "durationMs": 123000,
+  "importedAt": "2026-08-25T03:00:00Z",
+  "updatedAt": "2026-08-25T03:00:00Z",
+  "status": "analysis_failed",
+  "activeAnalysisId": null,
+  "lastPracticeAt": null,
+  "futureDisplayHint": "compact"
+}

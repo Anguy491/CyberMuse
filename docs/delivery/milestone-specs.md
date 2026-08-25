@@ -33,6 +33,7 @@
 - 输出：可启动的 Library/Practice/Audio Settings 空壳；Signal UI dark/light semantic tokens、三层页面骨架与基础组件状态；经审批的自托管字体或系统 fallback；纯 domain 包；版本化 schema；原子 JSON store；统一 `check/test/build` 命令。
 - 必跑验证：typecheck、lint、Vitest、Cargo fmt/clippy/test、双主题 token contrast、三层层级/primary/pattern-break 静态与视觉检查、基础键盘/focus、断网及缺失字体 fallback、无远程字体请求、Unicode/长路径、schema compatibility、Tauri dev/build smoke。
 - 退出：TC-PATH-001、TC-STO-002 基础部分、TC-CON-001 通过；干净启动无网络；文档命令更新；用户确认。
+- 门禁记录（2026-08-25）：用户接受“干净启动无网络”按“无应用控制的外部请求、无用户数据外发”验收，系统 WebView2 必需诊断属于 NFR-001 平台边界；RISK-018 按 v0.1 接受并在 M6 复审。用户确认 M1 通过，M2 可开始。
 
 ## M2 — Realtime Pitch Lab
 

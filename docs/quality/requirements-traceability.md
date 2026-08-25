@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Baseline |
+| 状态 | Active |
 | 版本 | 0.1.0 |
 | 责任域 | QA 与交付治理 |
 | 上游依据 | 全部 FR/NFR、architecture、test strategy |
@@ -22,12 +22,12 @@
 | FR-004 | Analyzer 进度/取消；API job | TC-AN-001 正常/取消/崩溃/重试 | M4 | 契约与进程测试 |
 | FR-005 | Analyzer outputs；AnalysisManifest | TC-AN-002 产物/哈希/schema/原子提交 | M4 | 黄金 manifest |
 | FR-006 | Analyzer cache fingerprint | TC-AN-003 cache hit/版本变化/回退 | M4 | 集成测试 |
-| FR-007 | UX Library；Signal UI Library patterns；Song state | TC-LIB-001 全状态 Library | M5 | UI/E2E 证据 |
+| FR-007 | UX Library；Signal UI Library patterns；Song state | TC-LIB-001 全状态 Library | M5 | M1 壳层：`apps/desktop/src/pages/LibraryPage.tsx`、`apps/desktop/src/App.test.tsx`；完整 UI/E2E：M5 |
 | FR-008 | Storage 删除与保留 | TC-STO-001 级联/部分失败/引用保护 | M5 | 删除测试 |
 | FR-009 | Audio clock/playback | TC-AUD-001 play/pause/seek/re-anchor | M3 | 时钟集成测试 |
-| FR-010 | UX Audio Settings；Signal UI permission/device patterns；Desktop boundary | TC-DEV-001 授权/拒绝/切换/拔出 | M2 | Windows 实机记录 |
+| FR-010 | UX Audio Settings；Signal UI permission/device patterns；Desktop boundary | TC-DEV-001 授权/拒绝/切换/拔出 | M2 | M1 壳层：`apps/desktop/src/pages/AudioSettingsPage.tsx`；Windows 实机行为：M2 |
 | FR-011 | Audio detect/filter；PitchObservation | TC-PIT-001 音调/静音/噪声/断开 | M2 | 算法 fixture 报告 |
-| FR-012 | Audio UI throttle；UX Practice；Signal UI Pitch Lane | TC-UI-001 NOW/轨迹/无声/seek/loop | M3 | 视觉与时钟测试 |
+| FR-012 | Audio UI throttle；UX Practice；Signal UI Pitch Lane | TC-UI-001 NOW/轨迹/无声/seek/loop | M3 | M1 壳层：`apps/desktop/src/pages/PracticePage.tsx`；完整视觉与时钟测试：M3 |
 | FR-013 | Audio scoring；Data metrics；Signal UI feedback semantics | TC-SCO-001 cents/等级/滞回 | M3 | 单元与受控时钟测试 |
 | FR-014 | Audio A-B Loop；LoopRegion | TC-LOOP-001 验证/10 次边界/take | M3 | loop 性能报告 |
 | FR-015 | Audio latency calibration | TC-LAT-001 有效/多峰/设备变化/手动 | M6 | 实机回环记录 |
@@ -43,7 +43,7 @@
 | Requirement | Design source | Primary test | Milestone | Required evidence |
 |---|---|---|---|---|
 | NFR-001 | ADR-001；Deployment | TC-PLAT-001 干净 Win11 安装/卸载 | M6 | VM+实机报告 |
-| NFR-002 | Storage paths；API paths | TC-PATH-001 Unicode/空格/180 字符 | M1/M4 | 跨语言契约测试 |
+| NFR-002 | Storage paths；API paths | TC-PATH-001 Unicode/空格/180 字符 | M1/M4 | `apps/desktop/src-tauri/src/storage.rs`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
 | NFR-003 | Audio timestamps/pipeline | TC-PERF-001 1,000 观察 P95/P99 | M2/M6 | 性能 JSON |
 | NFR-004 | ADR-004；Audio loop | TC-PERF-002 10 分钟漂移/loop | M3/M6 | 时钟报告 |
 | NFR-005 | Audio smoothing/UI throttle；Signal UI motion | TC-PERF-003 30–60 FPS/等级抖动 | M3 | 受控时钟结果 |
@@ -51,17 +51,17 @@
 | NFR-007 | Audio CPU baseline | TC-PERF-004 CPU/RAM P95 | M2/M6 | 环境化性能报告 |
 | NFR-008 | Analyzer pipeline | TC-ANPERF-001 3/5/10 分钟 CPU-only | M4 | benchmark+ADR |
 | NFR-009 | Analyzer cancel | TC-AN-004 500 ms UI/5 秒退出 | M4 | 时序测试 |
-| NFR-010 | Storage atomic | TC-STO-002 写入中终止/恢复 | M1/M5 | 故障注入 |
+| NFR-010 | Storage atomic | TC-STO-002 写入中终止/恢复 | M1/M5 | `apps/desktop/src-tauri/src/storage.rs`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
 | NFR-011 | Failure isolation | TC-ERR-001 错误目录全场景 | M5/M6 | fault matrix |
 | NFR-012 | Runtime soak | TC-SOAK-002 30 分钟/25 loop/内存 | M6 | soak report |
 | NFR-013 | Local-first boundary | TC-PRIV-001 静态调用+网络捕获 | M6 | capture report |
 | NFR-014 | Limited network | TC-NET-001 allowlist/离线/同意 | M4/M6 | 网络测试 |
 | NFR-015 | Log minimization | TC-DIA-002 14 天/禁字段扫描 | M6 | redaction report |
 | NFR-016 | Supply-chain integrity | TC-SUP-001 locks/hash/SBOM/licenses | M4/M6 | 审查清单 |
-| NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | 自动+人工记录 |
+| NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | `apps/desktop/src/signal-ui.test.ts`、`apps/desktop/src/App.test.tsx`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
 | NFR-018 | Actionable errors；Signal UI Error Panel | TC-UXERR-001 message/action/no trace | M5 | UI 测试 |
-| NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4 | fixture matrix |
-| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | CI/本地摘要 |
+| NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4 | `packages/contracts/src/song.contract.test.ts`、`fixtures/contracts/song/`、`schemas/song.schema.json` |
+| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md) |
 | NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M6 | build log |
 
 ## M0 一致性证据
@@ -71,3 +71,9 @@
 - Must 需求均有设计、测试和里程碑。
 - 测试 ID 在 Test Strategy 的层级或 Milestone Specs 中有执行位置。
 - 实现证据在相应里程碑完成后替换“Required evidence”的类别描述为实际相对路径；不得删除历史需求行。
+
+## M1 实现证据
+
+- M1 基础实现覆盖 FR-007、FR-010、FR-012 的页面壳层，不提前声称通过其 M2/M3/M5 完整行为测试。
+- NFR-002、NFR-010、NFR-017、NFR-019、NFR-020 的基础自动化与人工结果汇总在 [M1 Desktop Foundation Evidence](../delivery/evidence/m1-foundation.md)。
+- NFR-013/NFR-014 的应用代码边界无网络实现；系统 WebView2 必需诊断连接按 2026-08-25 用户确认的 RISK-018 解释纳入平台边界。M1 已通过，完整 TC-PRIV-001/TC-NET-001 仍在 M4/M6 执行。

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "songId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "displayName": "未知版本.wav",
+  "sourceExtension": "wav",
+  "originalRelativePath": "data/songs/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/original.wav",
+  "durationMs": 5000,
+  "importedAt": "2026-08-25T04:00:00Z",
+  "updatedAt": "2026-08-25T04:00:00Z",
+  "status": "needs_analysis",
+  "activeAnalysisId": null,
+  "lastPracticeAt": null
+}

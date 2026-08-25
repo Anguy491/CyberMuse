@@ -1,0 +1,21 @@
+[package]
+name = "cybermuse-desktop"
+version = "0.1.0"
+description = "CyberMuse Windows desktop foundation"
+edition = "2024"
+rust-version = "1.98"
+
+[lib]
+name = "cybermuse_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+tauri = { version = "=2.11.5", features = [] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem"] }

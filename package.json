@@ -1,0 +1,42 @@
+{
+  "name": "cybermuse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": "24.19.0",
+    "pnpm": "11.16.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @cybermuse/desktop build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:contracts && pnpm license:check",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "license:check": "node tooling/check-licenses.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "tauri": "pnpm --filter @cybermuse/desktop tauri",
+    "test": "vitest run --config tooling/vitest.unit.config.ts",
+    "test:contracts": "vitest run --config tooling/vitest.contract.config.ts",
+    "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "eslint": "10.8.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.4",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}

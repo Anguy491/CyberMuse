@@ -17,6 +17,10 @@ dist/
 coverage/
 *.log
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+/target/
+.turbo/
+.vite/
 
 # Python analyzer
 .venv/
@@ -43,4 +47,4 @@ fixtures/generated/
 
 # Keep explicitly licensed, tiny fixtures when added later
 !fixtures/README.md
-
+!fixtures/contracts/**/*.json

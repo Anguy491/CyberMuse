@@ -2,10 +2,10 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Baseline |
+| 状态 | Active |
 | 版本 | 0.1.0 |
 | 责任域 | 文档治理与导航 |
-| 上游依据 | 用户批准的 M0 规划 |
+| 上游依据 | 用户批准的 M0 基线与当前里程碑交付 |
 | 关联文件 | 根 `README.md`、根 `AGENTS.md` |
 
 ## 使用方式
@@ -18,7 +18,7 @@
 |---|---|---|---|
 | 入口 | [根 README](../README.md) | Baseline | 项目导航 |
 | 治理 | [根 AGENTS](../AGENTS.md) | Active | 全仓库规则 |
-| 治理 | [Desktop AGENTS](../apps/desktop/AGENTS.md) | Prepared | 桌面与实时音频 |
+| 治理 | [Desktop AGENTS](../apps/desktop/AGENTS.md) | Active | 桌面与实时音频 |
 | 治理 | [Analyzer AGENTS](../analyzer/AGENTS.md) | Prepared | 离线分析器 |
 | 产品 | [Product Brief](product/product-brief.md) | Baseline | 产品边界 |
 | 产品 | [Functional Requirements](product/functional-requirements.md) | Baseline | 功能行为 |
@@ -33,15 +33,21 @@
 | 架构 | [Storage, Privacy & Security](architecture/storage-privacy-security.md) | Baseline | 本地数据与信任边界 |
 | 架构 | [Decisions](architecture/decisions.md) | Accepted | ADR 日志 |
 | 质量 | [Test Strategy](quality/test-strategy.md) | Baseline | 测试与证据 |
-| 质量 | [Requirements Traceability](quality/requirements-traceability.md) | Baseline | 需求追踪 |
-| 质量 | [Dependency & License Policy](quality/dependency-license-policy.md) | Baseline | 供应链合规 |
+| 质量 | [Requirements Traceability](quality/requirements-traceability.md) | Active | 需求追踪 |
+| 质量 | [Dependency & License Policy](quality/dependency-license-policy.md) | Active | 供应链合规 |
 | 交付 | [Roadmap](delivery/roadmap.md) | Baseline | 阶段价值与依赖 |
 | 交付 | [Milestone Specs](delivery/milestone-specs.md) | Baseline | 自治任务边界与门禁 |
 | 交付 | [Definition of Done](delivery/definition-of-done.md) | Baseline | 完成标准 |
 | 交付 | [Risk Register](delivery/risk-register.md) | Active | 风险与缓解 |
-| 运维 | [Development Runbook](operations/development-runbook.md) | Prepared | 开发、验证、发布 |
+| 运维 | [Development Runbook](operations/development-runbook.md) | Active | 开发、验证、发布 |
 
 共 25 份核心 Markdown 文档：2 个入口/索引、3 个 `AGENTS.md`、5 个产品文档、7 个架构文档、3 个质量文档、4 个交付文档和 1 个运行手册。上表将根 README 计入入口，将本文件计入索引。
+
+实现阶段的可重跑证据和机器可读清单不是新的事实源，也不计入上述 25 份核心文档：
+
+- [M1 Desktop Foundation 证据](delivery/evidence/m1-foundation.md)
+- [M1 依赖审批清单](quality/dependencies.json)
+- [Song JSON Schema v1](../schemas/song.schema.json)
 
 ## 事实源规则
 
@@ -66,7 +72,7 @@
 ## 状态含义
 
 - `Prepared`：结构已定义，待对应里程碑填入实测命令或实现证据。
-- `Baseline`：M0 候选基线，等待人工门禁确认。
+- `Baseline`：已通过 M0 人工门禁的规范基线；实现只能通过同变更证据同步修订。
 - `Active`：持续执行的治理或风险文档。
 - `Accepted`：已做出的架构决定；只能通过新决定替代。
 - `Superseded`：被后续决定取代，保留历史记录。

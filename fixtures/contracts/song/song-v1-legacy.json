@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "displayName": "旧版夹具.wav",
+  "sourceExtension": "wav",
+  "originalRelativePath": "data/songs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/original.wav",
+  "durationMs": 0,
+  "importedAt": "2026-08-25T00:00:00Z",
+  "updatedAt": "2026-08-25T00:00:00Z",
+  "status": "needs_analysis",
+  "activeAnalysisId": null,
+  "lastPracticeAt": null
+}

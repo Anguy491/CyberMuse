@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/song.schema.json",
+  "title": "CyberMuse Song",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "songId",
+    "displayName",
+    "sourceExtension",
+    "originalRelativePath",
+    "durationMs",
+    "importedAt",
+    "updatedAt",
+    "status",
+    "activeAnalysisId",
+    "lastPracticeAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "songId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sourceExtension": { "enum": ["mp3", "wav", "flac"] },
+    "originalRelativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "importedAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "needs_analysis",
+        "model_required",
+        "analyzing",
+        "ready",
+        "analysis_failed",
+        "damaged"
+      ]
+    },
+    "activeAnalysisId": { "type": ["string", "null"] },
+    "lastPracticeAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

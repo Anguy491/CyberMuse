@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Baseline |
+| 状态 | Active |
 | 版本 | 0.1.0 |
 | 责任域 | 供应链合规与交付 |
 | 上游依据 | 商业友好约束、ADR-007、NFR-016 |
@@ -61,7 +61,7 @@ alternatives considered
 reviewer, review date, decision: approved / rejected / spike-only
 ```
 
-清单在 M1 创建机器可读版本；本文保留规则，不复制动态版本列表。
+M1 机器可读清单位于 [`dependencies.json`](dependencies.json)；本文保留规则，不复制动态版本列表。`pnpm license:check` 必须验证清单、锁文件、生产 npm 依赖和 Windows 目标 Cargo 传递许可证一致。
 
 ## 模型专项规则
 
@@ -82,7 +82,9 @@ M1 首批 UI 字体候选为：
 - `CAND-UI-002` [Space Mono](https://github.com/google/fonts/tree/main/ofl/spacemono)：数据、阶段与技术元信息；Google Fonts 仓库提供 OFL-1.1 初步证据，状态为 `spike-only`。
 - `CAND-UI-003` [Doto](https://github.com/google/fonts/tree/main/ofl/doto)：极少量拉丁字母/数字 hero；Google Fonts 仓库提供 OFL-1.1 初步证据，状态为 `spike-only`，不得用于正文、错误、按钮或中文。
 
-三项候选只允许在 M1 审查后以仓库内固定 WOFF2 和 `@font-face` 自托管；禁止 Google Fonts/CDN 或运行时下载。批准前必须记录精确 commit/artifact URL、SHA-256、字重/子集、版权与 OFL 文本、Reserved Font Name、中文回退、bundle 增量、字体加载失败行为及系统字体替代方案。M0 不下载字体文件，也不把候选状态解释为生产批准。
+三项候选只允许在 M1 审查后以仓库内固定 WOFF2 和 `@font-face` 自托管；禁止 Google Fonts/CDN 或运行时下载。批准前必须记录精确 commit/artifact URL、SHA-256、字重/子集、版权与 OFL 文本、Reserved Font Name、中文回退、bundle 增量、字体加载失败行为及系统字体替代方案。
+
+M1 已决定使用 Segoe UI、Cascadia Mono、Consolas 和通用字体族的系统 fallback，不打包或请求远程字体/图标。`CAND-UI-001..003` 继续保持 `spike-only`，本里程碑未下载、批准或分发其 artifact；该选择降低供应链与断网启动风险，不改变未来重新审批条件。
 
 M4 首批分离候选为：
 

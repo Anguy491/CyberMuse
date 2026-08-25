@@ -31,6 +31,7 @@
 | RISK-015 | 指标看似精确但误导用户，把表达性变化当错误 | Medium | High | Product/Scoring | 滑音/颤音被持续红色判错、单分数误导 | 连续轨、无声不评分、滞回、分项指标、限制性文案、夹具/用户评审 | M3/M6 | Open |
 | RISK-016 | 文档和实现契约漂移，自治开发跨越门禁 | Medium | High | Delivery/All | 未映射需求、接口字段分叉、提前实现后续功能 | 分层 AGENTS；traceability；同变更更新四文档；每里程碑人工 gate | 每个门禁 | Mitigated by process |
 | RISK-017 | Nothing-inspired 风格损害可读性、实时数据辨识或引入品牌/字体资产风险 | Medium | High | UI/Compliance/QA | 点阵字体用于正文、单屏层级/字体过多、颜色成为唯一状态、Pitch Lane 被装饰遮挡、仅一套主题达标、出现未审查 NDot/NType/logo/Glyph 资产或运行时字体请求 | 独立 CyberMuse Signal UI；dark/light semantic token 对比度；每屏三层/单一焦点；禁用渐变/阴影/blur/skeleton/Toast；Space Grotesk/Mono/Doto 仅经 OFL artifact 审查后自托管并保留系统 fallback；灰度/forced-colors/reduced-motion/键盘/断网字体测试 | M1/M3/M6 | Open |
+| RISK-018 | NFR-001 要求使用系统 WebView2，但 WebView2 必需诊断连接与 M1“干净启动无网络”的字面退出条件冲突 | High | High | Architecture/Privacy/Delivery | 发布壳空白启动时系统 WebView2 browser process 连接 Microsoft `52.98.*:443`；应用源码和 WebView 网络日志无外部页面请求 | 保持 CSP 与应用网络调用为 deny；禁用 SmartScreen；以进程树、连接表和 WebView netlog 区分应用请求与系统诊断；不提交未受支持的 Chromium flags。v0.1 按“无应用控制的外部请求/无用户数据外发”验收，M6 重新执行受控网络捕获并公开系统运行时限制 | M6 | Accepted |
 
 ## 风险更新规则
 
@@ -40,6 +41,8 @@
 - 关闭需要验证证据，不以“未再观察到”作为唯一理由。
 - 用户接受风险必须记录适用版本、理由、到期复审和用户可见限制。
 
-## M0 风险结论
+## M1 风险结论
 
-M0 不声称产品风险已解决；RISK-016 已通过文档结构降低。其他风险分别绑定 M1–M6 的实测门禁，不能因为文档完成而改为 Closed。
+M0、M1 已通过人工门禁。M1 对 RISK-010 建立了原子写入基础故障注入，对 RISK-017 建立了双主题与系统字体 fallback 证据，但二者仍需后续里程碑覆盖完整产品行为。
+
+RISK-018 于 2026-08-25 由用户为 v0.1 明确接受：验收边界是“无应用控制的外部请求、无用户数据外发”，理由是 NFR-001 已要求系统 WebView2，而宿主不能全面关闭其必需诊断连接。适用限制是应用仍可能随系统 WebView2 连接 Microsoft 诊断端点；不得把该接受扩展为允许 CyberMuse 遥测、上传或隐藏网络调用。M6 在 TC-PRIV-001/TC-NET-001 中复审并形成用户可见已知限制。

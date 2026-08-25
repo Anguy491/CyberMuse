@@ -1,0 +1,21 @@
+{
+  "name": "@cybermuse/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "dev": "vite",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@cybermuse/contracts": "workspace:*",
+    "@cybermuse/domain": "workspace:*",
+    "@tauri-apps/api": "2.11.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  }
+}
