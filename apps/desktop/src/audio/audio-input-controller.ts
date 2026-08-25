@@ -27,6 +27,7 @@ interface AudioInputEnvironment {
 
 interface RuntimeSession {
   readonly context: AudioContext;
+  readonly ownsContext: boolean;
   readonly stream: MediaStream;
   readonly tracks: readonly MediaStreamTrack[];
   readonly source: MediaStreamAudioSourceNode;
@@ -35,6 +36,10 @@ interface RuntimeSession {
   readonly channel: MessageChannel;
   contextOriginPerformanceMs: number;
   readonly cleanupListeners: readonly (() => void)[];
+}
+
+interface AudioInputControllerOptions {
+  sharedContext?: AudioContext;
 }
 
 const EMPTY_RESOURCES: AudioResourceCounts = Object.freeze({
@@ -230,6 +235,7 @@ function addListener(
 
 export class AudioInputController implements AudioInputControllerPort {
   private readonly environment: AudioInputEnvironment;
+  private readonly options: AudioInputControllerOptions;
   private readonly listeners = new Set<SnapshotListener>();
   private readonly latencySamples: number[] = [];
   private snapshot: AudioInputSnapshot = INITIAL_SNAPSHOT;
@@ -241,8 +247,12 @@ export class AudioInputController implements AudioInputControllerPort {
   private removeDeviceChangeListener: (() => void) | null = null;
   private handlingDeviceChange = false;
 
-  constructor(environment: AudioInputEnvironment = browserEnvironment()) {
+  constructor(
+    environment: AudioInputEnvironment = browserEnvironment(),
+    options: AudioInputControllerOptions = {},
+  ) {
     this.environment = environment;
+    this.options = options;
   }
 
   getSnapshot(): AudioInputSnapshot {
@@ -426,7 +436,9 @@ export class AudioInputController implements AudioInputControllerPort {
     stream: MediaStream,
     generation: number,
   ): Promise<RuntimeSession | null> {
-    const context = this.environment.createAudioContext();
+    const ownsContext = this.options.sharedContext === undefined;
+    const context =
+      this.options.sharedContext ?? this.environment.createAudioContext();
     let source: MediaStreamAudioSourceNode | null = null;
     let worklet: AudioWorkletNode | null = null;
     let worker: Worker | null = null;
@@ -435,7 +447,9 @@ export class AudioInputController implements AudioInputControllerPort {
     try {
       await context.audioWorklet.addModule(pitchWorkletUrl);
       if (generation !== this.requestGeneration || this.disposed) {
-        await context.close();
+        if (ownsContext) {
+          await context.close();
+        }
         return null;
       }
       source = context.createMediaStreamSource(stream);
@@ -445,6 +459,7 @@ export class AudioInputController implements AudioInputControllerPort {
       const tracks = stream.getAudioTracks();
       const session: RuntimeSession = {
         context,
+        ownsContext,
         stream,
         tracks,
         source,
@@ -503,7 +518,7 @@ export class AudioInputController implements AudioInputControllerPort {
       worker?.terminate();
       channel?.port1.close();
       channel?.port2.close();
-      if (context.state !== "closed") {
+      if (ownsContext && context.state !== "closed") {
         await context.close();
       }
       throw error;
@@ -758,7 +773,7 @@ export class AudioInputController implements AudioInputControllerPort {
     for (const track of session.tracks) {
       track.stop();
     }
-    if (session.context.state !== "closed") {
+    if (session.ownsContext && session.context.state !== "closed") {
       await session.context.close();
     }
   }
@@ -774,4 +789,4 @@ export class AudioInputController implements AudioInputControllerPort {
   }
 }
 
-export type { AudioInputEnvironment };
+export type { AudioInputControllerOptions, AudioInputEnvironment };

@@ -71,6 +71,9 @@ importers:
       '@cybermuse/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@cybermuse/scoring':
+        specifier: workspace:*
+        version: link:../../packages/scoring
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -97,6 +100,15 @@ importers:
   packages/contracts: {}
 
   packages/domain: {}
+
+  packages/scoring:
+    dependencies:
+      '@cybermuse/audio':
+        specifier: workspace:*
+        version: link:../audio
+      '@cybermuse/domain':
+        specifier: workspace:*
+        version: link:../domain
 
 packages:
 

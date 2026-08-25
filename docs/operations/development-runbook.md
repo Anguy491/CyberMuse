@@ -103,6 +103,33 @@ $m2Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
 停止或切换后，旧 MediaStreamTrack、source、Worklet、Worker、MessagePort、AudioContext 与监听器必须全部归零；再启动不得复用 ended track。真实完整路径至少收集 1,000 个有效观察，NFR-003 要求 P95 ≤100 ms、P99 ≤150 ms；NFR-007 要求 60 秒总 CPU P95 ≤25%、working set P95 ≤750 MB；NFR-006 要求 30 分钟无应用处理造成的 underrun。未满足或未执行任何一项时登记风险并阻止 M2 门禁。
 
+## M3：Fixture-based Practice
+
+M3 使用程序生成的 12 秒、20 ms hop、`schemaVersion=1` 本地 fixture，不读取歌曲文件、不下载模型、不调用 Python 或持久化 session。可复现质量、时钟/性能和可访问性命令为：
+
+```powershell
+pnpm test:m3:quality
+pnpm test:m3:performance
+pnpm test:m3:a11y
+```
+
+`test:m3:quality` 必须验证最近参考帧匹配、voiced/unvoiced、±25/50/100 cents 边界、120 ms 平滑、5 cents 滞回，以及稳定偏低、零中心高波动、低 coverage 和无有效帧黄金序列。`test:m3:performance` 必须记录 10 分钟最大漂移、至少 10 次 loop 的每次边界误差/P95/take ID/source 计数、10 秒 UI commit FPS、500 ms 等级往返和 320/1000/1440 px 桶容量。`test:m3:a11y` 覆盖 Practice 文字摘要、legend、键盘等价按钮、无声中性语义、forced-colors、reduced-motion 和系统字体 fallback。JSON 原始报告写入 Git 忽略的 `artifacts/m3`，关键结果抄入 M3 evidence。
+
+Windows 11 发布包人工 smoke：
+
+```powershell
+pnpm tauri build
+Start-Process -FilePath .\target\release\cybermuse-desktop.exe
+```
+
+1. 打开“练习”，明确选择“加载本地练习夹具”；确认加载前没有麦克风请求。
+2. 播放、暂停、将滑杆跳到 6 秒并回到开头；确认计时、参考轨和 NOW 同步，暂停后 `SOURCES 0 ACTIVE`。
+3. 设置合法 A/B，启用 loop，运行至少 10 次；确认 LOOP/take ID 递增、同时最多一个活动 source，停止后资源归零。非法、倒序或短于 1 秒的区间必须显示可操作错误。
+4. 只有操作人员理解用途后才选择“开始录唱”。确认麦克风与播放共享时钟、无声显示“未检测到稳定音高”、离页释放资源；操作人员拒绝权限时仍可预览 fixture，并看到恢复动作。自动化不得代替用户批准或拒绝 Windows 隐私请求。
+5. 在可取得的 light/dark、100%/150% 缩放和键盘路径检查 NOW 38%、文字方向、参考虚线/当前实线/最近点线、legend、焦点与 44 px 操作目标；缺失环境必须写 `not available`，不得写通过。
+
+M3 session 固定只存在当前 Practice 页面内存，容量为 180,000 个有效样本。不得从手册步骤推导或创建 session 保存、歌曲导入、真实歌曲分析、延迟校准持久化或 Tauri session IPC。
+
 ## M4：Analyzer 环境约定
 
 ```powershell

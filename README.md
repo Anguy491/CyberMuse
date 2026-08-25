@@ -4,7 +4,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | M1 Gate Approved；M2 Ready |
+| 状态 | M3 Gate Approved；M4 Ready |
 | 产品版本 | v0.1（开发中） |
 | 文档版本 | 0.1.0 |
 | 版本 | 0.1.0 |
@@ -15,9 +15,9 @@ CyberMuse 的核心体验是：导入一首歌曲，生成可练习的参考音�
 
 ## 当前阶段
 
-M0 与 M1 已于 2026-08-25 经用户人工确认通过。当前可开发 M2 Realtime Pitch Lab：麦克风权限/设备流、AudioWorklet/Worker 实时音高、输入电平、合成夹具和性能证据。Python analyzer、模型、歌曲导入、持久 session、真实歌曲评分与完整 Practice 行为仍受后续里程碑门禁约束。
+M0、M1、M2、M3 已于 2026-08-25 经用户人工确认通过。M3 Fixture-based Practice 已实现本地确定性参考轨、AudioContext 单时钟播放、Pitch Lane、signed cents 与分项指标、A-B Loop 和页面内存 take/session；证据见 [M3 Fixture-based Practice Evidence](docs/delivery/evidence/m3-fixture-practice.md)。仓库现可按里程碑边界开始 M4 Offline Analyzer。
 
-M1 已于 2026-08-25 经用户人工确认通过。用户接受将“干净启动无网络”解释为“无应用控制的外部请求、无用户数据外发”，并把系统 WebView2 必需诊断视为平台边界；接受记录见 [M1 Foundation Evidence](docs/delivery/evidence/m1-foundation.md) 和 [RISK-018](docs/delivery/risk-register.md)。仓库现可开始 M2 Realtime Pitch Lab。
+Python analyzer、模型、歌曲导入、持久 session、真实歌曲评分与正式 Review 仍受 M4–M6 门禁约束。M1 对系统 WebView2 诊断连接的接受边界继续有效，记录见 [M1 Foundation Evidence](docs/delivery/evidence/m1-foundation.md) 和 [RISK-018](docs/delivery/risk-register.md)。
 
 ## v0.1 核心能力
 
@@ -52,13 +52,16 @@ M1 已于 2026-08-25 经用户人工确认通过。用户接受将“干净启�
 4. 只在当前里程碑允许范围内修改。
 5. 按 [`docs/delivery/definition-of-done.md`](docs/delivery/definition-of-done.md) 提供验证证据。
 
-## M1 验证
+## 验证
 
 工具链版本固定在 `.node-version`、`package.json#packageManager` 和 `rust-toolchain.toml`。在 Windows PowerShell 中运行：
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm check
+pnpm test:m3:quality
+pnpm test:m3:performance
+pnpm test:m3:a11y
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features

@@ -502,4 +502,20 @@ describe("TC-DEV-001 audio input lifecycle", () => {
     expect(environment.worklets[0]?.disconnectCount).toBe(1);
     expect(environment.mediaDevices.deviceListenerCount).toBe(0);
   });
+
+  it("borrows the Practice playback AudioContext without closing the single clock", async () => {
+    const environment = new FakeEnvironment();
+    const sharedContext = new FakeContext();
+    const track = environment.queueStream("built-in");
+    const controller = new AudioInputController(environment.asEnvironment(), {
+      sharedContext: sharedContext as unknown as AudioContext,
+    });
+
+    await controller.requestPermission();
+    await controller.dispose();
+
+    expect(environment.contexts).toHaveLength(0);
+    expect(track.stopCount).toBe(1);
+    expect(sharedContext.closeCount).toBe(0);
+  });
 });

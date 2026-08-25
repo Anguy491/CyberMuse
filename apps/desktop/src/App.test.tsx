@@ -28,7 +28,7 @@ describe("M1 desktop shell", () => {
 
     await user.click(screen.getByRole("button", { name: "练习" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "练习轨等待歌曲。",
+      "加载本地练习夹具。",
     );
     expect(screen.getByRole("button", { name: "练习" })).toHaveAttribute(
       "aria-current",

@@ -20,7 +20,10 @@
     "test:contracts": "vitest run --config tooling/vitest.contract.config.ts",
     "test:m2:performance": "vite build --config tooling/vite.m2-benchmark.config.ts && node artifacts/m2/benchmark-bundle/m2-realtime-benchmark.mjs",
     "test:m2:quality": "vite build --config tooling/vite.m2-quality.config.ts && node artifacts/m2/quality-bundle/m2-quality-report.mjs",
-    "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
+    "test:m3:a11y": "vitest run apps/desktop/src/pages/PracticePage.test.tsx apps/desktop/src/signal-ui.test.ts --config tooling/vitest.unit.config.ts",
+    "test:m3:performance": "vite build --config tooling/vite.m3-performance.config.ts && node artifacts/m3/performance-bundle/m3-performance-report.mjs",
+    "test:m3:quality": "vite build --config tooling/vite.m3-quality.config.ts && node artifacts/m3/quality-bundle/m3-quality-report.mjs",
+    "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p packages/scoring/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -392,12 +392,46 @@ select {
 }
 
 .metric-placeholder {
+  min-width: 260px;
   margin: 0;
   color: var(--color-text-display);
   font-family: var(--font-data);
   font-size: 48px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+.practice-feedback {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 280px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-feedback strong {
+  color: var(--color-text-display);
+  font-size: 18px;
+}
+
+.practice-load {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 24px;
+  padding: 24px 0;
+  border-top: 1px solid var(--color-border-visible);
+}
+
+.practice-load p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 .metric-placeholder span {
@@ -438,6 +472,13 @@ select {
   stroke-width: 3;
 }
 
+.previous-take-line {
+  fill: none;
+  stroke: var(--color-control-border);
+  stroke-dasharray: 3 7;
+  stroke-width: 2;
+}
+
 .now-line {
   position: absolute;
   top: -16px;
@@ -466,6 +507,13 @@ select {
   color: var(--color-text-secondary);
   background: var(--color-canvas);
   font-size: 12px;
+}
+
+.pitch-lane-summary {
+  min-height: 24px;
+  margin: 16px 0 0;
+  color: var(--color-text-primary);
+  line-height: 1.5;
 }
 
 .practice-controls {
@@ -504,6 +552,159 @@ select {
 .legend-line--reference {
   border-top-style: dashed;
   border-top-color: var(--color-text-secondary);
+}
+
+.legend-line--previous {
+  border-top-style: dotted;
+  border-top-color: var(--color-control-border);
+}
+
+.practice-secondary {
+  display: grid;
+  gap: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border-visible);
+}
+
+.transport-row,
+.loop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.transport-time {
+  margin-left: auto;
+  color: var(--color-text-display);
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seek-control {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr);
+  align-items: center;
+  gap: 16px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.seek-control input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--color-signal);
+}
+
+.practice-input-state {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px 32px;
+}
+
+.practice-input-state .page-state {
+  padding-top: 0;
+}
+
+.loop-controls {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 24px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border-visible);
+  border-bottom: 1px solid var(--color-border-visible);
+}
+
+.loop-controls legend {
+  padding: 0 16px 0 0;
+  color: var(--color-text-display);
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.loop-controls > p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.loop-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 240px));
+  gap: 16px;
+}
+
+.loop-values label {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.loop-values input {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-control-border);
+  border-radius: 0;
+  color: var(--color-text-display);
+  background: transparent;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.inline-error {
+  color: var(--color-text-primary) !important;
+}
+
+.inline-error code {
+  color: var(--color-signal-text);
+  font-family: var(--font-data);
+}
+
+.practice-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+}
+
+.practice-metric-group {
+  min-width: 0;
+}
+
+.practice-metric-group dl {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.practice-metric-group dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-decorative);
+}
+
+.practice-metric-group dt {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.practice-metric-group dd {
+  min-width: 72px;
+  margin: 0;
+  color: var(--color-text-display);
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .audio-primary {
@@ -673,6 +874,14 @@ select {
   .audio-readout {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .practice-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .practice-input-state {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 620px) {
@@ -681,9 +890,19 @@ select {
   }
 
   .primary-actions,
-  .practice-heading {
+  .practice-heading,
+  .practice-load {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .practice-feedback {
+    justify-items: start;
+    min-width: 0;
+  }
+
+  .loop-values {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -707,6 +926,8 @@ select {
   .audio-readout,
   .level-meter,
   .pitch-lane-shell,
+  .loop-values input,
+  .seek-control input,
   .setting-row select {
     border-color: CanvasText;
     forced-color-adjust: auto;
@@ -716,5 +937,11 @@ select {
   .nav-link[aria-current="page"]::after,
   .level-meter__fill {
     background: Highlight;
+  }
+
+  .reference-line,
+  .user-line,
+  .previous-take-line {
+    stroke: CanvasText;
   }
 }

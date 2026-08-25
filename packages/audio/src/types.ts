@@ -11,6 +11,33 @@ export interface PitchObservation {
   droppedWindows: number;
 }
 
+export interface PitchFrame {
+  timeMs: number;
+  hz: number | null;
+  midi: number | null;
+  confidence: number;
+  voiced: boolean;
+  interpolated?: boolean;
+}
+
+export interface ReferenceTrack {
+  schemaVersion: 1;
+  durationMs: number;
+  hopMs: number;
+  minHz: number;
+  maxHz: number;
+  frames: readonly PitchFrame[];
+}
+
+export interface PracticeFixture {
+  schemaVersion: 1;
+  fixtureId: string;
+  title: string;
+  description: string;
+  sampleRateHz: number;
+  referenceTrack: ReferenceTrack;
+}
+
 export interface RealtimePitchConfig {
   windowSize: number;
   hopSize: number;

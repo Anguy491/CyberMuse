@@ -24,14 +24,14 @@
 | FR-006 | Analyzer cache fingerprint | TC-AN-003 cache hit/版本变化/回退 | M4 | 集成测试 |
 | FR-007 | UX Library；Signal UI Library patterns；Song state | TC-LIB-001 全状态 Library | M5 | M1 壳层：`apps/desktop/src/pages/LibraryPage.tsx`、`apps/desktop/src/App.test.tsx`；完整 UI/E2E：M5 |
 | FR-008 | Storage 删除与保留 | TC-STO-001 级联/部分失败/引用保护 | M5 | 删除测试 |
-| FR-009 | Audio clock/playback | TC-AUD-001 play/pause/seek/re-anchor | M3 | 时钟集成测试 |
+| FR-009 | Audio clock/playback；ADR-004 | TC-AUD-001 play/pause/seek/re-anchor | M3 | `packages/audio/src/playback-timeline.test.ts`、`apps/desktop/src/practice/playback-engine.test.ts`；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | FR-010 | UX Audio Settings；Signal UI permission/device patterns；Desktop boundary | TC-DEV-001 授权/拒绝/切换/拔出 | M2 | 自动生命周期/无自动授权、真实 USB allow/deny、系统默认↔USB 切换、unplug/replug 与用户剩余人工路径验收通过；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)；不可用设备类别在 RISK-019/M6 复验 |
 | FR-011 | Audio detect/filter；PitchObservation；ADR-011 | TC-PIT-001 音调/静音/噪声/断开 | M2 | `packages/audio/src/analyzer.test.ts`、`artifacts/m2/pitch-quality.json` 摘要；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
-| FR-012 | Audio UI throttle；UX Practice；Signal UI Pitch Lane | TC-UI-001 NOW/轨迹/无声/seek/loop | M3 | M1 壳层：`apps/desktop/src/pages/PracticePage.tsx`；完整视觉与时钟测试：M3 |
-| FR-013 | Audio scoring；Data metrics；Signal UI feedback semantics | TC-SCO-001 cents/等级/滞回 | M3 | 单元与受控时钟测试 |
-| FR-014 | Audio A-B Loop；LoopRegion | TC-LOOP-001 验证/10 次边界/take | M3 | loop 性能报告 |
+| FR-012 | Audio UI throttle；UX Practice；Signal UI Pitch Lane；ADR-012 | TC-UI-001 NOW/轨迹/无声/seek/loop | M3 | `apps/desktop/src/practice/pitch-lane-model.test.ts`、`apps/desktop/src/pages/PracticePage.test.tsx`；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
+| FR-013 | Audio scoring；Data metrics；Signal UI feedback semantics；ADR-012 | TC-SCO-001 cents/等级/滞回 | M3 | `packages/scoring/src/scoring.test.ts`、`artifacts/m3/scoring-quality.json` 摘要；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
+| FR-014 | Audio A-B Loop；LoopRegion；ADR-012 | TC-LOOP-001 验证/10 次边界/take | M3 | `packages/audio/src/playback-timeline.test.ts`、`packages/scoring/src/scoring.test.ts`、`artifacts/m3/practice-performance.json` 摘要；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | FR-015 | Audio latency calibration | TC-LAT-001 有效/多峰/设备变化/手动 | M6 | 实机回环记录 |
-| FR-016 | Data metric definitions | TC-SCO-002 accuracy/bias/MAD/coverage | M3 | 黄金序列测试 |
+| FR-016 | Data metric definitions；ADR-012 | TC-SCO-002 accuracy/bias/MAD/coverage | M3 | `packages/scoring/src/scoring.test.ts`、`artifacts/m3/scoring-quality.json` 摘要；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | FR-017 | PracticeSession；Storage atomic | TC-SES-001 保存/重启/失败/引用 | M6 | 集成测试 |
 | FR-018 | UX Review；Signal UI Review hierarchy/Metric；SessionMetrics | TC-REV-001 摘要/损坏范围/重练区间 | M6 | E2E 报告 |
 | FR-019 | Storage model；License policy | TC-MOD-001 同意/下载/hash/离线/删除 | M4 | 本地服务器测试 |
@@ -45,8 +45,8 @@
 | NFR-001 | ADR-001；Deployment | TC-PLAT-001 干净 Win11 安装/卸载 | M6 | VM+实机报告 |
 | NFR-002 | Storage paths；API paths | TC-PATH-001 Unicode/空格/180 字符 | M1/M4 | `apps/desktop/src-tauri/src/storage.rs`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
 | NFR-003 | Audio timestamps/pipeline；ADR-011 | TC-PERF-001 1,000 观察 P95/P99 | M2/M6 | USB/48 kHz 完整发布路径 1,871 valid，P95/P99 68.3/70.7 ms、drop 0；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
-| NFR-004 | ADR-004；Audio loop | TC-PERF-002 10 分钟漂移/loop | M3/M6 | 时钟报告 |
-| NFR-005 | Audio smoothing/UI throttle；Signal UI motion | TC-PERF-003 30–60 FPS/等级抖动 | M3 | M2 RAF 合并基础：`apps/desktop/src/audio/audio-input-controller.test.ts`；M3 反馈等级验证待执行 |
+| NFR-004 | ADR-004；Audio loop | TC-PERF-002 10 分钟漂移/loop | M3/M6 | `artifacts/m3/practice-performance.json` 摘要：10 分钟最大漂移 0 ms、10 次边界 P95 16.667 ms；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
+| NFR-005 | Audio smoothing/UI throttle；Signal UI motion；ADR-012 | TC-PERF-003 30–60 FPS/等级抖动 | M3 | `artifacts/m3/practice-performance.json` 摘要：有效 UI 46.9 FPS、500 ms 等级往返 0；`apps/desktop/src/practice/practice-controller.test.ts`；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | NFR-006 | Worklet boundary；ADR-011 | TC-SOAK-001 30 分钟 underrun/node | M2/M6 | USB 发布构建 30 分钟实机 soak 通过：Context running、drop 0、资源无增长、CPU P95 4.4%、working set P95 743.129 MiB；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
 | NFR-007 | Audio CPU baseline | TC-PERF-004 CPU/RAM P95 | M2/M6 | USB 麦克风完整发布进程树 60 秒 CPU P95 2.658%、working set P95 675.848 MiB，低于 25%/750 MiB；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
 | NFR-008 | Analyzer pipeline | TC-ANPERF-001 3/5/10 分钟 CPU-only | M4 | benchmark+ADR |
@@ -58,10 +58,10 @@
 | NFR-014 | Limited network | TC-NET-001 allowlist/离线/同意 | M4/M6 | 网络测试 |
 | NFR-015 | Log minimization | TC-DIA-002 14 天/禁字段扫描 | M6 | redaction report |
 | NFR-016 | Supply-chain integrity | TC-SUP-001 locks/hash/SBOM/licenses | M4/M6 | M2 Pitchy/fft.js 精确版本、integrity、许可证：`docs/quality/dependencies.json`、`pnpm-lock.yaml`；完整 SBOM/M6 notices 待 M6 |
-| NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | `apps/desktop/src/signal-ui.test.ts`、`apps/desktop/src/App.test.tsx`、`apps/desktop/src/pages/AudioSettingsPage.test.tsx`；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
+| NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | `apps/desktop/src/signal-ui.test.ts`、`apps/desktop/src/pages/PracticePage.test.tsx`、`apps/desktop/src/pages/AudioSettingsPage.test.tsx`；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | NFR-018 | Actionable errors；Signal UI Error Panel | TC-UXERR-001 message/action/no trace | M5 | UI 测试 |
 | NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4 | `packages/contracts/src/song.contract.test.ts`、`fixtures/contracts/song/`、`schemas/song.schema.json` |
-| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)；M2 未申请通过 |
+| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md)；M3 于 2026-08-25 经用户人工门禁确认通过 |
 | NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M6 | build log |
 
 ## M0 一致性证据
@@ -85,3 +85,12 @@
 - NFR-003 的 USB/48 kHz 完整发布路径、NFR-007 的真实应用 60 秒进程树基线与 NFR-006 的 30 分钟发布构建 soak 已通过；30 分钟 working set P95 743.129 MiB，虽低于 750 MiB 门槛但余量小，保留在 RISK-019/M6 复验。
 - M2 没有改变 Tauri IPC、持久化 JSON 或跨语言数据模型，因此 `data-model.md` 与 `api-contracts.md` 无需修订；完整命令、指标和缺口见 [M2 Realtime Pitch Lab Evidence](../delivery/evidence/m2-realtime-pitch-lab.md)。
 - 用户于 2026-08-25 明确批准 M2 门禁；M3 可基于当前 M2 工作树开始，但必须保护未提交变更。
+
+## M3 实现证据
+
+- FR-009 使用同一个 `AudioContext.currentTime` 派生播放位置，play/pause/seek/loop/suspend 全部显式 re-anchor；10 分钟受控时钟最大漂移 0 ms。
+- FR-012/013 使用固定 38% NOW、参考虚线、当前实线、最近 take 灰色点线、文字方向与无声中性状态；评分二分匹配、signed cents、120 ms 平滑和 5 cents 滞回已有黄金测试。
+- FR-014/016 的半开 A-B 区间、500 ms 预备区、300 ms 间隔、独立 take、分项指标和 take 边界 local-median reset 已通过；10 次自动循环边界 P95 16.667 ms，Windows 发布包实跑 12 次循环后活动 source 归零。
+- NFR-005 的报告记录有效 UI 46.9 FPS、500 ms 等级往返 0；NFR-017 的结构、文字替代、线型、键盘等价按钮、forced-colors/reduced-motion 和系统字体 fallback 由页面/样式测试覆盖，Windows light 主题发布窗口完成匿名视觉 smoke。
+- M3 只新增本地程序生成 fixture、纯评分包和页面内有界 session，没有新增外部生产依赖、Tauri IPC、持久化 JSON 或跨语言契约；`data-model.md` 与 `api-contracts.md` 无需修订。完整命令、指标与人工边界见 [M3 Fixture-based Practice Evidence](../delivery/evidence/m3-fixture-practice.md)。
+- 用户于 2026-08-25 确认 Windows 权限拒绝后仍可预览的剩余人工路径及全部 M3 人工验收步骤通过，并明确要求将 M3 标记为已完成；M3 人工门禁已批准，M4 可开始。

@@ -87,6 +87,20 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
       /\.audio-readout,[\s\S]*\.level-meter,[\s\S]*border-color: CanvasText/,
     );
     expect(css).toMatch(/\.level-meter__fill[\s\S]*background: Highlight/);
+    expect(css).toMatch(
+      /\.reference-line,[\s\S]*\.previous-take-line[\s\S]*stroke: CanvasText/,
+    );
+  });
+
+  it("keeps M3 Pitch Lane semantics independent of color and CSS timing", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(/\.now-line[\s\S]*left: 38%/);
+    expect(css).toMatch(/\.reference-line[\s\S]*stroke-dasharray: 10 8/);
+    expect(css).toMatch(/\.previous-take-line[\s\S]*stroke-dasharray: 3 7/);
+    expect(css).toMatch(/\.user-line[\s\S]*stroke-width: 3/);
+    expect(css).not.toMatch(
+      /\.(?:reference-line|user-line|previous-take-line|now-line)\s*\{[^}]*transition:/,
+    );
   });
 
   it("does not use prohibited depth or transient UI treatments", async () => {

@@ -81,6 +81,7 @@ function assertNpmManifest(path) {
 assertNpmManifest("package.json");
 assertNpmManifest("apps/desktop/package.json");
 assertNpmManifest("packages/audio/package.json");
+assertNpmManifest("packages/scoring/package.json");
 
 const npmLicenses = JSON.parse(
   process.platform === "win32"

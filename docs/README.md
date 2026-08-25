@@ -47,8 +47,9 @@
 
 - [M1 Desktop Foundation 证据](delivery/evidence/m1-foundation.md)
 - [M2 Realtime Pitch Lab 证据](delivery/evidence/m2-realtime-pitch-lab.md)
+- [M3 Fixture-based Practice 证据](delivery/evidence/m3-fixture-practice.md)
 - [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
-- [M1–M2 依赖审批清单](quality/dependencies.json)
+- [M1–M3 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)
 
 ## 事实源规则

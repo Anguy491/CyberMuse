@@ -1,0 +1,311 @@
+import { PRACTICE_FIXTURE_V1, type PitchObservation } from "@cybermuse/audio";
+import { describe, expect, it, vi } from "vitest";
+
+import type {
+  AudioInputControllerPort,
+  AudioInputSnapshot,
+} from "../audio/runtime-types";
+import {
+  PracticeController,
+  type PlaybackEnginePort,
+} from "./practice-controller";
+import type { PlaybackEngineSnapshot } from "./playback-engine";
+
+const basePlayback: PlaybackEngineSnapshot = {
+  status: "empty",
+  fixture: null,
+  positionMs: 0,
+  durationMs: 0,
+  contextState: "unavailable",
+  segmentId: 0,
+  loopRegion: null,
+  loopIteration: 0,
+  loopBoundaryErrorsMs: [],
+  lastBoundary: null,
+  resources: {
+    contexts: 0,
+    gainNodes: 0,
+    activeSources: 0,
+    createdSources: 0,
+    listeners: 0,
+  },
+  error: null,
+};
+
+const baseInput: AudioInputSnapshot = {
+  status: "not_requested",
+  devices: [],
+  selectedDeviceId: "default",
+  observation: null,
+  inputLevelDbfs: -160,
+  inputPeakDbfs: -160,
+  sampleRateHz: null,
+  channels: null,
+  contextState: "unavailable",
+  muted: false,
+  error: null,
+  resources: {
+    contexts: 0,
+    tracks: 0,
+    audioNodes: 0,
+    workletNodes: 0,
+    workers: 0,
+    listeners: 0,
+  },
+  latency: {
+    validObservationCount: 0,
+    p50Ms: null,
+    p95Ms: null,
+    p99Ms: null,
+  },
+};
+
+class FakePlayback implements PlaybackEnginePort {
+  private snapshot = basePlayback;
+  private listener: ((snapshot: PlaybackEngineSnapshot) => void) | null = null;
+  readonly context = {} as AudioContext;
+
+  getSnapshot(): PlaybackEngineSnapshot {
+    return this.snapshot;
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.snapshot.fixture === null ? null : this.context;
+  }
+
+  subscribe(listener: (snapshot: PlaybackEngineSnapshot) => void): () => void {
+    this.listener = listener;
+    return () => {
+      this.listener = null;
+    };
+  }
+
+  async loadFixture(): Promise<void> {
+    this.emit({
+      ...basePlayback,
+      status: "ready",
+      fixture: PRACTICE_FIXTURE_V1,
+      durationMs: 12_000,
+      contextState: "running",
+      resources: {
+        ...basePlayback.resources,
+        contexts: 1,
+        gainNodes: 1,
+        listeners: 1,
+      },
+    });
+  }
+
+  async play(): Promise<void> {
+    this.emit({ ...this.snapshot, status: "playing" });
+  }
+
+  pause(): void {
+    this.emit({ ...this.snapshot, status: "paused" });
+  }
+
+  async resumeAfterSuspend(): Promise<void> {
+    this.emit({ ...this.snapshot, status: "playing", contextState: "running" });
+  }
+
+  seek(songTimeMs: number): number {
+    const positionMs = Math.max(0, Math.min(12_000, Math.round(songTimeMs)));
+    this.emit({ ...this.snapshot, positionMs });
+    return positionMs;
+  }
+
+  setLoopRegion(region: { startMs: number; endMs: number } | null) {
+    this.emit({ ...this.snapshot, loopRegion: region });
+    return region === null ? null : { ok: true as const, region };
+  }
+
+  songTimeAtContextTimeMs(contextTimeMs: number): number | null {
+    return contextTimeMs;
+  }
+
+  async dispose(): Promise<void> {}
+
+  boundary(iteration: number): void {
+    this.emit({
+      ...this.snapshot,
+      status: "loop_gap",
+      positionMs: 5_000,
+      loopIteration: iteration,
+      lastBoundary: {
+        iteration,
+        boundaryContextTimeSec: 5,
+        observedContextTimeSec: 5.01,
+        errorMs: 10,
+        endedAtSongTimeMs: 5_000,
+        restartContextTimeSec: 5.3,
+        restartSongTimeMs: 1_500,
+      },
+    });
+  }
+
+  private emit(snapshot: PlaybackEngineSnapshot): void {
+    this.snapshot = snapshot;
+    this.listener?.(snapshot);
+  }
+}
+
+class FakeInput implements AudioInputControllerPort {
+  readonly requestPermission = vi.fn(async () => undefined);
+  readonly switchDevice = vi.fn(async () => undefined);
+  readonly retry = vi.fn(async () => undefined);
+  readonly resume = vi.fn(async () => undefined);
+  readonly dispose = vi.fn(async () => undefined);
+  private snapshot = baseInput;
+  private listener: ((snapshot: AudioInputSnapshot) => void) | null = null;
+
+  getSnapshot(): AudioInputSnapshot {
+    return this.snapshot;
+  }
+
+  subscribe(listener: (snapshot: AudioInputSnapshot) => void): () => void {
+    this.listener = listener;
+    return () => {
+      this.listener = null;
+    };
+  }
+
+  emit(snapshot: AudioInputSnapshot): void {
+    this.snapshot = snapshot;
+    this.listener?.(snapshot);
+  }
+}
+
+function observation(timeMs: number, cents = 0): PitchObservation {
+  return {
+    timeMs,
+    contextTimeMs: timeMs,
+    alignedSongTimeMs: timeMs,
+    hz: 220 * 2 ** (cents / 1_200),
+    midi: 57 + cents / 100,
+    confidence: 1,
+    voiced: true,
+    rmsDbfs: -12,
+    clarity: 1,
+    droppedWindows: 0,
+  };
+}
+
+describe("M3 Practice controller integration", () => {
+  it("loads the fixture without requesting input and scores on the shared clock", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+
+    await controller.loadFixture();
+    expect(input.requestPermission).not.toHaveBeenCalled();
+    await controller.play();
+    await controller.startInput();
+    expect(input.requestPermission).toHaveBeenCalledOnce();
+
+    for (let index = 0; index < 10; index += 1) {
+      input.emit({
+        ...baseInput,
+        status: "ready",
+        observation: observation(1_000 + index * 20, -40),
+      });
+    }
+    expect(controller.getSnapshot()).toMatchObject({
+      observationState: "scored",
+      feedback: { direction: "low" },
+      currentTakeMetrics: {
+        pitchAccuracy: 100,
+      },
+    });
+    expect(
+      controller.getSnapshot().currentTakeMetrics.signedMedianErrorCents,
+    ).toBeCloseTo(-40, 8);
+    expect(controller.getLaneData()?.nowX).toBe(380);
+  });
+
+  it("keeps preview playback available after permission denial", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "permission_denied",
+      error: {
+        schemaVersion: 1,
+        code: "AUDIO_PERMISSION_DENIED",
+        messageKey: "audio.error.permissionDenied",
+        retryable: true,
+        safeDetails: {},
+        diagnosticId: "test",
+      },
+    });
+
+    expect(controller.getSnapshot().playback.status).toBe("playing");
+    expect(controller.getSnapshot().micStatus).toBe("permission_denied");
+  });
+
+  it("pauses a scored take after device loss but keeps preview recoverable", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "recoverable_error",
+      error: {
+        schemaVersion: 1,
+        code: "AUDIO_DEVICE_LOST",
+        messageKey: "audio.error.deviceLost",
+        retryable: true,
+        safeDetails: {},
+        diagnosticId: "test",
+      },
+    });
+
+    expect(controller.getSnapshot().playback.status).toBe("paused");
+    expect(controller.getSnapshot().micError?.code).toBe("AUDIO_DEVICE_LOST");
+  });
+
+  it("ends each loop take and starts a fresh take without preroll scoring", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    await controller.enableLoop();
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(1_600),
+    });
+    expect(controller.getSnapshot().currentTakeMetrics.validFrameCount).toBe(0);
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(2_000),
+    });
+    const firstTakeId = controller.getSnapshot().currentTakeId;
+    playback.boundary(1);
+    expect(controller.getSnapshot().currentTakeId).not.toBe(firstTakeId);
+    expect(controller.getSnapshot().previousTakeMetrics.validFrameCount).toBe(
+      1,
+    );
+  });
+});

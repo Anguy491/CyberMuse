@@ -21,16 +21,16 @@
 | RISK-005 | 分离/F0 权重许可证与商业发布不兼容 | High | Critical | Compliance/Analyzer | 权重无明确商业再分发条款 | 包/wrapper/engine/权重分审；对 Meta Demucs 等候选核验具体 artifact，而非仅引用仓库 MIT；拒绝不清晰候选；评估用户自带模型或替代算法，但不绕过许可 | M4 | Open |
 | RISK-006 | CPU-only 分析时间、RAM 或临时磁盘不可接受 | High | High | Analyzer/QA | 3/5/10 分钟 benchmark 超出用户可容忍范围或系统不稳定 | chunk/模型候选/量化；可取消进度；磁盘预估；M4 ADR 固化预算 | M4 | Open |
 | RISK-007 | Python sidecar/PyInstaller 体积、启动、杀毒误报、DLL 冲突或上游停止维护 | Medium | High | Analyzer/Release | 干净机启动失败、Defender 隔离、缺 DLL、候选仓库归档或关键兼容问题无人维护 | 固定构建环境；签名计划；最小依赖；干净 Win11/Defender 测试；评估 Meta Demucs 归档影响、可维护 fork 和替代 engine | M4/M6 | Open |
-| RISK-008 | 多时钟造成播放、参考和用户轨漂移 | Medium | High | Desktop Audio | 10 分钟漂移 >20 ms、loop 边界累计 | AudioContext 单时钟；每次 seek/loop re-anchor；受控时钟和回环测试 | M3 | Open |
+| RISK-008 | 多时钟造成播放、参考和用户轨漂移 | Medium | High | Desktop Audio | 10 分钟漂移 >20 ms、loop 边界累计 | AudioContext 单时钟；每次 seek/loop/suspend re-anchor；10 分钟受控时钟最大漂移 0 ms，10 次 loop 边界 P95 16.667 ms，Windows 发布包实跑 12 次循环且活动 source 归零 | M3 | Closed |
 | RISK-009 | 用户设备延迟差异导致正确音高在错误时间评分 | High | High | Audio UX | 同一用户稳定出现时间偏差、校准多峰 | 设备组合校准、置信度、手动偏移、设备变化失效；耳机引导 | M6 | Open |
 | RISK-010 | 崩溃/取消/磁盘不足损坏歌曲、analysis 或 session | Medium | Critical | Storage | 半写 JSON、active cache 失效、删除部分完成 | staging+原子替换；最后有效版本；故障注入；引用保护；空间预检 | M1/M5 | Open |
 | RISK-011 | 本地音频、路径或行为数据进入日志/网络 | Low | Critical | Privacy/Security | 网络捕获或诊断扫描发现禁字段 | 默认 deny；结构化 allowlist 日志；redaction；无遥测；诊断预览 | M6 | Open |
 | RISK-012 | 模型/更新下载被替换或部分文件被加载 | Low | Critical | Security/Release | 哈希不符、重定向异常、部分安装可见、wrapper 隐式下载模型或远端元数据 | TLS、allowlist、大小限制、SHA-256、staging、原子安装、manifest；禁用 `python-audio-separator` 自动下载并做断网/网络捕获测试 | M4/M6 | Open |
 | RISK-013 | 歌曲与模型占用大量磁盘，用户无法理解或清理 | High | Medium | Product/Storage | 导入/分析因空间失败、缓存持续增长 | 导入前估算；Library 占用；存储管理；引用感知清理；不自动删用户数据 | M5 | Open |
 | RISK-014 | 蓝牙音频模式切换、低质量输入或巨大延迟影响训练 | High | Medium | Audio UX | 蓝牙设备延迟/采样异常、双向模式音质下降 | 显示设备限制；建议有线/USB；校准；记录为支持限制而非掩盖 | M2/M6 | Open |
-| RISK-015 | 指标看似精确但误导用户，把表达性变化当错误 | Medium | High | Product/Scoring | 滑音/颤音被持续红色判错、单分数误导 | 连续轨、无声不评分、滞回、分项指标、限制性文案、夹具/用户评审 | M3/M6 | Open |
+| RISK-015 | 指标看似精确但误导用户，把表达性变化当错误 | Medium | High | Product/Scoring | 滑音/颤音被持续红色判错、单分数误导 | 连续轨、无声不评分、120 ms 平滑、5 cents 滞回、分项指标与限制性文案；M3 稳定偏低/零中心波动/低覆盖/无帧/边界黄金序列通过，不展示总分；真实歌曲用户评审保留到 M6 | M3/M6 | Mitigating |
 | RISK-016 | 文档和实现契约漂移，自治开发跨越门禁 | Medium | High | Delivery/All | 未映射需求、接口字段分叉、提前实现后续功能 | 分层 AGENTS；traceability；同变更更新四文档；每里程碑人工 gate | 每个门禁 | Mitigated by process |
-| RISK-017 | Nothing-inspired 风格损害可读性、实时数据辨识或引入品牌/字体资产风险 | Medium | High | UI/Compliance/QA | 点阵字体用于正文、单屏层级/字体过多、颜色成为唯一状态、Pitch Lane 被装饰遮挡、仅一套主题达标、出现未审查 NDot/NType/logo/Glyph 资产或运行时字体请求 | 独立 CyberMuse Signal UI；M2 Audio Settings 自动与人工 UI 检查覆盖三层/单一 pattern、键盘焦点、dark/light、forced-colors/reduced-motion 静态规则和系统字体 fallback；M3/M6 完成全产品证据 | M1/M3/M6 | Mitigating |
+| RISK-017 | Nothing-inspired 风格损害可读性、实时数据辨识或引入品牌/字体资产风险 | Medium | High | UI/Compliance/QA | 点阵字体用于正文、单屏层级/字体过多、颜色成为唯一状态、Pitch Lane 被装饰遮挡、仅一套主题达标、出现未审查 NDot/NType/logo/Glyph 资产或运行时字体请求 | 独立 CyberMuse Signal UI；M3 Pitch Lane 使用文字方向、垂直位置、线型/粗细和 legend，不以颜色为唯一反馈；页面测试覆盖双主题 token、forced-colors、reduced-motion、focus、系统字体 fallback，Windows light 主题发布窗口完成视觉 smoke；完整硬件/缩放/主题矩阵在 M6 复验 | M1/M3/M6 | Mitigating |
 | RISK-018 | NFR-001 要求使用系统 WebView2，但 WebView2 必需诊断连接与 M1“干净启动无网络”的字面退出条件冲突 | High | High | Architecture/Privacy/Delivery | 发布壳空白启动时系统 WebView2 browser process 连接 Microsoft `52.98.*:443`；应用源码和 WebView 网络日志无外部页面请求 | 保持 CSP 与应用网络调用为 deny；禁用 SmartScreen；以进程树、连接表和 WebView netlog 区分应用请求与系统诊断；不提交未受支持的 Chromium flags。v0.1 按“无应用控制的外部请求/无用户数据外发”验收，M6 重新执行受控网络捕获并公开系统运行时限制 | M6 | Accepted |
 | RISK-019 | M2 硬件覆盖有限且长时 working set 余量小 | Medium | High | Desktop Audio/QA | USB/48 kHz 完整路径、切换、unplug/replug、permission allow/deny、离页归零、NFR-003/006/007 已有独立证据；用户确认剩余人工验收成功并批准 M2。当前环境无 built-in/Bluetooth/44.1 kHz 实机；soak working set P95 743.129 MiB，距 750 MiB 门槛 6.871 MiB | M3 不改动 M2 实时边界；若改动则全量重跑。M6 用更多设备类别、采样率和 release candidate 重测 30 分钟 working set/恢复矩阵；只保存匿名摘要 | M6 | Accepted |
 
@@ -51,3 +51,9 @@ RISK-018 于 2026-08-25 由用户为 v0.1 明确接受：验收边界是“无�
 ## M2 风险结论
 
 算法 fixture、有界 Worklet/Worker 边界、生命周期测试、USB/48 kHz 完整路径和发布 UI 已形成证据，NFR-003/006/007 已通过。用户于 2026-08-25 确认剩余人工路径验收成功并明确批准 M2；RISK-019 因硬件类别覆盖有限与 30 分钟 working set 余量小，由用户按 v0.1 M2 范围接受，M6 到期复审。限制是不能把当前缺失的 built-in/Bluetooth/44.1 kHz 写成已测通过，且若 M3 修改 M2 实时边界必须重跑相关证据。M2 已通过人工门禁，M3 可开始。
+
+## M3 风险结论
+
+M3 使用单一 AudioContext 时钟、每段显式 re-anchor、独立 take local-median 窗口和有界页面内存 session，自动与 Windows 发布包证据足以关闭 RISK-008。RISK-015 通过无声不评分、无总分、分项指标和黄金序列降为持续缓解；真实歌曲语境仍须 M6 用户评审。RISK-017 已覆盖 M3 Practice 的结构、线型、文字替代与 light 主题发布 smoke，完整 dark/forced-colors/缩放硬件矩阵保留 M6。
+
+当前 Windows 环境已确认共享 AudioContext 的可用录唱路径、离页资源清理和权限拒绝后继续预览。Codex 没有代替用户更改隐私设置或选择权限；用户于 2026-08-25 明确确认全部人工验收步骤完成并要求将 M3 标记为已完成。M3 已通过人工门禁，RISK-015/017 的 M6 复验范围保持不变。
