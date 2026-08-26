@@ -35,7 +35,8 @@
         "analyzing",
         "ready",
         "analysis_failed",
-        "damaged"
+        "damaged",
+        "deleting"
       ]
     },
     "activeAnalysisId": { "type": ["string", "null"] },

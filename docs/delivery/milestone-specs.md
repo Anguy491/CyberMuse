@@ -77,6 +77,7 @@
 - 输出：导入 → 分析 → Library ready → Practice 的端到端主流程。
 - 必跑验证：TC-IMP-001..003、TC-LIB-001、TC-STO-001、TC-ERR-001、TC-UXERR-001、断网练习。
 - 退出：三格式、重复导入、失败/取消/重试、磁盘/损坏恢复和删除通过；用户确认。
+- 门禁记录（2026-08-26）：三格式/重复/损坏/空间/复制中断/1,000 首 Library、删除部分失败与重试、结构化错误、供应链和正式 Tauri build 均通过；真实 Windows 原生选择器完成 Unicode/空格 WAV 导入、分析失败后重试、ready→Practice 和本地伴奏完整播放。用户随后确认物理断网播放通过并明确批准 M5。M5 gate 已通过，M6 可开始；RISK-018 的系统 WebView2 诊断边界和 RISK-020 的外部分发限制保持不变。
 
 ## M6 — Review and Windows Release
 

@@ -4,22 +4,35 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 
 use crate::analysis_coordinator::{
     AnalysisCoordinator, AnalyzerJob, CoordinatorError, EventSink, StartAnalysisResult,
     cleanup_abandoned_staging, default_abandoned_age, new_job_id,
 };
+use crate::analysis_store::{
+    AnalysisStoreError, ArtifactKind, ExpectedModel, ValidationExpectation, validate_analysis,
+};
 use crate::analyzer_request::{
     AnalyzerConfig, AnalyzerRequest, ApprovedRoots, ModelInput, ToolInput, analysis_id,
 };
+use crate::asset_protocol::ResourceRegistry;
 use crate::model_manager::{
     ModelError, ModelInstallProgress, ModelStatus, install_model_controlled, model_catalog,
     model_statuses, remove_model as remove_model_asset,
 };
 use crate::runtime_manifest::bundled_sha256;
+use crate::song_store::{
+    DeleteInterruption, DeletePlan, ImportCandidate, ImportCandidateView, ImportInterruption,
+    ImportResult, Song, SongStatus, SongStoreError, SongSummary, delete_song as delete_song_data,
+    get_song as get_song_data, import_song as import_song_data, inspect_import_candidate,
+    list_songs as list_song_data, mark_song_status, prepare_delete as prepare_delete_data,
+    recover_interrupted_song_states,
+};
 use crate::storage::{read_versioned_json, resolve_relative, write_versioned_json};
 use crate::tool_manager::{ToolError, validate_bundled_ffmpeg};
 
@@ -173,11 +186,38 @@ impl From<ToolError> for ApiError {
     }
 }
 
+impl From<SongStoreError> for ApiError {
+    fn from(value: SongStoreError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
+impl From<AnalysisStoreError> for ApiError {
+    fn from(value: AnalysisStoreError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
 pub struct RuntimeState {
     app_root: PathBuf,
     resource_root: PathBuf,
     coordinator: AnalysisCoordinator,
     model_jobs: Arc<Mutex<HashMap<String, ModelJobControl>>>,
+    pending_imports: Arc<Mutex<HashMap<String, PendingImport>>>,
+    pending_deletes: Arc<Mutex<HashMap<String, PendingDelete>>>,
+    resources: ResourceRegistry,
     sink: EventSink,
 }
 
@@ -188,7 +228,17 @@ struct ModelJobControl {
     terminal: bool,
 }
 
-pub fn initialize(app: &AppHandle) -> Result<RuntimeState, String> {
+struct PendingImport {
+    candidate: ImportCandidate,
+    expires_at: Instant,
+}
+
+struct PendingDelete {
+    song_id: String,
+    expires_at: Instant,
+}
+
+pub fn initialize(app: &AppHandle, resources: ResourceRegistry) -> Result<RuntimeState, String> {
     let app_root = app
         .path()
         .local_data_dir()
@@ -201,10 +251,13 @@ pub fn initialize(app: &AppHandle) -> Result<RuntimeState, String> {
     fs::create_dir_all(app_root.join("data").join("songs"))
         .map_err(|_| "data root unavailable".to_owned())?;
     fs::create_dir_all(app_root.join("models")).map_err(|_| "model root unavailable".to_owned())?;
+    fs::create_dir_all(app_root.join("tmp").join("imports"))
+        .map_err(|_| "import staging root unavailable".to_owned())?;
     let staging_root = app_root.join("tmp").join("jobs");
     fs::create_dir_all(&staging_root).map_err(|_| "staging root unavailable".to_owned())?;
     let _removed = cleanup_abandoned_staging(&staging_root, default_abandoned_age(), &[])
         .map_err(|_| "staging recovery failed".to_owned())?;
+    recover_interrupted_song_states(&app_root).map_err(|_| "song recovery failed".to_owned())?;
 
     let app_handle = app.clone();
     let sink: EventSink = Arc::new(move |event, payload| {
@@ -218,6 +271,9 @@ pub fn initialize(app: &AppHandle) -> Result<RuntimeState, String> {
         resource_root,
         coordinator: AnalysisCoordinator::new(analyzer, Arc::clone(&sink)),
         model_jobs: Arc::new(Mutex::new(HashMap::new())),
+        pending_imports: Arc::new(Mutex::new(HashMap::new())),
+        pending_deletes: Arc::new(Mutex::new(HashMap::new())),
+        resources,
         sink,
     })
 }
@@ -245,6 +301,330 @@ pub struct ModelJobResponse {
 pub struct RemoveModelResponse {
     removed: bool,
     reclaimed_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmImportRequest {
+    api_version: u32,
+    candidate_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongRequest {
+    api_version: u32,
+    song_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteSongRequest {
+    api_version: u32,
+    song_id: String,
+    confirmation_token: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectImportResponse {
+    candidate: Option<ImportCandidateView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongsResponse {
+    songs: Vec<SongSummary>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongResponse {
+    song: Song,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareDeleteResponse {
+    confirmation_token: String,
+    plan: DeletePlan,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteSongResponse {
+    deleted: bool,
+    reclaimed_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PracticeAssetsResponse {
+    song_id: String,
+    analysis_id: String,
+    instrumental_resource_url: String,
+    reference_track: serde_json::Value,
+    duration_ms: u64,
+}
+
+const CAPABILITY_LIFETIME: Duration = Duration::from_secs(5 * 60);
+
+#[tauri::command]
+pub async fn select_import_file(
+    request: VersionedRequest,
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<CommandResult<SelectImportResponse>, ApiError> {
+    if request.api_version != 1 {
+        return Ok(CommandResult::unsupported());
+    }
+    let resource_root = state.resource_root.clone();
+    let app_root = state.app_root.clone();
+    let pending_imports = Arc::clone(&state.pending_imports);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let selected = app
+            .dialog()
+            .file()
+            .add_filter("CyberMuse audio", &["mp3", "wav", "flac"])
+            .blocking_pick_file();
+        let Some(selected) = selected else {
+            return Ok(None);
+        };
+        let source_path = selected.into_path().map_err(|_| {
+            ApiError::new("SOURCE_UNREADABLE", "import.error.sourceUnreadable", true)
+        })?;
+        let tools = validate_bundled_ffmpeg(&resource_root.join("ffmpeg"))?;
+        inspect_import_candidate(
+            new_job_id(),
+            source_path,
+            &tools.ffmpeg_path,
+            &tools.ffprobe_path,
+            &app_root,
+        )
+        .map(Some)
+        .map_err(ApiError::from)
+    })
+    .await;
+    Ok(match result {
+        Ok(Ok(Some(candidate))) => {
+            let view = ImportCandidateView::from(&candidate);
+            let mut pending = pending_imports
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            pending.retain(|_, value| value.expires_at > Instant::now());
+            pending.insert(
+                candidate.token.clone(),
+                PendingImport {
+                    candidate,
+                    expires_at: Instant::now() + CAPABILITY_LIFETIME,
+                },
+            );
+            CommandResult::success(SelectImportResponse {
+                candidate: Some(view),
+            })
+        }
+        Ok(Ok(None)) => CommandResult::success(SelectImportResponse { candidate: None }),
+        Ok(Err(error)) => CommandResult::failure(error),
+        Err(_) => CommandResult::failure(ApiError::new(
+            "IMPORT_INTERNAL",
+            "import.error.internal",
+            true,
+        )),
+    })
+}
+
+#[tauri::command]
+pub fn confirm_import(
+    request: ConfirmImportRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<ImportResult> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let candidate = {
+        let mut pending = state
+            .pending_imports
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        pending.retain(|_, value| value.expires_at > Instant::now());
+        pending
+            .get(&request.candidate_token)
+            .map(|value| value.candidate.clone())
+    };
+    let Some(candidate) = candidate else {
+        return CommandResult::failure(ApiError::new(
+            "IMPORT_CONFIRMATION_INVALID",
+            "import.error.confirmationInvalid",
+            false,
+        ));
+    };
+    let models_ready = model_statuses(&state.app_root.join("models"))
+        .iter()
+        .all(|model| model.installed && model.valid);
+    let initial_status = if models_ready {
+        SongStatus::NeedsAnalysis
+    } else {
+        SongStatus::ModelRequired
+    };
+    match import_song_data(
+        &state.app_root,
+        &candidate,
+        initial_status,
+        ImportInterruption::Never,
+    ) {
+        Ok(result) => {
+            state
+                .pending_imports
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .remove(&request.candidate_token);
+            CommandResult::success(result)
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn list_songs(
+    request: VersionedRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<SongsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match list_song_data(&state.app_root) {
+        Ok(songs) => CommandResult::success(SongsResponse { songs }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn get_song(
+    request: SongRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<SongResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match get_song_data(&state.app_root, &request.song_id) {
+        Ok(song) => CommandResult::success(SongResponse { song }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn prepare_delete_song(
+    request: SongRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<PrepareDeleteResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match prepare_delete_data(&state.app_root, &request.song_id) {
+        Ok(plan) => {
+            let confirmation_token = new_job_id();
+            let mut pending = state
+                .pending_deletes
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            pending.retain(|_, value| value.expires_at > Instant::now());
+            pending.insert(
+                confirmation_token.clone(),
+                PendingDelete {
+                    song_id: request.song_id,
+                    expires_at: Instant::now() + CAPABILITY_LIFETIME,
+                },
+            );
+            CommandResult::success(PrepareDeleteResponse {
+                confirmation_token,
+                plan,
+            })
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn delete_song(
+    request: DeleteSongRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<DeleteSongResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let valid = {
+        let mut pending = state
+            .pending_deletes
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        pending.retain(|_, value| value.expires_at > Instant::now());
+        pending
+            .get(&request.confirmation_token)
+            .is_some_and(|value| {
+                value.song_id == request.song_id && value.expires_at > Instant::now()
+            })
+    };
+    if !valid {
+        return CommandResult::failure(ApiError::new(
+            "CONFIRMATION_INVALID",
+            "song.error.confirmationInvalid",
+            false,
+        ));
+    }
+
+    if let Ok(Some(job)) = state.coordinator.cancel_song(&request.song_id) {
+        let deadline = Instant::now() + Duration::from_secs(6);
+        while Instant::now() < deadline {
+            if state
+                .coordinator
+                .get(&job.job_id)
+                .is_ok_and(|current| current.status.is_terminal())
+            {
+                break;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        if !state
+            .coordinator
+            .get(&job.job_id)
+            .is_ok_and(|current| current.status.is_terminal())
+        {
+            return CommandResult::failure(ApiError::new(
+                "DELETE_ANALYSIS_BUSY",
+                "song.error.analysisBusy",
+                true,
+            ));
+        }
+    }
+    state.resources.revoke_song(&request.song_id);
+    match delete_song_data(&state.app_root, &request.song_id, DeleteInterruption::Never) {
+        Ok(reclaimed_bytes) => {
+            state
+                .pending_deletes
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .remove(&request.confirmation_token);
+            CommandResult::success(DeleteSongResponse {
+                deleted: true,
+                reclaimed_bytes,
+            })
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn get_practice_assets(
+    request: SongRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<PracticeAssetsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match load_practice_assets(&state, &request.song_id) {
+        Ok(assets) => CommandResult::success(assets),
+        Err(error) => CommandResult::failure(error),
+    }
 }
 
 #[tauri::command]
@@ -492,6 +872,103 @@ pub fn get_analysis_job(
     }
 }
 
+fn load_practice_assets(
+    state: &RuntimeState,
+    song_id: &str,
+) -> Result<PracticeAssetsResponse, ApiError> {
+    let song = get_song_data(&state.app_root, song_id).map_err(ApiError::from)?;
+    let Some(analysis_id) = song.active_analysis_id.clone() else {
+        return Err(ApiError::new(
+            "SONG_NOT_READY",
+            "practice.error.songNotReady",
+            true,
+        ));
+    };
+    if song.status != SongStatus::Ready {
+        return Err(ApiError::new(
+            "SONG_NOT_READY",
+            "practice.error.songNotReady",
+            true,
+        ));
+    }
+    let expected_models = model_catalog()
+        .into_iter()
+        .map(|model| {
+            (
+                model.model_id,
+                ExpectedModel {
+                    version: model.version,
+                    engine: model.engine,
+                    sha256: model.sha256,
+                    license_expression: model.license_expression,
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let expectation = ValidationExpectation {
+        analysis_id: analysis_id.clone(),
+        song_id: song_id.to_owned(),
+        duration_ms: song.duration_ms,
+        pipeline_version: "m4-production-v1".to_owned(),
+        models: expected_models,
+    };
+    let analysis_root = state
+        .app_root
+        .join("data")
+        .join("songs")
+        .join(song_id)
+        .join("analyses")
+        .join(&analysis_id);
+    let validated = match validate_analysis(&analysis_root, &expectation) {
+        Ok(validated) => validated,
+        Err(error) => {
+            let _ignored = mark_song_status(&state.app_root, song_id, SongStatus::Damaged);
+            let mut mapped = ApiError::from(error);
+            mapped.code = "ASSET_INVALID".to_owned();
+            mapped.message_key = "practice.error.assetInvalid".to_owned();
+            return Err(mapped);
+        }
+    };
+    let instrumental = validated
+        .manifest
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.kind == ArtifactKind::Instrumental)
+        .ok_or_else(|| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let instrumental_path =
+        resolve_relative(&validated.root, Path::new(&instrumental.relative_path))
+            .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?
+            .canonicalize()
+            .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let reference_path = resolve_relative(
+        &validated.root,
+        Path::new(&validated.manifest.reference_track_relative_path),
+    )
+    .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let reference_bytes = fs::read(reference_path)
+        .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    if reference_bytes.len() > 128 * 1024 * 1024 {
+        return Err(ApiError::new(
+            "ASSET_INVALID",
+            "practice.error.assetInvalid",
+            true,
+        ));
+    }
+    let reference_track: serde_json::Value = serde_json::from_slice(&reference_bytes)
+        .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    Ok(PracticeAssetsResponse {
+        song_id: song_id.to_owned(),
+        analysis_id,
+        instrumental_resource_url: state.resources.issue(
+            song_id,
+            &validated.manifest.analysis_id,
+            instrumental_path,
+        ),
+        reference_track,
+        duration_ms: song.duration_ms,
+    })
+}
+
 struct PreparedAnalysis {
     request_path: PathBuf,
     analyses_root: PathBuf,
@@ -521,6 +998,9 @@ fn prepare_analysis_request(
         .get("originalRelativePath")
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| ApiError::invalid("song_path"))?;
+    let song_root = song_root
+        .canonicalize()
+        .map_err(|_| ApiError::new("SOURCE_UNREADABLE", "song.error.unreadable", true))?;
     let input_path = resolve_relative(&song_root, Path::new(original_relative))
         .map_err(|_| ApiError::invalid("song_path"))?
         .canonicalize()
@@ -538,6 +1018,9 @@ fn prepare_analysis_request(
             true,
         ));
     }
+    let model_root = model_root
+        .canonicalize()
+        .map_err(|_| ApiError::new("MODEL_REQUIRED", "analyzer.error.modelRequired", true))?;
     let models = model_catalog()
         .into_iter()
         .map(|entry| {
@@ -588,6 +1071,9 @@ fn prepare_analysis_request(
 
     let staging_root = state.app_root.join("tmp").join("jobs");
     fs::create_dir_all(&staging_root)
+        .map_err(|_| ApiError::new("ANALYZER_DISK_FULL", "analyzer.error.storage", true))?;
+    let staging_root = staging_root
+        .canonicalize()
         .map_err(|_| ApiError::new("ANALYZER_DISK_FULL", "analyzer.error.storage", true))?;
     let job_id = new_job_id();
     let staging_path = staging_root.join(&job_id);

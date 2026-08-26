@@ -16,14 +16,14 @@
 
 | Requirement | Design source | Primary test | Milestone | Required evidence |
 |---|---|---|---|---|
-| FR-001 | UX Flow 2；API `import_song` | TC-IMP-001 三格式导入/取消 | M5 | E2E 报告 |
-| FR-002 | Song Analyzer probe；Storage 导入 | TC-IMP-002 损坏/无轨/空间不足 | M5 | 故障注入结果 |
-| FR-003 | ADR-009；Storage 导入 | TC-IMP-003 哈希/复制/去重/原文件移动 | M5 | 集成测试 |
+| FR-001 | UX Flow 2；API `select_import_file`/`confirm_import` | TC-IMP-001 三格式导入/取消 | M5 | `song_store.rs`、`LibraryPage.test.tsx`、`pnpm test:m5:import`；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| FR-002 | Song Analyzer probe；Storage 导入 | TC-IMP-002 损坏/无轨/空间不足 | M5 | FFmpeg 完整解码、空间重检、复制中断故障测试与 `artifacts/m5/import-integration.json`；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| FR-003 | ADR-009/016；Storage 导入 | TC-IMP-003 哈希/复制/去重/原文件移动 | M5 | `song_store.rs` Rust tests、三格式集成验证；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
 | FR-004 | Analyzer 进度/取消；API job | TC-AN-001 正常/取消/崩溃/重试 | M4 | `analyzer/tests/test_protocol.py`、`apps/desktop/src-tauri/src/analyzer_protocol.rs`、`analyzer_process.rs`、`analysis_coordinator.rs`；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
 | FR-005 | Analyzer outputs；AnalysisManifest | TC-AN-002 产物/哈希/schema/原子提交 | M4 | `analyzer/tests/test_pipeline.py`、`apps/desktop/src-tauri/src/analysis_store.rs`、真实 packaged smoke；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
 | FR-006 | Analyzer cache fingerprint | TC-AN-003 cache hit/版本变化/回退 | M4 | `analyzer_request.rs` 与 `analysis_store.rs` canonical fingerprint/cache/旧 active 保留测试；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
-| FR-007 | UX Library；Signal UI Library patterns；Song state | TC-LIB-001 全状态 Library | M5 | M1 壳层：`apps/desktop/src/pages/LibraryPage.tsx`、`apps/desktop/src/App.test.tsx`；完整 UI/E2E：M5 |
-| FR-008 | Storage 删除与保留 | TC-STO-001 级联/部分失败/引用保护 | M5 | 删除测试 |
+| FR-007 | UX Library；Signal UI Library patterns；Song state | TC-LIB-001 全状态 Library | M5 | `LibraryPage.tsx`/tests；1,000 首元数据本机基准；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| FR-008 | Storage 删除与保留；ADR-016 | TC-STO-001 级联/部分失败/引用保护 | M5 | Rust 部分删除/重试、opaque URL 撤销测试；Library 确认 UI 测试；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
 | FR-009 | Audio clock/playback；ADR-004 | TC-AUD-001 play/pause/seek/re-anchor | M3 | `packages/audio/src/playback-timeline.test.ts`、`apps/desktop/src/practice/playback-engine.test.ts`；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | FR-010 | UX Audio Settings；Signal UI permission/device patterns；Desktop boundary | TC-DEV-001 授权/拒绝/切换/拔出 | M2 | 自动生命周期/无自动授权、真实 USB allow/deny、系统默认↔USB 切换、unplug/replug 与用户剩余人工路径验收通过；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)；不可用设备类别在 RISK-019/M6 复验 |
 | FR-011 | Audio detect/filter；PitchObservation；ADR-011 | TC-PIT-001 音调/静音/噪声/断开 | M2 | `packages/audio/src/analyzer.test.ts`、`artifacts/m2/pitch-quality.json` 摘要；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
@@ -43,7 +43,7 @@
 | Requirement | Design source | Primary test | Milestone | Required evidence |
 |---|---|---|---|---|
 | NFR-001 | ADR-001；Deployment | TC-PLAT-001 干净 Win11 安装/卸载 | M6 | VM+实机报告 |
-| NFR-002 | Storage paths；API paths | TC-PATH-001 Unicode/空格/180 字符 | M1/M4 | `apps/desktop/src-tauri/src/storage.rs`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
+| NFR-002 | Storage paths；API paths | TC-PATH-001 Unicode/空格/180 字符 | M1/M4/M5 | storage/analyzer path tests；M5 原生选择器 Unicode/空格真实导入；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
 | NFR-003 | Audio timestamps/pipeline；ADR-011 | TC-PERF-001 1,000 观察 P95/P99 | M2/M6 | USB/48 kHz 完整发布路径 1,871 valid，P95/P99 68.3/70.7 ms、drop 0；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
 | NFR-004 | ADR-004；Audio loop | TC-PERF-002 10 分钟漂移/loop | M3/M6 | `artifacts/m3/practice-performance.json` 摘要：10 分钟最大漂移 0 ms、10 次边界 P95 16.667 ms；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | NFR-005 | Audio smoothing/UI throttle；Signal UI motion；ADR-012 | TC-PERF-003 30–60 FPS/等级抖动 | M3 | `artifacts/m3/practice-performance.json` 摘要：有效 UI 46.9 FPS、500 ms 等级往返 0；`apps/desktop/src/practice/practice-controller.test.ts`；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
@@ -51,17 +51,17 @@
 | NFR-007 | Audio CPU baseline | TC-PERF-004 CPU/RAM P95 | M2/M6 | USB 麦克风完整发布进程树 60 秒 CPU P95 2.658%、working set P95 675.848 MiB，低于 25%/750 MiB；[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md) |
 | NFR-008 | Analyzer pipeline；ADR-013/014 | TC-ANPERF-001 3/5/10 分钟 CPU-only | M4 | 各三次 P95、RAM、临时空间与包体积：[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
 | NFR-009 | Analyzer cancel；ADR-014 | TC-AN-004 500 ms UI/5 秒退出 | M4 | Python 六阶段取消 + Rust 同步 `cancelling`/5 秒强杀测试；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
-| NFR-010 | Storage atomic | TC-STO-002 写入中终止/恢复 | M1/M5 | `apps/desktop/src-tauri/src/storage.rs`；[M1 evidence](../delivery/evidence/m1-foundation.md) |
-| NFR-011 | Failure isolation | TC-ERR-001 错误目录全场景 | M5/M6 | fault matrix |
+| NFR-010 | Storage atomic | TC-STO-002 写入中终止/恢复 | M1/M5 | 原子 JSON、复制中断无正式歌曲、删除部分失败可重试；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| NFR-011 | Failure isolation | TC-ERR-001 错误目录全场景 | M5/M6 | Rust/UI fault matrix；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
 | NFR-012 | Runtime soak | TC-SOAK-002 30 分钟/25 loop/内存 | M6 | soak report |
 | NFR-013 | Local-first boundary | TC-PRIV-001 静态调用+网络捕获 | M6 | capture report |
 | NFR-014 | Limited network | TC-NET-001 allowlist/离线/同意 | M4/M6 | `model_manager.rs` host/redirect/size/hash/取消；packaged 三路径进程树 TCP/UDP 捕获零端点；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
 | NFR-015 | Log minimization | TC-DIA-002 14 天/禁字段扫描 | M6 | redaction report |
-| NFR-016 | Supply-chain integrity；ADR-013 | TC-SUP-001 locks/hash/SBOM/licenses | M4/M6 | M4 44 项直接审批、278 个 Windows Cargo 包、两份 uv lock、1,054 个 runtime 文件、模型/FFmpeg/VC 哈希：`docs/quality/dependencies.json`、`tooling/m4-supply-chain.mjs`；完整 SBOM/M6 notices 待 M6 |
+| NFR-016 | Supply-chain integrity；ADR-013/016 | TC-SUP-001 locks/hash/SBOM/licenses | M4/M5/M6 | M5 45 项直接审批、285 个 Windows Cargo 包、两份 uv lock、1,054 个 runtime 文件、模型/FFmpeg/VC 哈希：`docs/quality/dependencies.json`、`tooling/m4-supply-chain.mjs`；完整 SBOM/M6 notices 待 M6 |
 | NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | `apps/desktop/src/signal-ui.test.ts`、`apps/desktop/src/pages/PracticePage.test.tsx`、`apps/desktop/src/pages/AudioSettingsPage.test.tsx`；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
-| NFR-018 | Actionable errors；Signal UI Error Panel | TC-UXERR-001 message/action/no trace | M5 | UI 测试 |
-| NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4 | `fixtures/contracts/analyzer/` 被 Python 23、Rust 35、TypeScript 10 项门禁共同读取；schemas 与 [M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
-| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md)、[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)；用户按 ADR-015 批准 M4 本机个人使用范围 |
+| NFR-018 | Actionable errors；Signal UI Error Panel | TC-UXERR-001 message/action/no trace | M5 | Library/Practice structured error tests 与真实失败后重试；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4/M5 | analyzer fixtures 被三语言门禁读取；Song schema/status 与 Tauri payload tests；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
+| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md)、[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md)；用户于 2026-08-26 批准 M5 gate |
 | NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M4/M6 | `pnpm build:analyzer`、`pnpm tauri build` 本机 release 通过；跨机器 clean-host 证据按 ADR-015/RISK-020 延期到首次外部内测且最迟 M6，当前不得声称完全满足 |
 
 ## M0 一致性证据
@@ -103,3 +103,11 @@
 - TC-ANPERF-001 的最终 resource/VC 包使用隔离采集：3/5/10 分钟各三次 P95 realtime factor 0.264/0.268/0.262，峰值 working set 1.41/1.53/1.51 GB，临时空间 0.35/0.53/0.98 GB；冷启动 P95 292 ms，固定预算见 ADR-014。
 - TC-NET-001 对 packaged `--version`、缺模型失败和已安装真实分析进程树以 100 ms 轮询 TCP/UDP，三者均无端点；模型 installer 的所有网络测试只连接进程内本地服务器。
 - TC-SUP-001 审核两份 uv lock、Cargo/npm locks、模型/FFmpeg/VC 和每个 runtime 文件，`pnpm tauri build` 本机 release 成功。用户于 2026-08-26 按 ADR-015 批准 M4 本机个人使用范围；RISK-020 不再阻止 M4，但继续阻止首次外部内测/M6 release，NFR-021 尚未完全满足。
+
+## M5 实现证据
+
+- FR-001/002/003 已覆盖 Rust 原生选择器、五分钟导入能力、完整 FFmpeg 解码、空间预算、边复制边 SHA-256、内容去重、源文件移走后独立性和复制中断清理；三格式与 1,000 首 Library 报告见 [M5 evidence](../delivery/evidence/m5-import-to-practice.md)。
+- FR-004/005/006 的 M4 job/cache/manifest 进入正式 Library 流程；真实 Unicode/空格 WAV 首次触发受控 `ANALYZER_INVALID_REQUEST`，修正 canonical root 后由同一 UI 重试至 ready，证明失败不删除歌曲副本。
+- FR-007/008 已覆盖 Library 全状态、进度/取消/重试、总量/单曲占用、显式删除计划、部分删除 damaged/retry 和删除时能力撤销。真实本地数据的永久删除未由自动化执行。
+- Windows 打包应用已从 ready 打开相同 `analysisId` 的 Practice 并把三秒伴奏从 0 播放至结尾；未请求麦克风。Windows WebView2 的进程内协议映射已由真实 smoke 发现并修复。
+- 自动质量、Rust、三格式集成、供应链和 release build 均通过；用户于 2026-08-26 确认物理断网播放通过并明确批准 M5。M5 gate 已通过，M6 可开始。

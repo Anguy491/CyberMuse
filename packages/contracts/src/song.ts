@@ -7,6 +7,7 @@ export const songStatuses = [
   "ready",
   "analysis_failed",
   "damaged",
+  "deleting",
 ] as const;
 
 export type SongStatus = (typeof songStatuses)[number];

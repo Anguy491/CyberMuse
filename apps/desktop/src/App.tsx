@@ -4,18 +4,44 @@ import { AudioSettingsPage } from "./pages/AudioSettingsPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { ModelAssetsPage } from "./pages/ModelAssetsPage";
 import { PracticePage } from "./pages/PracticePage";
+import {
+  SongService,
+  type PracticeAssets,
+  type SongServicePort,
+  type SongSummary,
+} from "./services/song-service";
 
 type PageId = "library" | "practice" | "models" | "audio";
 
-const navigation: ReadonlyArray<{ id: PageId; label: string }> = [
+const baseNavigation: ReadonlyArray<{ id: PageId; label: string }> = [
   { id: "library", label: "歌曲库" },
-  { id: "practice", label: "练习" },
   { id: "models", label: "模型" },
   { id: "audio", label: "音频设置" },
 ];
 
-export function App() {
+interface PracticeSelection {
+  song: SongSummary;
+  assets: PracticeAssets;
+}
+
+interface AppProps {
+  songService?: SongServicePort;
+}
+
+const defaultSongService = new SongService();
+
+export function App({ songService = defaultSongService }: AppProps) {
   const [page, setPage] = useState<PageId>("library");
+  const [practice, setPractice] = useState<PracticeSelection | null>(null);
+  const navigation =
+    practice === null
+      ? baseNavigation
+      : [
+          { id: "library" as const, label: "歌曲库" },
+          { id: "practice" as const, label: "练习" },
+          { id: "models" as const, label: "模型" },
+          { id: "audio" as const, label: "音频设置" },
+        ];
 
   return (
     <div className="app-shell">
@@ -49,8 +75,22 @@ export function App() {
         </div>
       </header>
 
-      {page === "library" ? <LibraryPage /> : null}
-      {page === "practice" ? <PracticePage /> : null}
+      {page === "library" ? (
+        <LibraryPage
+          service={songService}
+          onOpenModels={() => setPage("models")}
+          onOpenPractice={(song, assets) => {
+            setPractice({ song, assets });
+            setPage("practice");
+          }}
+        />
+      ) : null}
+      {page === "practice" && practice !== null ? (
+        <PracticePage
+          assets={practice.assets}
+          songTitle={practice.song.displayName}
+        />
+      ) : null}
       {page === "models" ? <ModelAssetsPage /> : null}
       {page === "audio" ? <AudioSettingsPage /> : null}
     </div>

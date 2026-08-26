@@ -96,6 +96,10 @@ class FakePlayback implements PlaybackEnginePort {
     });
   }
 
+  async loadAssets(): Promise<void> {
+    await this.loadFixture();
+  }
+
   async play(): Promise<void> {
     this.emit({ ...this.snapshot, status: "playing" });
   }

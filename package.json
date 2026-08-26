@@ -31,6 +31,7 @@
     "test:m4:performance": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-analyzer-performance.ps1",
     "test:m4:quality": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-quality.ps1",
     "test:m4:supply": "node tooling/m4-supply-chain.mjs",
+    "test:m5:import": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m5-import-integration.ps1",
     "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p packages/scoring/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {

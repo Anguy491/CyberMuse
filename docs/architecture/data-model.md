@@ -26,7 +26,8 @@ type SongStatus =
   | "analyzing"
   | "ready"
   | "analysis_failed"
-  | "damaged";
+  | "damaged"
+  | "deleting";
 
 interface Song {
   schemaVersion: 1;
@@ -40,6 +41,17 @@ interface Song {
   status: SongStatus;
   activeAnalysisId: string | null;
   lastPracticeAt: string | null;
+}
+
+interface ImportCandidate {
+  token: string;                  // current app session, five-minute capability
+  fileName: string;               // selected basename only, never an absolute path
+  sourceExtension: "mp3" | "wav" | "flac";
+  durationMs: number;
+  sourceSizeBytes: number;
+  estimatedLocalBytes: number;
+  requiredFreeBytes: number;
+  availableBytes: number;
 }
 
 interface PitchFrame {
@@ -298,5 +310,6 @@ M3 可通过 ADR 调整稳定性缩放，但不得改变指标名称含义；任
 
 - `Song.status=ready` 要求 `activeAnalysisId` 非空且所有 artifact 验证通过。
 - `analyzing` 要求存在非终态 job。
+- `deleting` 只在用户提供与 `songId` 绑定的五分钟确认能力后出现；部分删除失败转为 `damaged` 并保留可重试元数据。
 - 删除歌曲级联删除 job、analysis 和 session；模型是共享资产，不级联删除。
 - session 引用的 analysis 在 session 存在期间不得自动清理。

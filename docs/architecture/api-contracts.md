@@ -32,9 +32,11 @@ interface AppError {
 
 | Command | Request | Success data | 关键错误 |
 |---|---|---|---|
-| `import_song` | `{apiVersion, sourcePath}` | `{song: Song, deduplicated: boolean}` | `AUDIO_UNSUPPORTED`、`SOURCE_UNREADABLE`、`DISK_SPACE_LOW` |
+| `select_import_file` | `{apiVersion}` | `{candidate: ImportCandidate \| null}` | `AUDIO_UNSUPPORTED`、`SOURCE_UNREADABLE`、`DISK_SPACE_LOW` |
+| `confirm_import` | `{apiVersion, candidateToken}` | `{song: Song, deduplicated: boolean}` | `IMPORT_CONFIRMATION_INVALID`、`SOURCE_UNREADABLE`、`DISK_SPACE_LOW` |
 | `list_songs` | `{apiVersion}` | `{songs: SongSummary[]}` | `STORE_UNAVAILABLE` |
 | `get_song` | `{apiVersion, songId}` | `{song: Song}` | `SONG_NOT_FOUND`、`SONG_DAMAGED` |
+| `prepare_delete_song` | `{apiVersion, songId}` | `{confirmationToken, plan: DeletePlan}` | `SONG_NOT_FOUND`、`SONG_DAMAGED` |
 | `delete_song` | `{apiVersion, songId, confirmationToken}` | `{deleted: true, reclaimedBytes}` | `CONFIRMATION_INVALID`、`DELETE_PARTIAL` |
 | `start_analysis` | `{apiVersion, songId}` | `{job: AnalyzerJob, cacheHit}` | `JOB_ALREADY_ACTIVE`、`MODEL_REQUIRED` |
 | `cancel_analysis` | `{apiVersion, jobId}` | `{job: AnalyzerJob}` | `JOB_NOT_FOUND`、`JOB_ALREADY_TERMINAL` |
@@ -65,6 +67,13 @@ interface SongSummary {
   localSizeBytes: number;
 }
 
+interface DeletePlan {
+  songId: string;
+  displayName: string;
+  localSizeBytes: number;
+  assetCategories: Array<"original" | "analyses" | "sessions">;
+}
+
 interface PracticeAssets {
   songId: string;
   analysisId: string;
@@ -83,7 +92,7 @@ interface SessionSummary {
 }
 ```
 
-`sourcePath` 和 `destinationPath` 只能来自本次用户文件对话框选择并由 Rust 验证；不得接受网页任意构造路径。`instrumentalResourceUrl` 是会话内只读能力 URL，不写入持久化 JSON。
+`select_import_file` 的系统对话框、FFmpeg 完整解码预检和绝对路径全部留在 Rust；页面只收到 basename、格式、时长、空间摘要和五分钟 `candidateToken`。`confirm_import` 不接受路径。删除使用独立、绑定 `songId`/操作且五分钟有效的确认 token。`instrumentalResourceUrl` 是最长六小时、删除时立即撤销的只读 opaque 能力 URL，不含完整路径且不写入持久化 JSON；协议单次响应最多 1,000 KiB 并支持 HTTP range。Windows WebView2 按 Wry 的协议映射使用 `http://cybermuse.localhost/<token>`，其他桌面平台使用 `cybermuse://localhost/<token>`；两者都是同一进程内拦截的本地自定义协议，不发往网络。
 
 `save_practice_session` 单次 payload 上限 16 MiB，session 上限 60 分钟。M3 性能测试若证明接近上限，采用分块 Rust session writer，并以 ADR 替代该 command；在此之前不得静默截断。
 

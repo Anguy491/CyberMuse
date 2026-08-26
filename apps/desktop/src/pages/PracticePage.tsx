@@ -10,9 +10,12 @@ import {
   type PracticeControllerSnapshot,
 } from "../practice/practice-controller";
 import type { PitchLaneData } from "../practice/pitch-lane-model";
+import type { PracticeAssets } from "../services/song-service";
 
 interface PracticePageProps {
   controllerFactory?: () => PracticeControllerPort;
+  assets?: PracticeAssets | null;
+  songTitle?: string;
 }
 
 const GRADE_LABELS = {
@@ -60,18 +63,23 @@ function points(data: readonly { x: number; y: number }[]): string {
     .join(" ");
 }
 
-function heading(snapshot: PracticeControllerSnapshot): string {
+function heading(
+  snapshot: PracticeControllerSnapshot,
+  songTitle?: string,
+): string {
   switch (snapshot.playback.status) {
     case "empty":
-      return "加载本地练习夹具。";
+      return "从歌曲库打开一首可练习歌曲。";
     case "loading":
-      return "正在建立练习时钟。";
+      return "正在加载本地伴奏与参考轨。";
     case "fatal_error":
-      return "此环境无法播放练习夹具。";
+      return "此环境无法播放练习资产。";
     case "recoverable_error":
       return "练习已安全暂停。";
     default:
-      return "跟随参考轨练习。";
+      return songTitle === undefined
+        ? "跟随参考轨练习。"
+        : `练习《${songTitle}》。`;
   }
 }
 
@@ -105,7 +113,7 @@ function playbackState(snapshot: PracticeControllerSnapshot): {
       kind: "recoverable_error",
       title: "内存练习已达到 60 分钟容量",
       detail:
-        "当前 take 与摘要仍在内存中。离开 Practice 会清理；重新进入并加载夹具可开始新 session。",
+        "当前 take 与摘要仍在内存中。离开 Practice 会清理；重新打开歌曲可开始新 session。",
     };
   }
   if (snapshot.playback.status === "fatal_error") {
@@ -119,7 +127,7 @@ function playbackState(snapshot: PracticeControllerSnapshot): {
     return {
       kind: "recoverable_error",
       title: "播放已停止，内存 take 保持可见",
-      detail: "恢复音频上下文或重新加载本地夹具后可继续。",
+      detail: "恢复音频上下文或从歌曲库重新打开后可继续。",
     };
   }
   return null;
@@ -135,7 +143,7 @@ function micState(snapshot: PracticeControllerSnapshot): {
       return {
         kind: "permission_required",
         title: "麦克风尚未开启",
-        detail: "可先预览夹具；只有选择“开始录唱”后才会请求权限。",
+        detail: "可先预览伴奏；只有选择“开始录唱”后才会请求权限。",
       };
     case "requesting":
       return {
@@ -154,7 +162,7 @@ function micState(snapshot: PracticeControllerSnapshot): {
       return {
         kind: "permission_denied",
         title: "麦克风访问被拒绝",
-        detail: "练习夹具仍可预览。检查 Windows 隐私设置后重试录唱。",
+        detail: "伴奏仍可预览。检查 Windows 隐私设置后重试录唱。",
       };
     case "recoverable_error":
       return {
@@ -166,7 +174,7 @@ function micState(snapshot: PracticeControllerSnapshot): {
       return {
         kind: "fatal_error",
         title: "此环境不支持麦克风输入",
-        detail: "仍可预览本地夹具；更新 WebView2 Runtime 后重启应用。",
+        detail: "仍可预览本地伴奏；更新 WebView2 Runtime 后重启应用。",
       };
   }
 }
@@ -213,6 +221,8 @@ function defaultControllerFactory(): PracticeControllerPort {
 
 export function PracticePage({
   controllerFactory = defaultControllerFactory,
+  assets = null,
+  songTitle,
 }: PracticePageProps) {
   const [controller] = useState<PracticeControllerPort>(() =>
     controllerFactory(),
@@ -228,6 +238,12 @@ export function PracticePage({
       void controller.dispose();
     };
   }, [controller]);
+
+  useEffect(() => {
+    if (assets !== null && songTitle !== undefined) {
+      void controller.loadSong(assets, songTitle);
+    }
+  }, [assets, controller, songTitle]);
 
   useEffect(() => {
     const element = laneShellRef.current;
@@ -272,9 +288,12 @@ export function PracticePage({
         <div className="practice-heading">
           <div>
             <p className="eyebrow">
-              PRACTICE / {loaded ? "FIXTURE V1" : "EMPTY"}
+              PRACTICE /{" "}
+              {assets === null
+                ? "NO SONG"
+                : `ANALYSIS ${assets.analysisId.slice(0, 8)}`}
             </p>
-            <h1>{heading(snapshot)}</h1>
+            <h1>{heading(snapshot, songTitle)}</h1>
           </div>
           <div className="practice-feedback" aria-label="当前音高偏差">
             <p className="metric-placeholder">
@@ -289,22 +308,25 @@ export function PracticePage({
           </div>
         </div>
 
-        {!loaded ? (
+        {!loaded && assets === null ? (
           <div className="practice-load">
-            <p>
-              使用版本化、无版权、程序生成的参考轨与伴奏。不会打开歌曲文件、下载模型或保存
-              session。
-            </p>
-            <Button
-              variant="primary"
-              disabled={snapshot.playback.status === "loading"}
-              onClick={() => void controller.loadFixture()}
-            >
-              {snapshot.playback.status === "loading"
-                ? "[LOADING] 加载夹具"
-                : "加载本地练习夹具"}
-            </Button>
+            <PageState
+              detail="回到歌曲库，选择状态为“可练习”的歌曲。"
+              kind="empty"
+              title="尚未选择歌曲"
+            />
           </div>
+        ) : null}
+
+        {!loaded &&
+        assets !== null &&
+        snapshot.playback.status !== "fatal_error" &&
+        snapshot.playback.status !== "recoverable_error" ? (
+          <PageState
+            detail="伴奏通过当前应用会话的只读能力 URL 加载，完整本机路径不会进入页面。"
+            kind="loading"
+            title="正在验证练习资产"
+          />
         ) : null}
 
         {currentPlaybackState === null ? null : (
@@ -385,7 +407,7 @@ export function PracticePage({
               void (isPlaying ? controller.pause() : controller.play())
             }
           >
-            {isPlaying ? "暂停" : "播放夹具"}
+            {isPlaying ? "暂停" : "播放伴奏"}
           </Button>
           <Button
             disabled={!canTransport}
@@ -573,6 +595,7 @@ export function PracticePage({
           {snapshot.playback.resources.createdSources} CREATED
         </span>
         <span>LATENCY SOURCE NONE · APPLIED 0 MS</span>
+        <span>ASSET URL SESSION ONLY</span>
         <span>SESSION MEMORY ONLY · LEAVE TO CLEAR</span>
       </section>
     </main>

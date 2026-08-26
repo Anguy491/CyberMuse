@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Active for M4 |
+| 状态 | Active for M5 |
 | 版本 | 0.1.0 |
 | 责任域 | 开发、验证、故障排查与发布 |
 | 上游依据 | Milestone Specs、AGENTS、Test Strategy |
@@ -171,6 +171,33 @@ Set-Location <clean-windows-package>
 ```
 
 脚本先验证 package manifest 和主机条件，再由 Defender 扫描目录，清空子进程环境，运行真实 6 秒分析，每 100 ms 观察 analyzer 进程树 TCP/UDP，并复核 manifest 中三个产物的 SHA-256。只有 analyzer exit `0`、末条 protocol 为 `completed`、stderr 为空、零网络端点、零 Defender threat 且三个开发工具均不在 PATH 时才可把匿名 evidence JSON 回填至 `artifacts/m4`。按 ADR-015，该证据不阻止本机个人使用范围的 M4，但在首次向朋友提供内测包之前必须完成，且最迟是 M6 硬门禁；`-SkipDefender` 仅供脚本诊断，不能形成门禁证据。
+
+## M5：Import-to-Practice
+
+M5 继承已批准的 M4 analyzer/models，只新增导入、歌曲库、分析编排接线、会话级伴奏能力和删除恢复。规范自动命令为：
+
+```powershell
+Set-Location D:\projects\cyberMuse
+pnpm test:m5:import
+pnpm check
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+pnpm test:m4:supply
+pnpm tauri build
+```
+
+`test:m5:import` 使用打包 FFmpeg 生成短 MP3/WAV/FLAC，只在 `artifacts/m5` 临时目录运行；它验证完整解码、三格式、Unicode/空格路径、SHA-256 去重、源文件移走后独立性、损坏音频、空间重检和 1,000 首 Library 元数据。JSON 摘要写入 Git 忽略的 `artifacts/m5/import-integration.json`，不保留音频。
+
+Windows 11 发布包人工 smoke：
+
+1. 从 Library 打开原生文件选择器，选择文件名和目录含 Unicode/空格的 MP3、WAV 或 FLAC；取消必须是无操作，页面不得显示完整路径。
+2. 核对格式、时长、源大小、预计本地占用、所需余量和可用空间后确认复制；观察六阶段分析进度。取消、失败和重试不得删除歌曲副本或最后一次有效分析。
+3. 状态变为“可练习”后进入 Practice；确认引用轨和时长对应当前 `analysisId`，伴奏可从 0 播放到结尾，未选择“开始录唱”前不得请求麦克风。
+4. 在网络适配器断开或等价的受控离线主机上重复打开和播放；这一步验证不依赖模型下载或远端 URL。系统 WebView2 诊断边界仍按 RISK-018 解释，在线主机的零应用请求不能替代物理断网步骤。
+5. 删除先展示歌曲名、占用和 `original/analyses/sessions` 类别；只有操作人员确认后才执行。自动化不得代替用户在真实 Library 永久删除本地数据。
+
+Windows WebView2 将 `cybermuse://localhost/<token>` 自定义协议映射为 `http://cybermuse.localhost/<token>`。它由 Wry 在进程内拦截，不是远端 HTTP 服务；响应必须保持只读、可撤销、最多 1,000 KiB/range、`no-store`，且 capability URL 不得进入持久化 JSON 或日志。
 
 ## 模型安装与缓存
 

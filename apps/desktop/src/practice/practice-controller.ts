@@ -20,6 +20,7 @@ import type {
   AudioInputStatus,
   AudioRuntimeError,
 } from "../audio/runtime-types";
+import type { PracticeAssets } from "../services/song-service";
 import {
   buildPitchLaneData,
   type LanePitchPoint,
@@ -63,6 +64,7 @@ export interface PlaybackEnginePort {
   getAudioContext(): AudioContext | null;
   subscribe(listener: (snapshot: PlaybackEngineSnapshot) => void): () => void;
   loadFixture(fixture?: PracticeFixture): Promise<void>;
+  loadAssets(assets: PracticeAssets, title: string): Promise<void>;
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
@@ -79,6 +81,7 @@ export interface PracticeControllerPort {
   ): () => void;
   getLaneData(width?: number, height?: number): PitchLaneData | null;
   loadFixture(): Promise<void>;
+  loadSong(assets: PracticeAssets, title: string): Promise<void>;
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
@@ -254,6 +257,34 @@ export class PracticeController implements PracticeControllerPort {
       this.lastMetricFrameCount = 0;
       this.snapshot = {
         ...initialSnapshot(this.playback.getSnapshot()),
+        laneVersion: this.snapshot.laneVersion + 1,
+      };
+      this.emit();
+    }
+  }
+
+  async loadSong(assets: PracticeAssets, title: string): Promise<void> {
+    if (this.disposed) return;
+    await this.releaseInput();
+    await this.playback.loadAssets(assets, title);
+    const fixture = this.playback.getSnapshot().fixture;
+    if (fixture !== null) {
+      this.session = new InMemoryPracticeSession(fixture.referenceTrack);
+      this.currentLane = [];
+      this.previousLane = [];
+      this.handledLoopIteration = 0;
+      this.lastMetricFrameCount = 0;
+      this.snapshot = {
+        ...initialSnapshot(this.playback.getSnapshot()),
+        loop: {
+          startMs: Math.min(
+            2_000,
+            Math.max(0, fixture.referenceTrack.durationMs - 1_000),
+          ),
+          endMs: Math.min(5_000, fixture.referenceTrack.durationMs),
+          enabled: false,
+          validation: null,
+        },
         laneVersion: this.snapshot.laneVersion + 1,
       };
       this.emit();

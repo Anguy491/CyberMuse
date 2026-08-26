@@ -5,23 +5,40 @@ pub mod analysis_store;
 pub mod analyzer_process;
 pub mod analyzer_protocol;
 pub mod analyzer_request;
+pub mod asset_protocol;
 pub mod model_manager;
 pub mod runtime_manifest;
+pub mod song_store;
 pub mod storage;
 pub mod tauri_api;
 pub mod tool_manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let resources = asset_protocol::ResourceRegistry::new();
+    let protocol_resources = resources.clone();
+    let state_resources = resources.clone();
     let builder = tauri::Builder::default()
-        .setup(|app| {
-            let state = tauri_api::initialize(&app.handle().clone()).map_err(|error| {
-                Box::<dyn std::error::Error>::from(std::io::Error::other(error))
-            })?;
+        .plugin(tauri_plugin_dialog::init())
+        .register_uri_scheme_protocol("cybermuse", move |_context, request| {
+            protocol_resources.handle(request)
+        })
+        .setup(move |app| {
+            let state = tauri_api::initialize(&app.handle().clone(), state_resources.clone())
+                .map_err(|error| {
+                    Box::<dyn std::error::Error>::from(std::io::Error::other(error))
+                })?;
             app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            tauri_api::select_import_file,
+            tauri_api::confirm_import,
+            tauri_api::list_songs,
+            tauri_api::get_song,
+            tauri_api::prepare_delete_song,
+            tauri_api::delete_song,
+            tauri_api::get_practice_assets,
             tauri_api::start_analysis,
             tauri_api::cancel_analysis,
             tauri_api::get_analysis_job,

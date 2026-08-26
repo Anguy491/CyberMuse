@@ -49,8 +49,9 @@
 - [M2 Realtime Pitch Lab 证据](delivery/evidence/m2-realtime-pitch-lab.md)
 - [M3 Fixture-based Practice 证据](delivery/evidence/m3-fixture-practice.md)
 - [M4 Offline Analyzer 证据](delivery/evidence/m4-offline-analyzer.md)
+- [M5 Import-to-Practice 证据](delivery/evidence/m5-import-to-practice.md)
 - [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
-- [M1–M4 依赖审批清单](quality/dependencies.json)
+- [M1–M5 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)
 - [M4 Analyzer JSON Schemas v1](../schemas/analyzer-request.schema.json)
 

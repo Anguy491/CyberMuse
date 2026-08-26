@@ -1,5 +1,5 @@
 import { PRACTICE_FIXTURE_V1 } from "@cybermuse/audio";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,6 +8,7 @@ import type {
   PracticeControllerSnapshot,
 } from "../practice/practice-controller";
 import type { PitchLaneData } from "../practice/pitch-lane-model";
+import type { PracticeAssets } from "../services/song-service";
 import { PracticePage } from "./PracticePage";
 
 const emptyMetrics = {
@@ -84,8 +85,23 @@ const lane: PitchLaneData = {
   maximumMidi: 72,
 };
 
+const practiceAssets: PracticeAssets = {
+  songId: "a".repeat(64),
+  analysisId: "b".repeat(32),
+  instrumentalResourceUrl:
+    "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
+  referenceTrack: {
+    ...PRACTICE_FIXTURE_V1.referenceTrack,
+    frames: PRACTICE_FIXTURE_V1.referenceTrack.frames.map((frame) => ({
+      ...frame,
+    })),
+  },
+  durationMs: PRACTICE_FIXTURE_V1.referenceTrack.durationMs,
+};
+
 class FakePracticeController implements PracticeControllerPort {
   readonly loadFixture = vi.fn(async () => undefined);
+  readonly loadSong = vi.fn(async () => undefined);
   readonly play = vi.fn(async () => undefined);
   readonly pause = vi.fn();
   readonly resumeAfterSuspend = vi.fn(async () => undefined);
@@ -134,6 +150,16 @@ function emit(
   act(() => controller.emit(snapshot));
 }
 
+function renderPractice(controller: FakePracticeController) {
+  return render(
+    <PracticePage
+      assets={practiceAssets}
+      controllerFactory={() => controller}
+      songTitle="测试歌曲"
+    />,
+  );
+}
+
 function readySnapshot(
   patch: Partial<PracticeControllerSnapshot> = {},
 ): PracticeControllerSnapshot {
@@ -158,31 +184,26 @@ function readySnapshot(
 }
 
 describe("FR-009/012/014 Practice UI", () => {
-  it("loads only the explicit local fixture and does not request microphone", async () => {
-    const user = userEvent.setup();
+  it("loads only the selected local practice assets and does not request microphone", async () => {
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "加载本地练习夹具。",
+    await waitFor(() =>
+      expect(controller.loadSong).toHaveBeenCalledWith(
+        practiceAssets,
+        "测试歌曲",
+      ),
     );
-    expect(
-      screen.getByText(/不会打开歌曲文件、下载模型或保存 session/),
-    ).toBeVisible();
-    expect(controller.startInput).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "加载本地练习夹具" }));
-    expect(controller.loadFixture).toHaveBeenCalledOnce();
     expect(controller.startInput).not.toHaveBeenCalled();
   });
 
   it("provides play, seek, reset and keyboard-equivalent A/B controls", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
     emit(controller, readySnapshot());
 
-    await user.click(screen.getByRole("button", { name: "播放夹具" }));
+    await user.click(screen.getByRole("button", { name: "播放伴奏" }));
     await user.click(screen.getByRole("button", { name: "回到开头" }));
     await user.click(screen.getByRole("button", { name: "当前位置设为 A" }));
     await user.click(screen.getByRole("button", { name: "A +0.1s" }));
@@ -204,9 +225,7 @@ describe("FR-009/012/014 Practice UI", () => {
 
   it("keeps NOW at 38% with text summary and three grayscale line patterns", () => {
     const controller = new FakePracticeController();
-    const { container } = render(
-      <PracticePage controllerFactory={() => controller} />,
-    );
+    const { container } = renderPractice(controller);
     emit(controller, readySnapshot({ observationState: "unvoiced" }));
 
     expect(
@@ -225,7 +244,7 @@ describe("FR-009/012/014 Practice UI", () => {
 describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
   it("expresses direction through arrow, position semantics and text", () => {
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
     emit(
       controller,
       readySnapshot({
@@ -253,7 +272,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
 
   it("shows unavailable metrics as dashes and never invents a total score", () => {
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
     emit(controller, readySnapshot());
 
     expect(screen.getByLabelText("内存练习指标")).toHaveTextContent(
@@ -266,7 +285,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
   it("keeps fixture preview usable after permission denial with a recovery action", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
     emit(
       controller,
       readySnapshot({
@@ -282,7 +301,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
       }),
     );
 
-    expect(screen.getByRole("button", { name: "播放夹具" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "播放伴奏" })).toBeEnabled();
     expect(screen.getByText("AUDIO_PERMISSION_DENIED")).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "检查设备后重试录唱" }),
@@ -292,7 +311,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
 
   it("renders structured loop errors inline instead of color-only feedback", () => {
     const controller = new FakePracticeController();
-    render(<PracticePage controllerFactory={() => controller} />);
+    renderPractice(controller);
     emit(
       controller,
       readySnapshot({

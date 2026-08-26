@@ -34,7 +34,7 @@ pub enum AnalyzerJobStatus {
 }
 
 impl AnalyzerJobStatus {
-    fn is_terminal(self) -> bool {
+    pub fn is_terminal(self) -> bool {
         matches!(self, Self::Cancelled | Self::Succeeded | Self::Failed)
     }
 }
@@ -300,6 +300,20 @@ impl AnalysisCoordinator {
         control.cancel.store(true, Ordering::Release);
         control.job.status = AnalyzerJobStatus::Cancelling;
         Ok(control.job.clone())
+    }
+
+    pub fn cancel_song(&self, song_id: &str) -> Result<Option<AnalyzerJob>, CoordinatorError> {
+        let job_id = self
+            .jobs
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .active_by_song
+            .get(song_id)
+            .cloned();
+        match job_id {
+            Some(job_id) => self.cancel(&job_id).map(Some),
+            None => Ok(None),
+        }
     }
 
     pub fn get(&self, job_id: &str) -> Result<AnalyzerJob, CoordinatorError> {

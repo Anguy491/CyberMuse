@@ -171,6 +171,18 @@
 - 被替代条目：细化 M4 原 clean-host 解释，不删除 NFR-021 或 M6 的 TC-BUILD-001。
 - 相关需求/风险：NFR-020/021、TC-BUILD-001、RISK-007/020。
 
+## ADR-016 — M5 原生路径能力与 opaque 练习资产协议
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：M5 需要让 WebView 发起歌曲导入和播放大型本地伴奏，同时满足“页面不能提交任意路径”、不暴露完整用户路径、长音频不能整体穿过 IPC，以及删除时能够撤销读取能力。
+- 选项：把原始路径直接返回页面并调用 `import_song`；把整份音频字节经 IPC 复制/播放；由 Rust 原生对话框签发短期导入/删除能力，并用会话级 opaque range URL 提供已验证伴奏。
+- 决定：采用第三项。Tauri 官方 `tauri-plugin-dialog@2.7.2` 仅从 Rust 使用；选择后先完成格式、音轨、1..1,200,000 ms、完整解码和空间预检，页面只获得 basename/摘要及五分钟 token。确认时 Rust 重检源文件与空间并边复制边 SHA-256。练习伴奏使用最长六小时、按歌曲可撤销、单响应不超过 1,000 KiB 的只读 `cybermuse` 自定义协议能力 URL（Windows WebView2 依 Wry 映射为 `http://cybermuse.localhost/<token>`）；引用轨仍以验证后的版本化 JSON 返回。
+- 理由：原始绝对路径从不进入 React，输入内容不经大 payload IPC；range 响应支持长音频流式播放；删除或会话结束可撤销能力。官方插件采用 MIT OR Apache-2.0 且只增加已锁定、宽松许可证的 Tauri/rfd 传递依赖。
+- 影响：SongStatus 增加 `deleting` 以落实已有删除恢复规范；API 用 `select_import_file`/`confirm_import` 和 `prepare_delete_song` 取代没有能力签发步骤的旧草案。更换协议、扩大 dialog JS 权限或把路径返回页面必须新增替代 ADR，并重跑 TC-IMP/TC-STO/TC-PRIV。
+- 被替代条目：细化 ADR-001/006/009；替代 API Contracts 中未实现的直接 `sourcePath` 草案，不改变 schema major。
+- 相关需求/风险：FR-001/002/003/007/008、NFR-002/010/011/013/015/018/019/020、RISK-010/011/013/016。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

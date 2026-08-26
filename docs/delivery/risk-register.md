@@ -23,10 +23,10 @@
 | RISK-007 | Python sidecar/PyInstaller 体积、启动、杀毒误报、DLL 冲突或上游停止维护 | Medium | High | Analyzer/Release | 干净机启动失败、Defender 隔离、缺 DLL、候选仓库归档或关键兼容问题无人维护 | 两个 onedir 锁定、运行清单 1,054 文件/约 1.18 GB、VC 14.51 app-local、release build 通过；干净 Win11/Defender 因 RISK-020 未完成，签名保留 M6 | M4/M6 | Mitigating |
 | RISK-008 | 多时钟造成播放、参考和用户轨漂移 | Medium | High | Desktop Audio | 10 分钟漂移 >20 ms、loop 边界累计 | AudioContext 单时钟；每次 seek/loop/suspend re-anchor；10 分钟受控时钟最大漂移 0 ms，10 次 loop 边界 P95 16.667 ms，Windows 发布包实跑 12 次循环且活动 source 归零 | M3 | Closed |
 | RISK-009 | 用户设备延迟差异导致正确音高在错误时间评分 | High | High | Audio UX | 同一用户稳定出现时间偏差、校准多峰 | 设备组合校准、置信度、手动偏移、设备变化失效；耳机引导 | M6 | Open |
-| RISK-010 | 崩溃/取消/磁盘不足损坏歌曲、analysis 或 session | Medium | Critical | Storage | 半写 JSON、active cache 失效、删除部分完成 | staging+原子替换；最后有效版本；故障注入；引用保护；空间预检 | M1/M5 | Open |
+| RISK-010 | 崩溃/取消/磁盘不足损坏歌曲、analysis 或 session | Medium | Critical | Storage | 半写 JSON、active cache 失效、删除部分完成 | M1 原子 JSON；M4 staging/旧 active 保留；M5 复制中断无正式歌曲、空间重检、部分删除转 damaged 且可重试、能力撤销。正式 session 留在 M6 复验 | M1/M5/M6 | Mitigating |
 | RISK-011 | 本地音频、路径或行为数据进入日志/网络 | Low | Critical | Privacy/Security | 网络捕获或诊断扫描发现禁字段 | 打包 analyzer 三路径进程树 TCP/UDP 100 ms 捕获为零，协议/错误只保留 safeDetails；完整 app/WebView/诊断扫描仍在 M6 | M4/M6 | Mitigating |
 | RISK-012 | 模型/更新下载被替换或部分文件被加载 | Low | Critical | Security/Release | 哈希不符、重定向异常、部分安装可见、wrapper 隐式下载模型或远端元数据 | HTTPS host allowlist、禁 proxy/降级/userinfo、5 次重定向上限、大小/SHA、取消清理、原子 manifest；本地 server fault matrix 与离线安装复用通过 | M4/M6 | Mitigating |
-| RISK-013 | 歌曲与模型占用大量磁盘，用户无法理解或清理 | High | Medium | Product/Storage | 导入/分析因空间失败、缓存持续增长 | 导入前估算；Library 占用；存储管理；引用感知清理；不自动删用户数据 | M5 | Open |
+| RISK-013 | 歌曲与模型占用大量磁盘，用户无法理解或清理 | High | Medium | Product/Storage | 导入/分析因空间失败、缓存持续增长 | M5 显示导入估算/安全余量、Library 总量/单曲占用和删除类别；导入确认时重检空间；删除需显式确认且不自动删用户数据。M6 复验 release 长时占用 | M5/M6 | Mitigating |
 | RISK-014 | 蓝牙音频模式切换、低质量输入或巨大延迟影响训练 | High | Medium | Audio UX | 蓝牙设备延迟/采样异常、双向模式音质下降 | 显示设备限制；建议有线/USB；校准；记录为支持限制而非掩盖 | M2/M6 | Open |
 | RISK-015 | 指标看似精确但误导用户，把表达性变化当错误 | Medium | High | Product/Scoring | 滑音/颤音被持续红色判错、单分数误导 | 连续轨、无声不评分、120 ms 平滑、5 cents 滞回、分项指标与限制性文案；M3 稳定偏低/零中心波动/低覆盖/无帧/边界黄金序列通过，不展示总分；真实歌曲用户评审保留到 M6 | M3/M6 | Mitigating |
 | RISK-016 | 文档和实现契约漂移，自治开发跨越门禁 | Medium | High | Delivery/All | 未映射需求、接口字段分叉、提前实现后续功能 | 分层 AGENTS；traceability；同变更更新四文档；每里程碑人工 gate | 每个门禁 | Mitigated by process |
@@ -64,3 +64,9 @@ M3 使用单一 AudioContext 时钟、每段显式 re-anchor、独立 take local
 用户于 2026-08-26 明确批准下载 Spleeter 2stems 与 SwiftF0 两项 exact catalog artifact。模型/包/FFmpeg 许可证、哈希、断网、质量、CPU-only 3/5/10 分钟、取消、原子提交与本机发布构建均已有自动证据，RISK-005 已关闭，RISK-003/004/006/007/011/012 持续缓解。
 
 用户随后明确确认采用 ADR-015 的“本机个人使用”范围：接受 RISK-020 延期，不要求它阻止 M4，但任何朋友内测或 M6 release candidate 前必须完成 clean-host/Defender 证据。M4 已通过该范围的人工门禁，M5 可开始；跨机器分发能力仍未获证明或批准。
+
+## M5 风险结论
+
+M5 已对 RISK-010 增加导入复制中断、空间重检、分析失败/取消不覆盖有效资产、删除部分失败可重试和伴奏能力撤销证据；RISK-013 已有导入前预算、Library 占用与显式删除说明。两项风险降为持续缓解，但正式 session 与 release 长时占用仍在 M6 到期复验。
+
+真实打包烟测发现并修复了两个已物化问题：Windows verbatim path 与普通 canonical root 表示不一致导致 analyzer `input_escape`，以及 WebView2 自定义协议映射未用于媒体 URL。修复后同一 Unicode/空格 WAV 可从失败重试至 ready，并在 Practice 完整播放。用户于 2026-08-26 确认物理断网播放通过并明确批准 M5；M5 gate 已通过，M6 可开始。RISK-018 的系统 WebView2 诊断连接解释和 RISK-020 的首次外部内测/M6 clean-host 限制不变。

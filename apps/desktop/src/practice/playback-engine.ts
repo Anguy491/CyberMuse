@@ -9,6 +9,8 @@ import {
   type PracticeFixture,
 } from "@cybermuse/audio";
 
+import type { PracticeAssets } from "../services/song-service";
+
 export type PlaybackEngineStatus =
   | "empty"
   | "loading"
@@ -48,6 +50,7 @@ export interface PlaybackEngineSnapshot {
 
 interface PlaybackEnvironment {
   createAudioContext(): AudioContext;
+  createMediaElement?(): HTMLAudioElement;
   requestAnimationFrame(callback: FrameRequestCallback): number;
   cancelAnimationFrame(handle: number): void;
 }
@@ -93,6 +96,7 @@ function browserEnvironment(): PlaybackEnvironment {
       }
       return new audioContextConstructor({ latencyHint: "interactive" });
     },
+    createMediaElement: () => new Audio(),
     requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
     cancelAnimationFrame: (handle) => window.cancelAnimationFrame(handle),
   };
@@ -102,13 +106,14 @@ function runtimeError(
   code: string,
   messageKey: string,
   retryable: boolean,
+  safeDetails: Record<string, string | number | boolean> = {},
 ): PracticeRuntimeError {
   return {
     schemaVersion: 1,
     code,
     messageKey,
     retryable,
-    safeDetails: {},
+    safeDetails,
     diagnosticId: globalThis.crypto?.randomUUID?.() ?? "practice-playback",
   };
 }
@@ -116,13 +121,36 @@ function runtimeError(
 function mapLoadError(error: unknown): PracticeRuntimeError {
   const fatal =
     error instanceof DOMException && error.name === "NotSupportedError";
+  const safeDetails =
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "MediaLoadError" &&
+    "phase" in error &&
+    "mediaErrorCode" in error
+      ? {
+          phase: String(error.phase),
+          mediaErrorCode: Number(error.mediaErrorCode),
+        }
+      : {};
   return runtimeError(
-    fatal ? "PRACTICE_AUDIO_UNSUPPORTED" : "PRACTICE_FIXTURE_UNAVAILABLE",
+    fatal ? "PRACTICE_AUDIO_UNSUPPORTED" : "PRACTICE_ASSET_UNAVAILABLE",
     fatal
       ? "practice.error.audioUnsupported"
-      : "practice.error.fixtureUnavailable",
+      : "practice.error.assetUnavailable",
     !fatal,
+    safeDetails,
   );
+}
+
+class MediaLoadError extends Error {
+  constructor(
+    readonly phase: "error" | "timeout",
+    readonly mediaErrorCode: number,
+  ) {
+    super("PRACTICE_ASSET_UNAVAILABLE");
+    this.name = "MediaLoadError";
+  }
 }
 
 function addListener(
@@ -134,6 +162,32 @@ function addListener(
   return () => target.removeEventListener(type, listener);
 }
 
+function waitForMediaReady(media: HTMLAudioElement): Promise<void> {
+  if (media.readyState >= 1) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new MediaLoadError("timeout", media.error?.code ?? 0));
+    }, 10_000);
+    const loaded = () => {
+      cleanup();
+      resolve();
+    };
+    const failed = () => {
+      cleanup();
+      reject(new MediaLoadError("error", media.error?.code ?? 0));
+    };
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      media.removeEventListener("loadedmetadata", loaded);
+      media.removeEventListener("error", failed);
+    };
+    media.addEventListener("loadedmetadata", loaded, { once: true });
+    media.addEventListener("error", failed, { once: true });
+    media.load();
+  });
+}
+
 export class PlaybackEngine {
   private readonly listeners = new Set<SnapshotListener>();
   private readonly environment: PlaybackEnvironment;
@@ -142,6 +196,9 @@ export class PlaybackEngine {
   private gain: GainNode | null = null;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
+  private media: HTMLAudioElement | null = null;
+  private mediaSource: MediaElementAudioSourceNode | null = null;
+  private mediaRestartTimer: number | null = null;
   private timeline: PlaybackTimeline | null = null;
   private frameHandle: number | null = null;
   private removeContextListener: (() => void) | null = null;
@@ -173,6 +230,7 @@ export class PlaybackEngine {
     this.update({ status: "loading", error: null });
     try {
       const context = this.environment.createAudioContext();
+      this.context = context;
       const pcm = generatePracticeFixturePcm(context.sampleRate);
       const buffer = context.createBuffer(1, pcm.length, context.sampleRate);
       const channelData = new Float32Array(pcm.length);
@@ -181,7 +239,6 @@ export class PlaybackEngine {
       const gain = context.createGain();
       gain.gain.value = 0.65;
       gain.connect(context.destination);
-      this.context = context;
       this.buffer = buffer;
       this.gain = gain;
       this.timeline = new PlaybackTimeline(fixture.referenceTrack.durationMs);
@@ -213,10 +270,72 @@ export class PlaybackEngine {
     }
   }
 
+  async loadAssets(assets: PracticeAssets, title: string): Promise<void> {
+    if (this.disposed) return;
+    await this.releaseAudioGraph();
+    this.update({ status: "loading", error: null });
+    try {
+      const context = this.environment.createAudioContext();
+      const media = this.environment.createMediaElement?.() ?? new Audio();
+      this.context = context;
+      this.media = media;
+      media.preload = "metadata";
+      media.crossOrigin = "anonymous";
+      media.src = assets.instrumentalResourceUrl;
+      await waitForMediaReady(media);
+      const gain = context.createGain();
+      gain.gain.value = 0.65;
+      gain.connect(context.destination);
+      const mediaSource = context.createMediaElementSource(media);
+      mediaSource.connect(gain);
+      const fixture: PracticeFixture = {
+        schemaVersion: 1,
+        fixtureId: assets.analysisId,
+        title,
+        description: "本地导入歌曲的版本化练习资产。",
+        sampleRateHz: 48_000,
+        referenceTrack: assets.referenceTrack,
+      };
+      this.mediaSource = mediaSource;
+      this.gain = gain;
+      this.timeline = new PlaybackTimeline(assets.durationMs);
+      this.removeContextListener = addListener(context, "statechange", () =>
+        this.handleContextStateChange(),
+      );
+      this.snapshot = {
+        ...INITIAL_SNAPSHOT,
+        status: "ready",
+        fixture,
+        durationMs: assets.durationMs,
+        contextState: context.state,
+        resources: {
+          contexts: 1,
+          gainNodes: 1,
+          activeSources: 0,
+          createdSources: 0,
+          listeners: 1,
+        },
+      };
+      this.emit();
+    } catch (error) {
+      const mapped = mapLoadError(error);
+      await this.releaseAudioGraph();
+      this.update({
+        status: mapped.retryable ? "recoverable_error" : "fatal_error",
+        error: mapped,
+      });
+    }
+  }
+
   async play(): Promise<void> {
     const context = this.context;
     const timeline = this.timeline;
-    if (context === null || timeline === null || this.buffer === null) return;
+    if (
+      context === null ||
+      timeline === null ||
+      (this.buffer === null && this.media === null)
+    )
+      return;
     try {
       if (context.state !== "running") {
         await context.resume();
@@ -358,18 +477,49 @@ export class PlaybackEngine {
 
   private startSource(contextTimeSec: number, songTimeMs: number): void {
     const context = this.context;
-    const buffer = this.buffer;
     const gain = this.gain;
     const timeline = this.timeline;
-    if (
-      context === null ||
-      buffer === null ||
-      gain === null ||
-      timeline === null
-    ) {
+    if (context === null || gain === null || timeline === null) {
       return;
     }
     this.stopSource();
+    const media = this.media;
+    if (media !== null) {
+      const delayMs = Math.max(
+        0,
+        (contextTimeSec - context.currentTime) * 1_000,
+      );
+      media.currentTime = songTimeMs / 1_000;
+      const start = () => {
+        this.mediaRestartTimer = null;
+        void media.play().catch(() => {
+          this.update({
+            status: "recoverable_error",
+            error: runtimeError(
+              "PRACTICE_PLAYBACK_START_FAILED",
+              "practice.error.playbackStartFailed",
+              true,
+            ),
+          });
+        });
+      };
+      if (delayMs > 2) {
+        this.mediaRestartTimer = window.setTimeout(start, delayMs);
+      } else {
+        start();
+      }
+      this.update({
+        segmentId: this.snapshot.segmentId + 1,
+        resources: {
+          ...this.snapshot.resources,
+          activeSources: 1,
+          createdSources: this.snapshot.resources.createdSources + 1,
+        },
+      });
+      return;
+    }
+    const buffer = this.buffer;
+    if (buffer === null) return;
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(gain);
@@ -393,19 +543,27 @@ export class PlaybackEngine {
   }
 
   private stopSource(): void {
+    if (this.mediaRestartTimer !== null) {
+      window.clearTimeout(this.mediaRestartTimer);
+      this.mediaRestartTimer = null;
+    }
+    this.media?.pause();
     const source = this.source;
     this.source = null;
-    if (source === null) return;
-    source.onended = null;
-    try {
-      source.stop();
-    } catch {
-      // A source that reached its scheduled end is already stopped.
+    if (source !== null) {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        // A source that reached its scheduled end is already stopped.
+      }
+      source.disconnect();
     }
-    source.disconnect();
-    this.update({
-      resources: { ...this.snapshot.resources, activeSources: 0 },
-    });
+    if (source !== null || this.snapshot.resources.activeSources !== 0) {
+      this.update({
+        resources: { ...this.snapshot.resources, activeSources: 0 },
+      });
+    }
   }
 
   private scheduleFrame(): void {
@@ -490,9 +648,16 @@ export class PlaybackEngine {
     this.removeContextListener?.();
     this.removeContextListener = null;
     this.gain?.disconnect();
+    this.mediaSource?.disconnect();
+    if (this.media !== null) {
+      this.media.removeAttribute("src");
+      this.media.load();
+    }
     const context = this.context;
     this.context = null;
     this.gain = null;
+    this.media = null;
+    this.mediaSource = null;
     this.buffer = null;
     this.timeline = null;
     if (context !== null && context.state !== "closed") {

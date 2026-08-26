@@ -48,6 +48,49 @@ class FakeBufferSource {
   }
 }
 
+class FakeMediaSource {
+  disconnectCount = 0;
+
+  connect(): void {}
+
+  disconnect(): void {
+    this.disconnectCount += 1;
+  }
+}
+
+class FakeMediaElement extends EventTarget {
+  readyState = 1;
+  error: MediaError | null = null;
+  preload = "";
+  crossOrigin: string | null = null;
+  src = "";
+  currentTime = 0;
+  playCount = 0;
+  pauseCount = 0;
+  loadCount = 0;
+  failOnLoad = false;
+
+  async play(): Promise<void> {
+    this.playCount += 1;
+  }
+
+  pause(): void {
+    this.pauseCount += 1;
+  }
+
+  load(): void {
+    this.loadCount += 1;
+    if (this.failOnLoad) {
+      this.error = { code: 4 } as MediaError;
+      this.dispatchEvent(new Event("error"));
+    }
+  }
+
+  removeAttribute(name: string): void {
+    if (name === "src") this.src = "";
+  }
+}
+
 class FakeAudioContext extends EventTarget {
   readonly sampleRate = 8_000;
   readonly destination = {} as AudioDestinationNode;
@@ -56,6 +99,7 @@ class FakeAudioContext extends EventTarget {
   closeCount = 0;
   readonly sources: FakeBufferSource[] = [];
   readonly gains: FakeGainNode[] = [];
+  readonly mediaSources: FakeMediaSource[] = [];
 
   createBuffer(_channels: number, length: number): AudioBuffer {
     return new FakeAudioBuffer(length) as unknown as AudioBuffer;
@@ -71,6 +115,12 @@ class FakeAudioContext extends EventTarget {
     const source = new FakeBufferSource();
     this.sources.push(source);
     return source as unknown as AudioBufferSourceNode;
+  }
+
+  createMediaElementSource(): MediaElementAudioSourceNode {
+    const source = new FakeMediaSource();
+    this.mediaSources.push(source);
+    return source as unknown as MediaElementAudioSourceNode;
   }
 
   async resume(): Promise<void> {
@@ -91,10 +141,15 @@ class FakeAudioContext extends EventTarget {
 
 class FakeEnvironment implements PlaybackEnvironment {
   readonly context = new FakeAudioContext();
+  readonly media = new FakeMediaElement();
   readonly frames: FrameRequestCallback[] = [];
 
   createAudioContext(): AudioContext {
     return this.context as unknown as AudioContext;
+  }
+
+  createMediaElement(): HTMLAudioElement {
+    return this.media as unknown as HTMLAudioElement;
   }
 
   requestAnimationFrame(callback: FrameRequestCallback): number {
@@ -116,6 +171,79 @@ class FakeEnvironment implements PlaybackEnvironment {
 }
 
 describe("TC-AUD-001 PlaybackEngine", () => {
+  it("streams an opaque real-song resource through one media element", async () => {
+    const environment = new FakeEnvironment();
+    const engine = new PlaybackEngine(environment);
+    await engine.loadAssets(
+      {
+        songId: "a".repeat(64),
+        analysisId: "b".repeat(32),
+        instrumentalResourceUrl:
+          "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
+        durationMs: 180_000,
+        referenceTrack: {
+          schemaVersion: 1,
+          durationMs: 180_000,
+          hopMs: 20,
+          minHz: 65,
+          maxHz: 1047,
+          frames: [],
+        },
+      },
+      "练习曲",
+    );
+
+    expect(engine.getSnapshot()).toMatchObject({
+      status: "ready",
+      durationMs: 180_000,
+      fixture: { title: "练习曲", fixtureId: "b".repeat(32) },
+    });
+    await engine.play();
+    expect(environment.media.playCount).toBe(1);
+    expect(engine.seek(30_000)).toBe(30_000);
+    expect(environment.media.currentTime).toBe(30);
+    engine.pause();
+    expect(environment.media.pauseCount).toBeGreaterThan(0);
+    await engine.dispose();
+    expect(environment.media.src).toBe("");
+    expect(environment.context.mediaSources[0]?.disconnectCount).toBe(1);
+  });
+
+  it("reports a bounded safe media error and closes the partial audio graph", async () => {
+    const environment = new FakeEnvironment();
+    environment.media.readyState = 0;
+    environment.media.failOnLoad = true;
+    const engine = new PlaybackEngine(environment);
+    await engine.loadAssets(
+      {
+        songId: "a".repeat(64),
+        analysisId: "b".repeat(32),
+        instrumentalResourceUrl:
+          "http://cybermuse.localhost/00000000-0000-4000-8000-000000000001",
+        durationMs: 180_000,
+        referenceTrack: {
+          schemaVersion: 1,
+          durationMs: 180_000,
+          hopMs: 20,
+          minHz: 65,
+          maxHz: 1047,
+          frames: [],
+        },
+      },
+      "练习曲",
+    );
+
+    expect(engine.getSnapshot()).toMatchObject({
+      status: "recoverable_error",
+      error: {
+        code: "PRACTICE_ASSET_UNAVAILABLE",
+        safeDetails: { phase: "error", mediaErrorCode: 4 },
+      },
+    });
+    expect(environment.context.closeCount).toBe(1);
+    expect(environment.media.src).toBe("");
+  });
+
   it("loads, plays, pauses, seeks, resumes and cleans every source", async () => {
     const environment = new FakeEnvironment();
     const engine = new PlaybackEngine(environment);

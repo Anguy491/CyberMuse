@@ -11,7 +11,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; base-uri 'none'; object-src 'none'; img-src 'self' data: asset:; style-src 'self'; script-src 'self'"
+      "csp": "default-src 'self'; base-uri 'none'; object-src 'none'; img-src 'self' data: asset:; media-src 'self' cybermuse: http://cybermuse.localhost; connect-src 'self' ipc: http://ipc.localhost cybermuse: http://cybermuse.localhost; style-src 'self'; script-src 'self'"
     },
     "windows": [
       {

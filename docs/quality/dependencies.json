@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "milestone": "M4",
+  "milestone": "M5",
   "reviewDate": "2026-08-26",
   "reviewer": "Codex repository dependency review",
   "policy": "dependency-license-policy.md",
@@ -316,6 +316,24 @@
       "artifactUrl": "https://crates.io/api/v1/crates/tauri/2.11.5/download",
       "distributionForm": "Linked into desktop executable",
       "alternativesConsidered": "Electron and WPF were rejected by ADR-001."
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tauri-plugin-dialog",
+      "version": "2.7.2",
+      "scope": "production",
+      "license": "Apache-2.0 OR MIT",
+      "purpose": "Rust-only native Windows audio file picker that issues an opaque five-minute import capability without returning absolute paths to React",
+      "owningModule": "apps/desktop/src-tauri",
+      "sourceRepository": "https://github.com/tauri-apps/plugins-workspace",
+      "artifactUrl": "https://crates.io/api/v1/crates/tauri-plugin-dialog/2.7.2/download",
+      "distributionForm": "Linked into the desktop executable; no JavaScript dialog package or frontend dialog permission is enabled",
+      "alternativesConsidered": "Direct Win32 IFileOpenDialog bindings add unsafe platform code; a JavaScript dialog API would expose full paths to the lower-trust WebView; sending selected file bytes over IPC would be unbounded. The official Rust plugin preserves the ADR-016 capability boundary.",
+      "copyright": "Copyright Tauri Programme within The Commons Conservancy; retain upstream Apache-2.0/MIT material.",
+      "requiredNotices": "Include tauri-plugin-dialog, tauri-plugin-fs, tauri-plugin and rfd Apache-2.0/MIT notices in M6 THIRD_PARTY_NOTICES.",
+      "securityAndMaintenance": "Exact 2.7.2 is locked and requires Rust 1.77.2 or newer. CyberMuse invokes only the Rust file picker with a fixed MP3/WAV/FLAC filter; paths remain in RuntimeState and expire after five minutes.",
+      "transitiveReport": "Adds exact tauri-plugin@2.6.3, tauri-plugin-fs@2.5.1 and rfd@0.16.0 plus Windows target bindings, all MIT OR Apache-2.0 under the locked Windows Cargo graph.",
+      "decision": "approved"
     },
     {
       "ecosystem": "cargo",
