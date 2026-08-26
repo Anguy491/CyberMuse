@@ -100,6 +100,11 @@ class FakeAudioContext extends EventTarget {
   readonly sources: FakeBufferSource[] = [];
   readonly gains: FakeGainNode[] = [];
   readonly mediaSources: FakeMediaSource[] = [];
+  readonly selectedSinks: string[] = [];
+
+  async setSinkId(sinkId: string): Promise<void> {
+    this.selectedSinks.push(sinkId);
+  }
 
   createBuffer(_channels: number, length: number): AudioBuffer {
     return new FakeAudioBuffer(length) as unknown as AudioBuffer;
@@ -209,6 +214,32 @@ describe("TC-AUD-001 PlaybackEngine", () => {
     expect(environment.context.mediaSources[0]?.disconnectCount).toBe(1);
   });
 
+  it("routes real-song playback to the restored output device", async () => {
+    const environment = new FakeEnvironment();
+    const engine = new PlaybackEngine(environment);
+    await engine.loadAssets(
+      {
+        songId: "a".repeat(64),
+        analysisId: "b".repeat(32),
+        instrumentalResourceUrl:
+          "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
+        durationMs: 1_000,
+        referenceTrack: {
+          schemaVersion: 1,
+          durationMs: 1_000,
+          hopMs: 20,
+          minHz: 65,
+          maxHz: 1047,
+          frames: [],
+        },
+      },
+      "输出测试",
+      "usb-speakers",
+    );
+    expect(environment.context.selectedSinks).toEqual(["usb-speakers"]);
+    expect(engine.getSnapshot().status).toBe("ready");
+  });
+
   it("reports a bounded safe media error and closes the partial audio graph", async () => {
     const environment = new FakeEnvironment();
     environment.media.readyState = 0;
@@ -286,7 +317,7 @@ describe("TC-AUD-001 PlaybackEngine", () => {
     expect(environment.context.gains[0]?.disconnectCount).toBe(1);
   });
 
-  it("schedules loop restart from the AudioContext boundary anchor", async () => {
+  it("keeps 25 loop restarts bounded on the AudioContext boundary anchor", async () => {
     const environment = new FakeEnvironment();
     const engine = new PlaybackEngine(environment);
     await engine.loadFixture();
@@ -298,17 +329,22 @@ describe("TC-AUD-001 PlaybackEngine", () => {
     engine.seek(1_500);
     await engine.play();
 
-    while (engine.getSnapshot().loopIteration < 2) {
+    while (engine.getSnapshot().loopIteration < 25) {
       environment.advance(1 / 60);
     }
 
-    expect(engine.getSnapshot().loopBoundaryErrorsMs).toHaveLength(2);
+    expect(engine.getSnapshot().loopBoundaryErrorsMs).toHaveLength(25);
     expect(
       Math.max(...engine.getSnapshot().loopBoundaryErrorsMs),
     ).toBeLessThanOrEqual(17);
+    expect(engine.getSnapshot().resources.activeSources).toBe(1);
     const scheduledRestart = environment.context.sources[1]?.starts[0];
     expect(scheduledRestart?.when).toBeCloseTo(2.8, 6);
     expect(scheduledRestart?.offset).toBe(1.5);
+
+    await engine.dispose();
+    expect(engine.getSnapshot().resources.activeSources).toBe(0);
+    expect(environment.context.closeCount).toBe(1);
   });
 
   it("returns structured fixture errors without crashing the page", async () => {

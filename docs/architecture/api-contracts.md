@@ -44,15 +44,18 @@ interface AppError {
 | `get_practice_assets` | `{apiVersion, songId}` | `PracticeAssets` | `SONG_NOT_READY`、`ASSET_INVALID` |
 | `save_practice_session` | `{apiVersion, session: PracticeSession}` | `{sessionId, savedAt}` | `SESSION_INVALID`、`PAYLOAD_TOO_LARGE` |
 | `list_practice_sessions` | `{apiVersion, songId}` | `{sessions: SessionSummary[]}` | `SONG_NOT_FOUND` |
-| `get_practice_session` | `{apiVersion, sessionId}` | `{session: PracticeSession}` | `SESSION_NOT_FOUND`、`SCHEMA_UNSUPPORTED` |
+| `get_practice_session` | `{apiVersion, sessionId}` | `{session: PracticeSession, unavailableRanges: SessionUnavailableRange[]}` | `SESSION_NOT_FOUND`、`SCHEMA_UNSUPPORTED` |
 | `delete_practice_session` | `{apiVersion, sessionId}` | `{deleted: true}` | `SESSION_NOT_FOUND` |
-| `get_app_settings` | `{apiVersion}` | `{settings: AppSettings}` | `SETTINGS_RECOVERED` |
-| `update_app_settings` | `{apiVersion, patch, expectedRevision}` | `{settings: AppSettings}` | `SETTINGS_CONFLICT`、`SETTINGS_INVALID` |
+| `get_app_settings` | `{apiVersion}` | `{settings: AppSettings, recovered}` | `SETTINGS_STORE_UNAVAILABLE` |
+| `update_app_settings` | `{apiVersion, patch, expectedRevision}` | `{settings: AppSettings, recovered:false}` | `SETTINGS_CONFLICT`、`SETTINGS_INVALID` |
+| `clear_app_settings` | `{apiVersion}` | `{settings: AppSettings, recovered:false}` | `SETTINGS_STORE_UNAVAILABLE` |
 | `get_model_status` | `{apiVersion}` | `{models: ModelStatus[]}` | `MODEL_STORE_UNAVAILABLE` |
 | `install_model` | `{apiVersion, modelId, version, consentToken}` | `{jobId}` | `MODEL_NOT_APPROVED`、`MODEL_CONSENT_REQUIRED`、`MODEL_JOB_ALREADY_ACTIVE` |
 | `cancel_model_install` | `{apiVersion, jobId}` | `{jobId}` | `MODEL_JOB_NOT_FOUND`、`MODEL_JOB_ALREADY_TERMINAL` |
 | `remove_model` | `{apiVersion, modelId, version}` | `{removed, reclaimedBytes}` | `MODEL_IN_USE` |
-| `create_diagnostic_bundle` | `{apiVersion, destinationPath, consentToken}` | `{savedPath, sizeBytes}` | `CONSENT_REQUIRED`、`DIAGNOSTIC_REDACTION_FAILED` |
+| `prepare_diagnostic_bundle` | `{apiVersion, context?}` | `{consentToken, preview}` | `DIAGNOSTIC_CONTEXT_INVALID`、`DIAGNOSTIC_REDACTION_FAILED` |
+| `save_diagnostic_bundle` | `{apiVersion, consentToken}` | `{saved, fileName, sizeBytes}` | `CONSENT_REQUIRED`、`DIAGNOSTIC_REDACTION_FAILED` |
+| `clear_diagnostic_logs` | `{apiVersion}` | `{clearedEventCount}` | `DIAGNOSTIC_STORE_UNAVAILABLE` |
 
 ### Supporting shapes
 
@@ -90,11 +93,23 @@ interface SessionSummary {
   durationMs: number;
   metrics: SessionMetrics;
 }
+
+interface SessionUnavailableRange {
+  startMs: number;
+  endMs: number;
+  reason: "pitch_sample_unavailable" | "take_observations_unavailable";
+}
 ```
 
 `select_import_file` 的系统对话框、FFmpeg 完整解码预检和绝对路径全部留在 Rust；页面只收到 basename、格式、时长、空间摘要和五分钟 `candidateToken`。`confirm_import` 不接受路径。删除使用独立、绑定 `songId`/操作且五分钟有效的确认 token。`instrumentalResourceUrl` 是最长六小时、删除时立即撤销的只读 opaque 能力 URL，不含完整路径且不写入持久化 JSON；协议单次响应最多 1,000 KiB 并支持 HTTP range。Windows WebView2 按 Wry 的协议映射使用 `http://cybermuse.localhost/<token>`，其他桌面平台使用 `cybermuse://localhost/<token>`；两者都是同一进程内拦截的本地自定义协议，不发往网络。
 
 `save_practice_session` 单次 payload 上限 16 MiB，session 上限 60 分钟。M3 性能测试若证明接近上限，采用分块 Rust session writer，并以 ADR 替代该 command；在此之前不得静默截断。
+
+M6 保持单次 `save_practice_session`：上限同时固定为 16 MiB、60 分钟和 180,000 个有效 observation。Rust 重验 session、歌曲和当前 analysis 引用；相同 session 内容可幂等重试，不同内容返回 `SESSION_INVALID`。`list_practice_sessions` 只返回摘要，完整 observation 仅由 `get_practice_session` 按需读取。读取 Review 时，Rust 保留合法 session/take 字段和已存整体指标，过滤单个损坏 observation 或 take observations，并以 `unavailableRanges` 明确标出；主结构、引用或整体指标无法验证时仍返回结构化错误，不伪造复盘。
+
+`AppSettings.latencyCalibrations[]` 以 input/output fingerprint 设备对唯一，并携带 `sampleRateHz`。自动测量只接受 `latencyMs=0..2000`、非空 0..1 confidence；手动补偿只接受 `latencyMs=-250..500`、`confidence=null`。Practice 不得在打开歌曲时预先信任已存校准：获得麦克风权限并恢复实际输入、解析实际输出、确认共享 AudioContext 采样率后，三者完全匹配才设置 session 的 `latencySource`；否则使用 `none/0` 并可见提示。非默认输出由 WebView2 `AudioContext.setSinkId` 路由，不支持时返回可恢复播放错误，不能静默播放到另一设备并沿用校准。
+
+诊断导出采用两步本地 capability：`prepare_diagnostic_bundle` 返回确切包含项、明确排除项、估算大小和五分钟一次性 consent token；`save_diagnostic_bundle` 消费 token 后由 Rust 打开原生保存对话框，页面不能提交或收到完整路径。取消返回 `saved=false` 且不创建文件；保存前 Rust 再次执行字段 allowlist 和路径/音频/F0/设备标识扫描。
 
 ## Tauri events
 
@@ -202,6 +217,8 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
   }
 }
 ```
+
+Analyzer 及其 FFmpeg/Spleeter 子进程都必须以 `shell=false` 和受限 `PATH` 启动。嵌套工具的所有可写环境目录（profile/app data/ProgramData/temp、XDG、Keras、Matplotlib、Python bytecode 与 TF Hub cache，共 14 个显式变量）映射到当前 `stagingPath/work/process-state`；只保留 Windows `SYSTEMROOT`、`WINDIR` 与实际 `SYSTEMDRIVE`。pipeline 成功、失败或取消后删除整个 `work`，安装目录、真实用户 profile 和系统 ProgramData 不得出现 analyzer 生成状态。该环境边界不是 payload 字段，不改变 schema major，但属于 TC-BUILD-001/TC-PRIV-001 的跨进程契约。
 
 Rust canonicalize 并验证所有路径位于批准根目录，校验 song/model/tool 内容哈希和 exact allowlist；Python 再做防御性验证。Spleeter engine 的 exact SHA-256 由构建生成的 `runtime-manifest.json` 在 Cargo 编译期嵌入，避免把 PyInstaller 非确定性 PE 哈希当作源代码常量。请求文件权限仅限当前用户，最大 1 MiB、最大 JSON 深度 32，拒绝 NaN/Infinity、reparse point 和根目录逃逸。
 

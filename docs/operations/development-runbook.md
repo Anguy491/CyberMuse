@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | Active for M5 |
+| 状态 | Active for M6 |
 | 版本 | 0.1.0 |
 | 责任域 | 开发、验证、故障排查与发布 |
 | 上游依据 | Milestone Specs、AGENTS、Test Strategy |
@@ -71,7 +71,7 @@ pnpm tauri dev
 
 开发服务器只用于迭代；涉及 Tauri、WebView2、音频、路径和 sidecar 的验收使用发布或近发布构建。
 
-M1 当前发布构建产物为 `target/release/cybermuse-desktop.exe`，`bundle.active=false`，不生成安装器；安装、升级和卸载证据属于 M6。系统 WebView2 的运行时诊断行为记录在 `docs/delivery/evidence/m1-foundation.md` 与 `RISK-018`，不得通过未受支持的 Chromium 参数把连接隐藏成通过。
+M1 当时只生成 `target/release/cybermuse-desktop.exe`，没有安装器；M6 已启用 NSIS bundle。系统 WebView2 的运行时诊断行为记录在 `docs/delivery/evidence/m1-foundation.md` 与 `RISK-018`，不得通过未受支持的 Chromium 参数把连接隐藏成通过。
 
 ## M2：Realtime Pitch Lab
 
@@ -180,6 +180,7 @@ M5 继承已批准的 M4 analyzer/models，只新增导入、歌曲库、分析�
 Set-Location D:\projects\cyberMuse
 pnpm test:m5:import
 pnpm check
+pnpm analyzer:check
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
@@ -252,14 +253,77 @@ Windows WebView2 将 `cybermuse://localhost/<token>` 自定义协议映射为 `h
 
 ## 发布流程
 
-1. 确认 M6 gate 候选和干净工作树。
-2. 运行 `pnpm check`、Rust 全量、Analyzer 全量、E2E、性能与 soak。
-3. 生成锁定依赖清单、SBOM、`THIRD_PARTY_NOTICES` 和 model manifest。
-4. 在干净 Windows 11 x64 环境构建和安装。
-5. 验证无模型首次启动、模型同意下载、离线练习、升级同主版本、卸载与数据选择。
-6. 扫描安装目录：无密钥、测试音频、开发日志、绝对构建路径或未声明依赖。
-7. 为 installer 和 sidecar 生成 SHA-256，记录 commit 与工具链。
-8. 用户人工决定发布；Codex 不上传、签名或发布到外部渠道，除非获得单独明确授权。
+### M6 本机构建与非分发烟测
+
+```powershell
+Set-Location D:\projects\cyberMuse
+git status --short
+pnpm check
+
+Set-Location .\apps\desktop\src-tauri
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+Set-Location ..\..\..
+
+pnpm build:m6
+pnpm test:m6:installer
+pnpm test:m6:privacy
+```
+
+`build:m6` 依次重建 frozen analyzer runtime、核验并准备 exact NSIS 3.11/`nsis-tauri-utils` 0.5.3、生成 SPDX 2.3 SBOM/`THIRD_PARTY_NOTICES`/model manifest、构建 NSIS installer，再为产物生成 SHA-256 release manifest。安装器位于 `target/release/bundle/nsis/CyberMuse_0.1.0_x64-setup.exe`。安装/隐私/soak 证据脚本拒绝覆盖已有输出；重跑时使用新的干净 checkout 或新的显式输出路径，不删除用户证据。
+
+本机 `test:m6:installer` 只证明首次安装、同版本重装、payload/notice 扫描、卸载和已有用户数据未变；`test:m6:privacy` 只证明应用控制的外部端点为零、诊断禁字段为零，并单独报告 RISK-018 的系统 WebView2 进程类别。二者都不能替代干净 Windows 11 门禁。
+
+### M6 可搬运 clean-runtime package
+
+只有 release manifest 的 `dirtyWorktree=false` 时，以下命令才生成 gate-eligible package：
+
+```powershell
+pnpm prepare:m6:clean-windows
+```
+
+把 `artifacts\m6\clean-windows-package` 整体转移到独立 Windows 11 x64 runtime 主机/VM。该主机使用全新 Windows profile，PATH 不得包含 Python、Cargo/Rust、uv、Node 或 pnpm；断开所有网络适配器但保持 Defender 开启，然后在 package 目录运行：
+
+```powershell
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File .\m6-clean-windows-smoke.ps1 `
+  -PackageRoot . `
+  -EvidencePath .\m6-clean-windows-evidence.json
+```
+
+脚本先逐文件验证 package SHA-256 和 installer release manifest，再执行 Defender package scan、NSIS 首装/同版本重装、1,066-file payload/sensitive text/supply assets 检查、installed scan、最小 PATH 启动、100 ms app process-tree 网络捕获、诊断 redaction、真实 6 秒 Spleeter/SwiftF0 分析、artifact hash、卸载和用户数据保留。报告不保存 endpoint address、完整路径、设备标识或音频。
+
+`prepare-m6-clean-windows.ps1 -AllowDirtyDiagnostic` 与 verifier 的 `-DiagnosticHost`/`-SkipDefender` 只用于演练；任何一个 diagnostic 条件都会使 `gateEligible=false` 或 `cleanHostGateSatisfied=false`。脚本不改变网络适配器状态，也不删除用户 profile。Analyzer 嵌套工具的可写环境必须全部位于 `staging/work/process-state`；若卸载后出现 `~`、字面 `%SystemDrive%`、Keras/cache 或其他 payload 残留，验证失败。
+
+### M6 30 分钟 Practice soak
+
+先启动刚构建或刚安装的 release app，在 Practice 技术面板记录开始资源计数；设置 A-B loop 并保持有效输入。只记录匿名设备类别，不记录 label、序列号、路径或音频：
+
+```powershell
+$m6Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+.\tooling\m6-windows-soak.ps1 `
+  -DurationSeconds 1800 `
+  -InputDeviceCategory usb `
+  -SampleRateHz 48000 `
+  -ObservedLoopCount 25 `
+  -ApplicationUnderruns 0 `
+  -ResourceCountsStart 3 `
+  -ResourceCountsEnd 3 `
+  -OutputPath ".\artifacts\m6\windows-practice-soak-$m6Stamp.json"
+```
+
+示例中的设备类别、采样率、循环数和资源数必须替换成真实观察值。正式模式少于 30 分钟、少于 25 次 loop、缺硬件注释、出现 underrun、CPU/RAM 超限或资源数增长都会失败。`-DiagnosticRun` 只用于验证采集器，生成的报告明确 `gatePassed=false`，不得作为 M6 证据。
+
+### 干净 Windows 11 与发布决定
+
+1. 确认候选来自干净工作树并记录 commit；在独立 Windows 11 x64 主机/VM 从锁文件完成 `pnpm install --frozen-lockfile`、`pnpm check`、Rust 全量和 `pnpm build:m6`。
+2. 确认主机 PATH 没有 Python、Rust/Cargo 或 uv 后，保持 Defender 开启并扫描 installer 与安装目录；保存匿名结果和 SHA-256。
+3. 验证无模型首次启动、显式同意后的模型下载、断网 Practice→保存→重启→Review、诊断预览/取消/原生保存、同版本重装、卸载，以及用户数据保留/删除选择。
+4. 扫描安装目录：无密钥、测试音频、开发日志、绝对构建路径或未声明依赖；复核 SBOM、notices 和 model manifest 与 release manifest 哈希一致。
+5. 完成硬件/显示矩阵与 30 分钟 soak；不能取得的设备类别登记风险，不得写成通过。
+6. 只有上述证据、全部 Must/NFR、无开放 High/Critical 风险且用户明确批准 M6 gate 后，才可称为 release candidate。
+7. 用户另行人工决定是否发布；Codex 不上传、签名或发布到外部渠道，除非获得单独明确授权。
 
 ## 回滚
 

@@ -5,6 +5,7 @@ import type {
   AudioInputControllerPort,
   AudioInputSnapshot,
 } from "../audio/runtime-types";
+import { fingerprintAudioDevice } from "../audio/device-identity";
 import {
   PracticeController,
   type PlaybackEnginePort,
@@ -72,6 +73,8 @@ class FakePlayback implements PlaybackEnginePort {
   getAudioContext(): AudioContext | null {
     return this.snapshot.fixture === null ? null : this.context;
   }
+
+  setVolume(): void {}
 
   subscribe(listener: (snapshot: PlaybackEngineSnapshot) => void): () => void {
     this.listener = listener;
@@ -155,7 +158,9 @@ class FakePlayback implements PlaybackEnginePort {
 
 class FakeInput implements AudioInputControllerPort {
   readonly requestPermission = vi.fn(async () => undefined);
-  readonly switchDevice = vi.fn(async () => undefined);
+  readonly switchDevice = vi.fn(async (deviceId: string) => {
+    void deviceId;
+  });
   readonly retry = vi.fn(async () => undefined);
   readonly resume = vi.fn(async () => undefined);
   readonly dispose = vi.fn(async () => undefined);
@@ -227,6 +232,54 @@ describe("M3 Practice controller integration", () => {
       controller.getSnapshot().currentTakeMetrics.signedMedianErrorCents,
     ).toBeCloseTo(-40, 8);
     expect(controller.getLaneData()?.nowX).toBe(380);
+  });
+
+  it("TC-SET-001 restores the saved input and reports the actual runtime identity", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const devices = [
+      {
+        deviceId: "default",
+        groupId: "built-in-group",
+        label: "系统默认输入",
+        isDefault: true,
+      },
+      {
+        deviceId: "usb",
+        groupId: "usb-group",
+        label: "USB 麦克风",
+        isDefault: false,
+      },
+    ];
+    input.requestPermission.mockImplementation(async () => {
+      input.emit({
+        ...baseInput,
+        status: "ready",
+        devices,
+        selectedDeviceId: "default",
+        sampleRateHz: 48_000,
+        channels: 1,
+        contextState: "running",
+      });
+    });
+    input.switchDevice.mockImplementation(async (deviceId) => {
+      input.emit({ ...input.getSnapshot(), selectedDeviceId: deviceId });
+    });
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    const usb = devices[1];
+    if (usb === undefined) throw new Error("missing USB input fixture");
+    const preferred = await fingerprintAudioDevice("audioinput", usb);
+    const result = await controller.startInput(preferred);
+    expect(input.switchDevice).toHaveBeenCalledWith("usb");
+    expect(result).toEqual({
+      inputDeviceFingerprint: preferred,
+      sampleRateHz: 48_000,
+      restoreStatus: "restored",
+    });
   });
 
   it("keeps preview playback available after permission denial", async () => {
@@ -311,5 +364,60 @@ describe("M3 Practice controller integration", () => {
     expect(controller.getSnapshot().previousTakeMetrics.validFrameCount).toBe(
       1,
     );
+  });
+
+  it("TC-SES-001 finalizes a versioned session and applies calibrated alignment", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+      now: vi
+        .fn<() => Date>()
+        .mockReturnValueOnce(new Date("2026-08-26T04:00:00.000Z"))
+        .mockReturnValue(new Date("2026-08-26T04:00:10.000Z")),
+      sessionIdFactory: () => "00000000-0000-4000-8000-000000000010",
+    });
+    await controller.loadSong(
+      {
+        songId: "a".repeat(64),
+        analysisId: "b".repeat(32),
+        instrumentalResourceUrl: "cybermuse://localhost/test",
+        referenceTrack: {
+          ...PRACTICE_FIXTURE_V1.referenceTrack,
+          frames: PRACTICE_FIXTURE_V1.referenceTrack.frames.map((frame) => ({
+            ...frame,
+          })),
+        },
+        durationMs: PRACTICE_FIXTURE_V1.referenceTrack.durationMs,
+      },
+      "测试歌曲",
+    );
+    controller.setSessionContext({
+      inputDeviceFingerprint: "c".repeat(64),
+      outputDeviceFingerprint: "d".repeat(64),
+      appliedLatencyMs: 80,
+      latencySource: "measured",
+    });
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(1_080),
+    });
+
+    const session = controller.finalizeSession();
+    expect(session).toMatchObject({
+      schemaVersion: 1,
+      scoringVersion: "1.0.0",
+      sessionId: "00000000-0000-4000-8000-000000000010",
+      songId: "a".repeat(64),
+      analysisId: "b".repeat(32),
+      appliedLatencyMs: 80,
+      latencySource: "measured",
+      metrics: { validFrameCount: 1 },
+    });
+    expect(session?.takes[0]?.observations[0]?.timeMs).toBe(1_000);
   });
 });

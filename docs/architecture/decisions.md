@@ -183,6 +183,30 @@
 - 被替代条目：细化 ADR-001/006/009；替代 API Contracts 中未实现的直接 `sourcePath` 草案，不改变 schema major。
 - 相关需求/风险：FR-001/002/003/007/008、NFR-002/010/011/013/015/018/019/020、RISK-010/011/013/016。
 
+## ADR-017 — M6 版本化 session/settings 与原生诊断导出能力
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：M6 要持久化最多 60 分钟的练习 session、按设备组合保存校准与设置，并允许用户导出可预览但不泄露路径/音频的诊断包；WebView 直接提交保存路径或持久化原始设备 ID 会破坏 ADR-006/016 的信任边界。
+- 选项：把 session/设置保留在 React 并用浏览器存储；页面提交任意路径与原始设备 ID；由 Rust 原子保存版本化 JSON，设备只存 SHA-256 fingerprint，诊断使用预览 token + 原生保存对话框。
+- 决定：采用第三项。`PracticeSession v1` 固定 `scoringVersion=1.0.0`、16 MiB/60 分钟/180,000 observation 上限和歌曲/当前 analysis 引用重验；`AppSettings v1` 使用 revision 乐观并发并为每个 input/output fingerprint 组合保留至多一个带 `sampleRateHz` 的校准。自动值范围为 0..2000 ms 并必须带 confidence，手动值遵循 Audio Runtime 的 -250..500 ms 且 confidence 为 null。语义默认设备的 fingerprint 包含当前 group identity；Practice 只在实际输入、实际输出和共享 AudioContext 采样率全部匹配后应用校准。诊断先构建受 allowlist 约束的版本化 JSON preview，五分钟 token 只能消费一次，保存位置只由 Rust 原生对话框产生。
+- 理由：沿用现有原子 JSON 和 capability 边界，不引入数据库或压缩库；持久记录可由 TypeScript/Rust/schema 共同验证，诊断取消不产生文件且页面永远不接触完整路径。单 JSON 诊断包足以携带 v0.1 的版本、匿名设备能力、稳定错误码、性能摘要和最多 14 天/200 项脱敏事件。
+- 影响：跨模块契约同步到 Data Model、API Contracts、Traceability 与 schemas；Review 读取可过滤局部损坏 observation，但必须保留已存摘要并返回确切不可用范围；设置损坏恢复安全默认并显式 `recovered=true`，失效设备 fingerprint 或采样率可见地回退零补偿；非默认输出通过 `AudioContext.setSinkId` 选择，原始 ID 只存在当前 WebView 内存。diagnostic log 的 key/value 必须通过固定 allowlist 和路径扫描。未来若分块 session、改用数据库/ZIP、保存原始设备标识或允许自动上传，必须新增替代 ADR 并重跑 TC-SES/REV/SET/DIA/PRIV。
+- 被替代条目：细化 ADR-006/009/016，不改变本地优先或 WebView 低信任边界。
+- 相关需求/风险：FR-015/017/018/020/021、NFR-010/011/013/015/019/020、RISK-009/010/011/016。
+
+## ADR-018 — M6 analyzer 子进程可写状态隔离
+
+- 状态：Accepted
+- 日期：2026-08-26
+- 背景：M6 standalone installer 演练在清空子进程环境后发现，TensorFlow/Spleeter 会把缺失的 home/Keras 变量解释为安装目录下的 `~/.keras`；Windows Known Folder 展开在缺少 `SystemDrive` 时还会产生字面 `%SystemDrive%/ProgramData`。真实分析随后无法干净卸载，且缓存越过 job staging 边界。
+- 选项：允许工具写安装目录并在卸载时递归删除；继承完整用户环境；只保留必要 Windows 只读系统变量，并把所有可写 profile/cache/temp/ProgramData 变量映射到 job staging。
+- 决定：采用第三项。Python tool launcher 继续使用 `shell=False` 与 executable-only `PATH`，保留实际 `SYSTEMROOT`/`WINDIR`/`SYSTEMDRIVE`，并把 `HOME`、`USERPROFILE`、`LOCALAPPDATA`、`APPDATA`、`PROGRAMDATA`、`ALLUSERSPROFILE`、`TEMP`/`TMP`、XDG cache/config、`KERAS_HOME`、`MPLCONFIGDIR`、`PYTHONPYCACHEPREFIX` 和 `TFHUB_CACHE_DIR` 指向 `staging/work/process-state`。GUI app 保留 Windows shell/Known Folder 环境，只收窄 `PATH`；不能把 sidecar 的 env-clear 策略错误套到 WebView2 宿主。
+- 理由：状态与取消/失败 staging 共享生命周期，不触碰真实 profile 或安装目录；独立包 diagnostic 演练在真实 Spleeter 分析后实现 analyzer 零网络、三项 artifact hash 通过、NSIS payload 完全卸载。单元测试同时验证每个可写环境目录均位于 staging。
+- 影响：环境变量集合成为 Analyzer CLI 的跨进程契约；新增工具若写其他 cache 必须先纳入该根并增加回归。完整 clean-host/Defender 仍未通过，不能把本机 diagnostic 演练写成 TC-BUILD-001 通过。
+- 被替代条目：细化 ADR-002/013/015，不改变模型、schema 或网络边界。
+- 相关需求/风险：FR-004/005、NFR-010/011/013/015/020/021、RISK-007/010/011/020。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

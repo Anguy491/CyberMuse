@@ -177,6 +177,8 @@ interface AnalyzerRequest {
 
 `AnalyzerRequest` 是一次性 staging 文件而非正式用户数据，但仍按 schema v1、1 MiB 上限、绝对路径和四个批准根校验。模型集合必须恰为两个 approved 模型，工具集合必须恰为三项受信 runtime；路径、普通文件类型、reparse point、大小和 SHA-256 均需验证。
 
+`stagingPath/work/process-state` 是 analyzer 内部的瞬时可写状态根，不是新增 JSON 字段或正式数据。FFmpeg、Spleeter/TensorFlow、Keras 及其他嵌套工具看到的 profile、app data、ProgramData、temp 和 cache/config 环境目录都必须位于该根；pipeline 的 `finally` 删除整个 `work`。任何安装目录下的 `~`、字面 `%SystemDrive%`、Keras 配置或工具缓存都视为 NFR-010/013/015 失败。
+
 ```ts
 type AnalyzerStage =
   | "probe"
@@ -254,14 +256,78 @@ interface PracticeSession {
   endedAt: string;
   inputDeviceFingerprint: string | null;
   outputDeviceFingerprint: string | null;
-  appliedLatencyMs: number;
+  appliedLatencyMs: number; // measured 0..2000；manual -250..500；none 必须为 0
   latencySource: "measured" | "manual" | "none";
   takes: PracticeTake[];
   metrics: SessionMetrics;
 }
+
+interface SessionUnavailableRange {
+  startMs: number;
+  endMs: number;
+  reason: "pitch_sample_unavailable" | "take_observations_unavailable";
+}
 ```
 
 `SessionPitchSample` 是持久化的有界子集：`timeMs`、user/reference MIDI、signed cents、confidence、voiced。它不保存 `contextTimeMs`、RMS 全序列或 PCM。
+
+`PracticeSession` 单文件最多 16 MiB、60 分钟和 180,000 个有效 observation；保存路径要求 `metrics.validFrameCount` 等于所有 take 的持久化 observation 总数。保存时 Rust 重新验证 `songId`、当前 `analysisId`、设备指纹、时间范围、有限数值和 take ID 唯一性；同 `sessionId` 的相同内容可幂等重试，不同内容冲突。session 成功原子提交后才更新歌曲 `lastPracticeAt`，索引更新失败则移除刚写入的 session，避免悬空记录。Review 读取另有显式降级路径：主结构与已存整体指标仍合法时，逐项丢弃损坏 observation/take observations，并返回 `SessionUnavailableRange[]`；因此降级响应中的已存 `validFrameCount` 可大于本次可绘制 observation 数，UI 必须同时展示不可用范围提示。
+
+```ts
+interface LatencyCalibration {
+  calibrationId: string;
+  inputDeviceFingerprint: string;   // SHA-256，64 lowercase hex
+  outputDeviceFingerprint: string;  // SHA-256，64 lowercase hex
+  sampleRateHz: number;             // integer 8000..192000
+  latencyMs: number;                // measured 0..2000；manual -250..500
+  source: "measured" | "manual";
+  confidence: number | null;        // measured 为 0..1；manual 可为 null
+  measuredAt: string;
+}
+
+interface AppSettings {
+  schemaVersion: 1;
+  revision: number;
+  inputDeviceFingerprint: string | null;
+  outputDeviceFingerprint: string | null;
+  volume: number;                   // 0..1
+  themePreference: "system" | "dark" | "light";
+  motionPreference: "system" | "reduce" | "full";
+  modelCacheSelection: string[];    // exact modelId@version，最多 32 项
+  latencyCalibrations: LatencyCalibration[]; // 每设备组合最多一项，最多 32 项
+}
+```
+
+`AppSettings.revision` 是乐观并发版本；更新必须携带 `expectedRevision`，冲突不覆盖较新设置。损坏或未知版本的设置在启动/读取时恢复为安全默认值并返回 `recovered=true`，不阻塞 Library。设备原始 ID/名称不得进入 `settings.json`；页面只提交 SHA-256 fingerprint。物理设备使用当前 origin 的 `deviceId`，语义 `default` 项把当前 `groupId` 纳入 fingerprint，因此 Windows 默认设备变化不会继续命中旧校准。用户授权后页面以当前枚举重新计算 fingerprint 并恢复匹配输入/输出；无匹配项时可见地回退系统默认并保存新 fingerprint。校准还必须匹配共享 AudioContext 的 `sampleRateHz`；任一设备或采样率变化时使用零补偿，直到用户重测或手动确认。`measured` 必须带 0..1 confidence，`manual` 必须为 null confidence。模型缓存选择由已安装且通过 hash 验证的 exact cache 项同步，不授权自动下载或删除。
+
+诊断导出是单个版本化 JSON 文件：
+
+```ts
+interface DiagnosticBundle {
+  schemaVersion: 1;
+  bundleVersion: 1;
+  createdAt: string;
+  application: { version: string; platform: string; architecture: string };
+  deviceCapabilities: {
+    inputState: string;
+    sampleRateHz: number | null;
+    channels: number | null;
+    inputSelectionConfigured: boolean;
+    outputSelectionConfigured: boolean;
+    savedCalibrationCount: number;
+  };
+  performanceSummary: {
+    validObservationCount: number;
+    latencyP95Ms: number | null;
+    latencyP99Ms: number | null;
+  };
+  errorCodes: string[];
+  logs: DiagnosticEvent[];
+  privacy: { redactionPassed: true; excluded: string[] };
+}
+```
+
+`DiagnosticEvent` 自身带 `schemaVersion`，只允许时间、component、稳定 code、diagnostic ID、duration 和固定 allowlist 的短 `safeDetails`。本地日志保存在 `logs/events.json`，最多 200 项且只保留 14 天，可由用户清除；诊断导出前再次扫描并拒绝路径、文件名、设备 ID/名称、音频/F0 字段。
 
 ```ts
 type AnalyzerErrorCode =

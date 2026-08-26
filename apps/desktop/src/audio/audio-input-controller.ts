@@ -203,8 +203,14 @@ function normalizeDevices(
   devices: readonly MediaDeviceInfo[],
 ): AudioInputDevice[] {
   const inputs = devices.filter((device) => device.kind === "audioinput");
+  const defaultDevice = inputs.find((device) => device.deviceId === "default");
   const normalized: AudioInputDevice[] = [
-    { deviceId: "default", label: "系统默认输入", isDefault: true },
+    {
+      deviceId: "default",
+      groupId: defaultDevice?.groupId ?? "",
+      label: "系统默认输入",
+      isDefault: true,
+    },
   ];
   let anonymousIndex = 1;
   for (const device of inputs) {
@@ -213,6 +219,7 @@ function normalizeDevices(
     }
     normalized.push({
       deviceId: device.deviceId,
+      groupId: device.groupId,
       label:
         device.label.trim().length > 0
           ? device.label

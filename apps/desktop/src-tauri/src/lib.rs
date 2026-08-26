@@ -6,8 +6,11 @@ pub mod analyzer_process;
 pub mod analyzer_protocol;
 pub mod analyzer_request;
 pub mod asset_protocol;
+pub mod diagnostics;
 pub mod model_manager;
 pub mod runtime_manifest;
+pub mod session_store;
+pub mod settings_store;
 pub mod song_store;
 pub mod storage;
 pub mod tauri_api;
@@ -39,6 +42,16 @@ pub fn run() {
             tauri_api::prepare_delete_song,
             tauri_api::delete_song,
             tauri_api::get_practice_assets,
+            tauri_api::save_practice_session,
+            tauri_api::list_practice_sessions,
+            tauri_api::get_practice_session,
+            tauri_api::delete_practice_session,
+            tauri_api::get_app_settings,
+            tauri_api::update_app_settings,
+            tauri_api::clear_app_settings,
+            tauri_api::prepare_diagnostic_bundle,
+            tauri_api::save_diagnostic_bundle,
+            tauri_api::clear_diagnostic_logs,
             tauri_api::start_analysis,
             tauri_api::cancel_analysis,
             tauri_api::get_analysis_job,

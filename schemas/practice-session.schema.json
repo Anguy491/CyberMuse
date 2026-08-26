@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/practice-session.schema.json",
+  "title": "CyberMuse PracticeSession v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "scoringVersion",
+    "sessionId",
+    "songId",
+    "analysisId",
+    "startedAt",
+    "endedAt",
+    "inputDeviceFingerprint",
+    "outputDeviceFingerprint",
+    "appliedLatencyMs",
+    "latencySource",
+    "takes",
+    "metrics"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scoringVersion": { "const": "1.0.0" },
+    "sessionId": { "type": "string", "format": "uuid" },
+    "songId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "analysisId": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "endedAt": { "type": "string", "format": "date-time" },
+    "inputDeviceFingerprint": {
+      "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/fingerprint" }]
+    },
+    "outputDeviceFingerprint": {
+      "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/fingerprint" }]
+    },
+    "appliedLatencyMs": { "type": "integer", "minimum": -250, "maximum": 2000 },
+    "latencySource": { "enum": ["measured", "manual", "none"] },
+    "takes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/take" }
+    },
+    "metrics": { "$ref": "#/$defs/metrics" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "latencySource": { "const": "measured" } } },
+      "then": {
+        "properties": {
+          "inputDeviceFingerprint": { "$ref": "#/$defs/fingerprint" },
+          "outputDeviceFingerprint": { "$ref": "#/$defs/fingerprint" },
+          "appliedLatencyMs": { "minimum": 0, "maximum": 2000 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "latencySource": { "const": "manual" } } },
+      "then": {
+        "properties": {
+          "inputDeviceFingerprint": { "$ref": "#/$defs/fingerprint" },
+          "outputDeviceFingerprint": { "$ref": "#/$defs/fingerprint" },
+          "appliedLatencyMs": { "minimum": -250, "maximum": 500 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "latencySource": { "const": "none" } } },
+      "then": { "properties": { "appliedLatencyMs": { "const": 0 } } }
+    }
+  ],
+  "$defs": {
+    "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "score": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "number", "minimum": 0, "maximum": 100 }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "pitchAccuracy",
+        "medianAbsoluteErrorCents",
+        "signedMedianErrorCents",
+        "stability",
+        "coverage",
+        "validFrameCount"
+      ],
+      "properties": {
+        "pitchAccuracy": { "$ref": "#/$defs/score" },
+        "medianAbsoluteErrorCents": {
+          "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+        },
+        "signedMedianErrorCents": {
+          "anyOf": [{ "type": "null" }, { "type": "number" }]
+        },
+        "stability": { "$ref": "#/$defs/score" },
+        "coverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "validFrameCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 180000
+        }
+      },
+      "additionalProperties": true
+    },
+    "sample": {
+      "type": "object",
+      "required": [
+        "timeMs",
+        "userMidi",
+        "referenceMidi",
+        "signedCents",
+        "confidence",
+        "voiced"
+      ],
+      "properties": {
+        "timeMs": { "type": "integer", "minimum": 0, "maximum": 3600000 },
+        "userMidi": { "type": "number" },
+        "referenceMidi": { "type": "number" },
+        "signedCents": { "type": "number" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "voiced": { "const": true }
+      },
+      "additionalProperties": true
+    },
+    "loopRegion": {
+      "type": "object",
+      "required": ["startMs", "endMs"],
+      "properties": {
+        "startMs": { "type": "integer", "minimum": 0, "maximum": 3600000 },
+        "endMs": { "type": "integer", "minimum": 1, "maximum": 3600000 }
+      },
+      "additionalProperties": true
+    },
+    "take": {
+      "type": "object",
+      "required": [
+        "takeId",
+        "loopRegion",
+        "startedAtSongTimeMs",
+        "endedAtSongTimeMs",
+        "observations",
+        "metrics"
+      ],
+      "properties": {
+        "takeId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
+        "loopRegion": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/loopRegion" }]
+        },
+        "startedAtSongTimeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "endedAtSongTimeMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 180000,
+          "items": { "$ref": "#/$defs/sample" }
+        },
+        "metrics": { "$ref": "#/$defs/metrics" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

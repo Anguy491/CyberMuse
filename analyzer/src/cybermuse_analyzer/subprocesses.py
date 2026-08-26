@@ -48,6 +48,7 @@ def run_process(
     executable: Path,
     arguments: list[str],
     *,
+    state_directory: Path,
     cancel: CancellationState,
     stage: str,
     timeout_seconds: float,
@@ -55,6 +56,34 @@ def run_process(
     stderr_limit: int = 64 * 1024,
 ) -> ProcessResult:
     command = [str(executable), *arguments]
+    profile_directory = state_directory / "profile"
+    local_app_data = state_directory / "local-app-data"
+    roaming_app_data = state_directory / "roaming-app-data"
+    program_data = state_directory / "program-data"
+    temp_directory = state_directory / "temp"
+    cache_directory = state_directory / "cache"
+    config_directory = state_directory / "config"
+    keras_directory = state_directory / "keras"
+    try:
+        for directory in (
+            profile_directory,
+            local_app_data,
+            roaming_app_data,
+            program_data,
+            temp_directory,
+            cache_directory,
+            config_directory,
+            keras_directory,
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise AnalyzerFailure(
+            code="ANALYZER_STAGE_FAILED",
+            message_key="analyzer.error.toolStateFailed",
+            stage=stage,
+            retryable=True,
+            safe_details={"tool": executable.name},
+        ) from error
     try:
         process = subprocess.Popen(
             command,
@@ -66,8 +95,21 @@ def run_process(
                 "PATH": str(executable.parent),
                 "SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows"),
                 "WINDIR": os.environ.get("WINDIR", r"C:\Windows"),
-                "TEMP": os.environ.get("TEMP", str(executable.parent)),
-                "TMP": os.environ.get("TMP", str(executable.parent)),
+                "SYSTEMDRIVE": os.environ.get("SYSTEMDRIVE", "C:"),
+                "PROGRAMDATA": str(program_data),
+                "ALLUSERSPROFILE": str(program_data),
+                "USERPROFILE": str(profile_directory),
+                "HOME": str(profile_directory),
+                "LOCALAPPDATA": str(local_app_data),
+                "APPDATA": str(roaming_app_data),
+                "TEMP": str(temp_directory),
+                "TMP": str(temp_directory),
+                "XDG_CACHE_HOME": str(cache_directory),
+                "XDG_CONFIG_HOME": str(config_directory),
+                "KERAS_HOME": str(keras_directory),
+                "MPLCONFIGDIR": str(config_directory / "matplotlib"),
+                "PYTHONPYCACHEPREFIX": str(cache_directory / "python"),
+                "TFHUB_CACHE_DIR": str(cache_directory / "tensorflow-hub"),
             },
             shell=False,
             creationflags=(

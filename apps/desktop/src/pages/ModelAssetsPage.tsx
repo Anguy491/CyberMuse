@@ -9,9 +9,14 @@ import {
   type ModelServicePort,
   type ModelStatus,
 } from "../services/model-service";
+import {
+  SettingsService,
+  type SettingsServicePort,
+} from "../services/settings-service";
 
 interface ModelAssetsPageProps {
   service?: ModelServicePort;
+  settingsService?: SettingsServicePort;
 }
 
 interface ActiveInstall {
@@ -37,25 +42,60 @@ function errorFrom(value: unknown): AppError {
   };
 }
 
-export function ModelAssetsPage({ service }: ModelAssetsPageProps) {
+export function ModelAssetsPage({
+  service,
+  settingsService: providedSettingsService,
+}: ModelAssetsPageProps) {
   const modelService = useMemo(() => service ?? new ModelService(), [service]);
+  const settingsService = useMemo(
+    () => providedSettingsService ?? new SettingsService(),
+    [providedSettingsService],
+  );
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
   const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [installs, setInstalls] = useState<Record<string, ActiveInstall>>({});
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [cacheSelectionStatus, setCacheSelectionStatus] = useState<
+    "loading" | "saved" | "error"
+  >("loading");
+
+  const syncCacheSelection = useCallback(
+    async (statuses: ModelStatus[]): Promise<void> => {
+      try {
+        const { settings } = await settingsService.load();
+        const selected = statuses
+          .filter((model) => model.installed && model.valid)
+          .map((model) => `${model.modelId}@${model.version}`)
+          .sort();
+        const current = [...settings.modelCacheSelection].sort();
+        if (selected.join("\n") !== current.join("\n")) {
+          await settingsService.update(
+            { modelCacheSelection: selected },
+            settings.revision,
+          );
+        }
+        setCacheSelectionStatus("saved");
+      } catch {
+        setCacheSelectionStatus("error");
+      }
+    },
+    [settingsService],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      setModels(await modelService.getStatuses());
+      const statuses = await modelService.getStatuses();
+      setModels(statuses);
+      await syncCacheSelection(statuses);
       setError(null);
     } catch (value) {
       setError(errorFrom(value));
     } finally {
       setLoading(false);
     }
-  }, [modelService]);
+  }, [modelService, syncCacheSelection]);
 
   useEffect(() => {
     let disposed = false;
@@ -65,6 +105,7 @@ export function ModelAssetsPage({ service }: ModelAssetsPageProps) {
       .then((statuses) => {
         if (!disposed) {
           setModels(statuses);
+          void syncCacheSelection(statuses);
           setError(null);
           setLoading(false);
         }
@@ -110,7 +151,7 @@ export function ModelAssetsPage({ service }: ModelAssetsPageProps) {
       disposed = true;
       unsubscribe?.();
     };
-  }, [modelService, refresh]);
+  }, [modelService, refresh, syncCacheSelection]);
 
   async function beginInstall(model: ModelStatus): Promise<void> {
     try {
@@ -321,6 +362,13 @@ export function ModelAssetsPage({ service }: ModelAssetsPageProps) {
             detail="没有部分模型会被 analyzer 加载，已有歌曲和分析结果保持安全。检查网络或磁盘空间后重试。"
           />
         ) : null}
+        <p className="milestone-note" role="status">
+          {cacheSelectionStatus === "loading"
+            ? "[LOADING] 正在读取模型缓存选择"
+            : cacheSelectionStatus === "error"
+              ? "[ERROR] 模型状态可用，但缓存选择未能保存到本地设置。"
+              : "[SAVED] 已校验模型的精确版本已同步到本地缓存选择。"}
+        </p>
       </section>
 
       <section

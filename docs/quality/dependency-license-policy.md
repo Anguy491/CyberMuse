@@ -106,6 +106,8 @@ M4 生产组合已通过精确 artifact 审查：Spleeter `2stems` v1.4 权重�
 - 扫描器的 `unknown`、`custom`、`GPL-family` 结果默认失败，不允许按名称白名单绕过；白名单必须绑定精确版本和书面审批。
 - 更新依赖等同重新审查；同名新版本不继承自动批准。
 
+M6 安装工具链固定为 NSIS 3.11 与 `nsis-tauri-utils` 0.5.3；下载 archive/helper 必须分别通过 `dependencies.json` 记录的 SHA-256 后才能进入 Tauri cache。NSIS 是 build-only，installer stub 的 zlib/CPL notice 随 `THIRD_PARTY_NOTICES` 分发。`pnpm release:assets` 生成 SPDX 2.3、聚合 notices 与 model manifest；`pnpm release:manifest` 只在 installer 已生成后计算最终哈希，不得重新生成 supply assets 导致构建内时间戳漂移。
+
 ## 测试和媒体资产
 
 - 程序生成音频注明生成方式，可作为首选 fixture。

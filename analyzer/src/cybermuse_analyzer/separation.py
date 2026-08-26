@@ -79,6 +79,7 @@ def _ffmpeg_raw(
     result = run_process(
         request.tool("ffmpeg").path,
         ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", *arguments, str(destination)],
+        state_directory=request.staging_path / "work" / "process-state",
         cancel=cancel,
         stage="separate",
         timeout_seconds=600,
@@ -209,6 +210,7 @@ def _separate_spleeter(
                     "--instrumental-raw",
                     str(chunk_instrumental),
                 ],
+                state_directory=request.staging_path / "work" / "process-state",
                 cancel=cancel,
                 stage="separate",
                 timeout_seconds=900,

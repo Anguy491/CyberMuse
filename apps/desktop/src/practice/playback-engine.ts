@@ -10,6 +10,10 @@ import {
 } from "@cybermuse/audio";
 
 import type { PracticeAssets } from "../services/song-service";
+import {
+  AudioOutputSelectionError,
+  selectAudioOutput,
+} from "../audio/device-identity";
 
 export type PlaybackEngineStatus =
   | "empty"
@@ -119,6 +123,13 @@ function runtimeError(
 }
 
 function mapLoadError(error: unknown): PracticeRuntimeError {
+  if (error instanceof AudioOutputSelectionError) {
+    return runtimeError(
+      "PRACTICE_OUTPUT_DEVICE_UNAVAILABLE",
+      "practice.error.outputDeviceUnavailable",
+      true,
+    );
+  }
   const fatal =
     error instanceof DOMException && error.name === "NotSupportedError";
   const safeDetails =
@@ -204,6 +215,7 @@ export class PlaybackEngine {
   private removeContextListener: (() => void) | null = null;
   private disposed = false;
   private resumePlaybackAfterSuspend = false;
+  private volume = 0.65;
 
   constructor(environment: PlaybackEnvironment = browserEnvironment()) {
     this.environment = environment;
@@ -215,6 +227,12 @@ export class PlaybackEngine {
 
   getAudioContext(): AudioContext | null {
     return this.context;
+  }
+
+  setVolume(value: number): void {
+    if (!Number.isFinite(value)) return;
+    this.volume = Math.max(0, Math.min(1, value));
+    if (this.gain !== null) this.gain.gain.value = this.volume;
   }
 
   subscribe(listener: SnapshotListener): () => void {
@@ -237,7 +255,7 @@ export class PlaybackEngine {
       channelData.set(pcm);
       buffer.copyToChannel(channelData, 0);
       const gain = context.createGain();
-      gain.gain.value = 0.65;
+      gain.gain.value = this.volume;
       gain.connect(context.destination);
       this.buffer = buffer;
       this.gain = gain;
@@ -270,7 +288,11 @@ export class PlaybackEngine {
     }
   }
 
-  async loadAssets(assets: PracticeAssets, title: string): Promise<void> {
+  async loadAssets(
+    assets: PracticeAssets,
+    title: string,
+    outputDeviceId = "default",
+  ): Promise<void> {
     if (this.disposed) return;
     await this.releaseAudioGraph();
     this.update({ status: "loading", error: null });
@@ -279,12 +301,13 @@ export class PlaybackEngine {
       const media = this.environment.createMediaElement?.() ?? new Audio();
       this.context = context;
       this.media = media;
+      await selectAudioOutput(context, outputDeviceId);
       media.preload = "metadata";
       media.crossOrigin = "anonymous";
       media.src = assets.instrumentalResourceUrl;
       await waitForMediaReady(media);
       const gain = context.createGain();
-      gain.gain.value = 0.65;
+      gain.gain.value = this.volume;
       gain.connect(context.destination);
       const mediaSource = context.createMediaElementSource(media);
       mediaSource.connect(gain);

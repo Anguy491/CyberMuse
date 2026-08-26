@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use crate::analysis_coordinator::{
     AnalysisCoordinator, AnalyzerJob, CoordinatorError, EventSink, StartAnalysisResult,
@@ -21,11 +23,24 @@ use crate::analyzer_request::{
     AnalyzerConfig, AnalyzerRequest, ApprovedRoots, ModelInput, ToolInput, analysis_id,
 };
 use crate::asset_protocol::ResourceRegistry;
+use crate::diagnostics::{
+    DiagnosticBundle, DiagnosticContext, DiagnosticError, DiagnosticEvent, DiagnosticPreview,
+    append_event, clear_logs, prepare_bundle, prune_logs, write_bundle,
+};
 use crate::model_manager::{
     ModelError, ModelInstallProgress, ModelStatus, install_model_controlled, model_catalog,
     model_statuses, remove_model as remove_model_asset,
 };
 use crate::runtime_manifest::bundled_sha256;
+use crate::session_store::{
+    PracticeSession, SessionReview, SessionStoreError, SessionSummary,
+    delete_session as delete_session_data, get_session_review as get_session_review_data,
+    list_sessions as list_session_data, save_session as save_session_data,
+};
+use crate::settings_store::{
+    AppSettings, AppSettingsPatch, SettingsStoreError, clear_settings as clear_settings_data,
+    load_settings, update_settings as update_settings_data,
+};
 use crate::song_store::{
     DeleteInterruption, DeletePlan, ImportCandidate, ImportCandidateView, ImportInterruption,
     ImportResult, Song, SongStatus, SongStoreError, SongSummary, delete_song as delete_song_data,
@@ -210,6 +225,42 @@ impl From<AnalysisStoreError> for ApiError {
     }
 }
 
+impl From<SessionStoreError> for ApiError {
+    fn from(value: SessionStoreError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
+impl From<SettingsStoreError> for ApiError {
+    fn from(value: SettingsStoreError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
+impl From<DiagnosticError> for ApiError {
+    fn from(value: DiagnosticError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
 pub struct RuntimeState {
     app_root: PathBuf,
     resource_root: PathBuf,
@@ -217,6 +268,7 @@ pub struct RuntimeState {
     model_jobs: Arc<Mutex<HashMap<String, ModelJobControl>>>,
     pending_imports: Arc<Mutex<HashMap<String, PendingImport>>>,
     pending_deletes: Arc<Mutex<HashMap<String, PendingDelete>>>,
+    pending_diagnostics: Arc<Mutex<HashMap<String, PendingDiagnostic>>>,
     resources: ResourceRegistry,
     sink: EventSink,
 }
@@ -235,6 +287,11 @@ struct PendingImport {
 
 struct PendingDelete {
     song_id: String,
+    expires_at: Instant,
+}
+
+struct PendingDiagnostic {
+    bundle: DiagnosticBundle,
     expires_at: Instant,
 }
 
@@ -258,6 +315,22 @@ pub fn initialize(app: &AppHandle, resources: ResourceRegistry) -> Result<Runtim
     let _removed = cleanup_abandoned_staging(&staging_root, default_abandoned_age(), &[])
         .map_err(|_| "staging recovery failed".to_owned())?;
     recover_interrupted_song_states(&app_root).map_err(|_| "song recovery failed".to_owned())?;
+    fs::create_dir_all(app_root.join("logs")).map_err(|_| "log root unavailable".to_owned())?;
+    prune_logs(&app_root).map_err(|_| "log retention failed".to_owned())?;
+    append_event(
+        &app_root,
+        DiagnosticEvent {
+            schema_version: 1,
+            recorded_at: String::new(),
+            recorded_unix_ms: 0,
+            component: "desktop".to_owned(),
+            code: "APP_STARTED".to_owned(),
+            diagnostic_id: "startup".to_owned(),
+            duration_ms: None,
+            safe_details: BTreeMap::new(),
+        },
+    )
+    .map_err(|_| "startup log failed".to_owned())?;
 
     let app_handle = app.clone();
     let sink: EventSink = Arc::new(move |event, payload| {
@@ -273,6 +346,7 @@ pub fn initialize(app: &AppHandle, resources: ResourceRegistry) -> Result<Runtim
         model_jobs: Arc::new(Mutex::new(HashMap::new())),
         pending_imports: Arc::new(Mutex::new(HashMap::new())),
         pending_deletes: Arc::new(Mutex::new(HashMap::new())),
+        pending_diagnostics: Arc::new(Mutex::new(HashMap::new())),
         resources,
         sink,
     })
@@ -365,6 +439,97 @@ pub struct PracticeAssetsResponse {
     instrumental_resource_url: String,
     reference_track: serde_json::Value,
     duration_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePracticeSessionRequest {
+    api_version: u32,
+    session: PracticeSession,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListPracticeSessionsRequest {
+    api_version: u32,
+    song_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PracticeSessionRequest {
+    api_version: u32,
+    session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePracticeSessionResponse {
+    session_id: String,
+    saved_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PracticeSessionsResponse {
+    sessions: Vec<SessionSummary>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletePracticeSessionResponse {
+    deleted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAppSettingsRequest {
+    api_version: u32,
+    patch: AppSettingsPatch,
+    expected_revision: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsResponse {
+    settings: AppSettings,
+    recovered: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareDiagnosticBundleRequest {
+    api_version: u32,
+    #[serde(default)]
+    context: DiagnosticContext,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDiagnosticBundleRequest {
+    api_version: u32,
+    consent_token: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareDiagnosticBundleResponse {
+    consent_token: String,
+    preview: DiagnosticPreview,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDiagnosticBundleResponse {
+    saved: bool,
+    file_name: Option<String>,
+    size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearDiagnosticLogsResponse {
+    cleared_event_count: usize,
 }
 
 const CAPABILITY_LIFETIME: Duration = Duration::from_secs(5 * 60);
@@ -623,6 +788,242 @@ pub fn get_practice_assets(
     }
     match load_practice_assets(&state, &request.song_id) {
         Ok(assets) => CommandResult::success(assets),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn save_practice_session(
+    request: SavePracticeSessionRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<SavePracticeSessionResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let session_id = request.session.session_id.clone();
+    match save_session_data(&state.app_root, &request.session) {
+        Ok(()) => CommandResult::success(SavePracticeSessionResponse {
+            session_id,
+            saved_at: timestamp(),
+        }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn list_practice_sessions(
+    request: ListPracticeSessionsRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<PracticeSessionsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match list_session_data(&state.app_root, &request.song_id) {
+        Ok(sessions) => CommandResult::success(PracticeSessionsResponse { sessions }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn get_practice_session(
+    request: PracticeSessionRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<SessionReview> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match get_session_review_data(&state.app_root, &request.session_id) {
+        Ok(review) => CommandResult::success(review),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn delete_practice_session(
+    request: PracticeSessionRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<DeletePracticeSessionResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match delete_session_data(&state.app_root, &request.session_id) {
+        Ok(()) => CommandResult::success(DeletePracticeSessionResponse { deleted: true }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn get_app_settings(
+    request: VersionedRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<AppSettingsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match load_settings(&state.app_root) {
+        Ok((settings, recovered)) => CommandResult::success(AppSettingsResponse {
+            settings,
+            recovered,
+        }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn update_app_settings(
+    request: UpdateAppSettingsRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<AppSettingsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match update_settings_data(&state.app_root, request.patch, request.expected_revision) {
+        Ok(settings) => CommandResult::success(AppSettingsResponse {
+            settings,
+            recovered: false,
+        }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn clear_app_settings(
+    request: VersionedRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<AppSettingsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match clear_settings_data(&state.app_root) {
+        Ok(settings) => CommandResult::success(AppSettingsResponse {
+            settings,
+            recovered: false,
+        }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn prepare_diagnostic_bundle(
+    request: PrepareDiagnosticBundleRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<PrepareDiagnosticBundleResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let (preview, bundle) = match prepare_bundle(&state.app_root, request.context) {
+        Ok(value) => value,
+        Err(error) => return CommandResult::failure(error),
+    };
+    let consent_token = new_job_id();
+    let mut pending = match state.pending_diagnostics.lock() {
+        Ok(pending) => pending,
+        Err(_) => {
+            return CommandResult::failure(ApiError::new(
+                "DIAGNOSTIC_STORE_UNAVAILABLE",
+                "diagnostics.error.store",
+                true,
+            ));
+        }
+    };
+    let now = Instant::now();
+    pending.retain(|_, candidate| candidate.expires_at > now);
+    pending.insert(
+        consent_token.clone(),
+        PendingDiagnostic {
+            bundle,
+            expires_at: now + CAPABILITY_LIFETIME,
+        },
+    );
+    CommandResult::success(PrepareDiagnosticBundleResponse {
+        consent_token,
+        preview,
+    })
+}
+
+#[tauri::command]
+pub async fn save_diagnostic_bundle(
+    app: AppHandle,
+    request: SaveDiagnosticBundleRequest,
+    state: State<'_, RuntimeState>,
+) -> Result<CommandResult<SaveDiagnosticBundleResponse>, ApiError> {
+    if request.api_version != 1 {
+        return Ok(CommandResult::unsupported());
+    }
+    let pending = match state.pending_diagnostics.lock() {
+        Ok(mut pending) => pending.remove(&request.consent_token),
+        Err(_) => {
+            return Ok(CommandResult::failure(ApiError::new(
+                "DIAGNOSTIC_STORE_UNAVAILABLE",
+                "diagnostics.error.store",
+                true,
+            )));
+        }
+    };
+    let Some(pending) = pending.filter(|candidate| candidate.expires_at > Instant::now()) else {
+        return Ok(CommandResult::failure(ApiError::new(
+            "CONSENT_REQUIRED",
+            "diagnostics.error.consentRequired",
+            false,
+        )));
+    };
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let selected = app
+            .dialog()
+            .file()
+            .add_filter("CyberMuse diagnostics", &["json"])
+            .set_file_name("CyberMuse-diagnostics.json")
+            .blocking_save_file();
+        let Some(selected) = selected else {
+            return Ok(SaveDiagnosticBundleResponse {
+                saved: false,
+                file_name: None,
+                size_bytes: 0,
+            });
+        };
+        let destination = selected.into_path().map_err(|_| {
+            ApiError::new(
+                "DIAGNOSTIC_STORE_UNAVAILABLE",
+                "diagnostics.error.store",
+                true,
+            )
+        })?;
+        let file_name = destination
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("CyberMuse-diagnostics.json")
+            .to_owned();
+        let size_bytes = write_bundle(&destination, &pending.bundle).map_err(ApiError::from)?;
+        Ok::<SaveDiagnosticBundleResponse, ApiError>(SaveDiagnosticBundleResponse {
+            saved: true,
+            file_name: Some(file_name),
+            size_bytes,
+        })
+    })
+    .await;
+    Ok(match result {
+        Ok(Ok(response)) => CommandResult::success(response),
+        Ok(Err(error)) => CommandResult::failure(error),
+        Err(_) => CommandResult::failure(ApiError::new(
+            "DIAGNOSTIC_STORE_UNAVAILABLE",
+            "diagnostics.error.store",
+            true,
+        )),
+    })
+}
+
+#[tauri::command]
+pub fn clear_diagnostic_logs(
+    request: VersionedRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<ClearDiagnosticLogsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match clear_logs(&state.app_root) {
+        Ok(cleared_event_count) => CommandResult::success(ClearDiagnosticLogsResponse {
+            cleared_event_count,
+        }),
         Err(error) => CommandResult::failure(error),
     }
 }
@@ -1131,6 +1532,12 @@ fn is_sha256(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn timestamp() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }
 
 #[cfg(test)]

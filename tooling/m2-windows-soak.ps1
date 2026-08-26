@@ -69,7 +69,11 @@ if ($TargetProcessId -eq 0) {
     $TargetProcessId = $rootProcess.Id
 }
 
-$resolvedOutputPath = [System.IO.Path]::GetFullPath($OutputPath, (Get-Location).Path)
+$resolvedOutputPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+    [System.IO.Path]::GetFullPath($OutputPath)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $OutputPath))
+}
 if (Test-Path -LiteralPath $resolvedOutputPath) {
     throw "M2_SOAK_OUTPUT_EXISTS: choose a new OutputPath so existing evidence is not overwritten."
 }

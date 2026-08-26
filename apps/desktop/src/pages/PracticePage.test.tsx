@@ -1,4 +1,5 @@
 import { PRACTICE_FIXTURE_V1 } from "@cybermuse/audio";
+import type { AppSettings, PracticeSession } from "@cybermuse/contracts";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +9,17 @@ import type {
   PracticeControllerSnapshot,
 } from "../practice/practice-controller";
 import type { PitchLaneData } from "../practice/pitch-lane-model";
+import type { PracticeSessionServicePort } from "../services/practice-session-service";
+import type { SettingsServicePort } from "../services/settings-service";
 import type { PracticeAssets } from "../services/song-service";
+import {
+  fingerprintAudioDevice,
+  type AudioOutputDeviceServicePort,
+} from "../audio/device-identity";
+import type {
+  WindowCloseRequest,
+  WindowCloseServicePort,
+} from "../services/window-close-service";
 import { PracticePage } from "./PracticePage";
 
 const emptyMetrics = {
@@ -107,7 +118,13 @@ class FakePracticeController implements PracticeControllerPort {
   readonly resumeAfterSuspend = vi.fn(async () => undefined);
   readonly seek = vi.fn();
   readonly startOver = vi.fn();
-  readonly startInput = vi.fn(async () => undefined);
+  readonly startInput = vi.fn<PracticeControllerPort["startInput"]>(
+    async () => ({
+      inputDeviceFingerprint: null,
+      sampleRateHz: null,
+      restoreStatus: "not_configured",
+    }),
+  );
   readonly retryInput = vi.fn(async () => undefined);
   readonly setLoopBoundary = vi.fn();
   readonly setLoopBoundaryToCurrent = vi.fn();
@@ -115,6 +132,9 @@ class FakePracticeController implements PracticeControllerPort {
   readonly enableLoop = vi.fn(async () => undefined);
   readonly disableLoop = vi.fn();
   readonly clearLoop = vi.fn();
+  readonly setVolume = vi.fn();
+  readonly setSessionContext = vi.fn();
+  readonly finalizeSession = vi.fn<() => PracticeSession | null>(() => null);
   readonly dispose = vi.fn(async () => undefined);
   private snapshot = baseSnapshot;
   private listener: ((snapshot: PracticeControllerSnapshot) => void) | null =
@@ -150,14 +170,124 @@ function emit(
   act(() => controller.emit(snapshot));
 }
 
-function renderPractice(controller: FakePracticeController) {
+function renderPractice(
+  controller: FakePracticeController,
+  props: {
+    sessionService?: PracticeSessionServicePort;
+    onSessionSaved?: (session: PracticeSession) => void;
+    onLeaveWithoutSession?: () => void;
+    windowCloseService?: WindowCloseServicePort;
+    settingsService?: SettingsServicePort;
+    outputDeviceService?: AudioOutputDeviceServicePort;
+  } = {},
+) {
   return render(
     <PracticePage
       assets={practiceAssets}
       controllerFactory={() => controller}
+      {...props}
       songTitle="测试歌曲"
     />,
   );
+}
+
+class FakeWindowCloseService implements WindowCloseServicePort {
+  readonly destroy = vi.fn(async () => undefined);
+  readonly subscribe = vi.fn(
+    async (listener: (request: WindowCloseRequest) => void) => {
+      this.listener = listener;
+      return () => {
+        this.listener = null;
+      };
+    },
+  );
+  private listener: ((request: WindowCloseRequest) => void) | null = null;
+
+  emit(): ReturnType<typeof vi.fn> {
+    const preventDefault = vi.fn();
+    this.listener?.({ preventDefault });
+    return preventDefault;
+  }
+}
+
+function practiceSession(validFrameCount = 1): PracticeSession {
+  const observations =
+    validFrameCount === 0
+      ? []
+      : [
+          {
+            timeMs: 1_000,
+            userMidi: 69,
+            referenceMidi: 69,
+            signedCents: 0,
+            confidence: 1,
+            voiced: true as const,
+          },
+        ];
+  return {
+    schemaVersion: 1,
+    scoringVersion: "1.0.0",
+    sessionId: "00000000-0000-4000-8000-000000000040",
+    songId: practiceAssets.songId,
+    analysisId: practiceAssets.analysisId,
+    startedAt: "2026-08-26T05:00:00.000Z",
+    endedAt: "2026-08-26T05:00:02.000Z",
+    inputDeviceFingerprint: null,
+    outputDeviceFingerprint: null,
+    appliedLatencyMs: 0,
+    latencySource: "none",
+    takes: [
+      {
+        takeId: "take-0001",
+        loopRegion: null,
+        startedAtSongTimeMs: 0,
+        endedAtSongTimeMs: 2_000,
+        observations,
+        metrics: {
+          ...emptyMetrics,
+          ...(validFrameCount === 0
+            ? {}
+            : {
+                pitchAccuracy: 100,
+                medianAbsoluteErrorCents: 0,
+                signedMedianErrorCents: 0,
+                stability: 100,
+                coverage: 50,
+                validFrameCount,
+              }),
+        },
+      },
+    ],
+    metrics: {
+      ...emptyMetrics,
+      ...(validFrameCount === 0
+        ? {}
+        : {
+            pitchAccuracy: 100,
+            medianAbsoluteErrorCents: 0,
+            signedMedianErrorCents: 0,
+            stability: 100,
+            coverage: 50,
+            validFrameCount,
+          }),
+    },
+  };
+}
+
+function fakeSessionService(): PracticeSessionServicePort & {
+  save: ReturnType<typeof vi.fn>;
+} {
+  return {
+    save: vi.fn(async (session: PracticeSession) => ({
+      sessionId: session.sessionId,
+      savedAt: session.endedAt,
+    })),
+    list: vi.fn(async () => []),
+    get: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    delete: vi.fn(async () => undefined),
+  };
 }
 
 function readySnapshot(
@@ -192,9 +322,97 @@ describe("FR-009/012/014 Practice UI", () => {
       expect(controller.loadSong).toHaveBeenCalledWith(
         practiceAssets,
         "测试歌曲",
+        "default",
       ),
     );
     expect(controller.startInput).not.toHaveBeenCalled();
+  });
+
+  it("applies calibration only after the actual input, output and sample rate match", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const inputFingerprint = await fingerprintAudioDevice("audioinput", {
+      deviceId: "usb-mic",
+      groupId: "usb-input",
+    });
+    const outputDevice = {
+      deviceId: "usb-speakers",
+      groupId: "usb-output",
+      label: "USB 扬声器",
+      isDefault: false,
+    };
+    const outputFingerprint = await fingerprintAudioDevice(
+      "audiooutput",
+      outputDevice,
+    );
+    const settings: AppSettings = {
+      schemaVersion: 1,
+      revision: 4,
+      inputDeviceFingerprint: inputFingerprint,
+      outputDeviceFingerprint: outputFingerprint,
+      volume: 0.7,
+      themePreference: "system",
+      motionPreference: "system",
+      modelCacheSelection: [],
+      latencyCalibrations: [
+        {
+          calibrationId: "00000000-0000-4000-8000-000000000099",
+          inputDeviceFingerprint: inputFingerprint,
+          outputDeviceFingerprint: outputFingerprint,
+          sampleRateHz: 48_000,
+          latencyMs: 84,
+          source: "measured",
+          confidence: 0.9,
+          measuredAt: "2026-08-26T05:00:00.000Z",
+        },
+      ],
+    };
+    const settingsService: SettingsServicePort = {
+      load: vi.fn(async () => ({ settings, recovered: false })),
+      update: vi.fn(async () => ({ ...settings, revision: 5 })),
+      clear: vi.fn(async () => settings),
+    };
+    const outputDeviceService: AudioOutputDeviceServicePort = {
+      list: vi.fn(async () => [
+        {
+          deviceId: "default",
+          groupId: "built-in-output",
+          label: "系统默认输出",
+          isDefault: true,
+        },
+        outputDevice,
+      ]),
+      subscribe: vi.fn(() => () => undefined),
+    };
+    controller.startInput.mockResolvedValue({
+      inputDeviceFingerprint: inputFingerprint,
+      sampleRateHz: 48_000,
+      restoreStatus: "restored",
+    });
+    renderPractice(controller, { settingsService, outputDeviceService });
+    await waitFor(() =>
+      expect(controller.loadSong).toHaveBeenCalledWith(
+        practiceAssets,
+        "测试歌曲",
+        "usb-speakers",
+      ),
+    );
+    expect(controller.setSessionContext).toHaveBeenLastCalledWith({
+      inputDeviceFingerprint: null,
+      outputDeviceFingerprint: outputFingerprint,
+      appliedLatencyMs: 0,
+      latencySource: "none",
+    });
+
+    emit(controller, readySnapshot());
+    await user.click(screen.getByRole("button", { name: "开始录唱" }));
+    expect(controller.startInput).toHaveBeenCalledWith(inputFingerprint);
+    expect(controller.setSessionContext).toHaveBeenLastCalledWith({
+      inputDeviceFingerprint: inputFingerprint,
+      outputDeviceFingerprint: outputFingerprint,
+      appliedLatencyMs: 84,
+      latencySource: "measured",
+    });
   });
 
   it("provides play, seek, reset and keyboard-equivalent A/B controls", async () => {
@@ -306,7 +524,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     await user.click(
       screen.getByRole("button", { name: "检查设备后重试录唱" }),
     );
-    expect(controller.retryInput).toHaveBeenCalledOnce();
+    expect(controller.startInput).toHaveBeenCalledOnce();
   });
 
   it("renders structured loop errors inline instead of color-only feedback", () => {
@@ -330,5 +548,123 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("A-B 区间至少需要");
     expect(screen.getByText("LOOP_TOO_SHORT")).toBeVisible();
+  });
+});
+
+describe("TC-SES-001 Practice session save UI", () => {
+  it("atomically saves a finalized session and opens Review", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const session = practiceSession();
+    controller.finalizeSession.mockReturnValue(session);
+    const sessionService = fakeSessionService();
+    const onSessionSaved = vi.fn();
+    renderPractice(controller, { sessionService, onSessionSaved });
+    emit(controller, readySnapshot());
+
+    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
+
+    expect(controller.pause).toHaveBeenCalledOnce();
+    expect(sessionService.save).toHaveBeenCalledWith(session);
+    expect(onSessionSaved).toHaveBeenCalledWith(session);
+  });
+
+  it("asks before retaining a session with no valid observations", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const session = practiceSession(0);
+    controller.finalizeSession.mockReturnValue(session);
+    const sessionService = fakeSessionService();
+    renderPractice(controller, { sessionService });
+    emit(controller, readySnapshot());
+
+    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
+    expect(screen.getByText("没有可评分的观察")).toBeVisible();
+    expect(sessionService.save).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "保留空会话" }));
+    expect(sessionService.save).toHaveBeenCalledWith(session);
+  });
+
+  it("retains the same finalized session for an explicit save retry", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const session = practiceSession();
+    controller.finalizeSession.mockReturnValue(session);
+    const sessionService = fakeSessionService();
+    sessionService.save
+      .mockRejectedValueOnce(
+        Object.assign(new Error("save failed"), { code: "STORE_UNAVAILABLE" }),
+      )
+      .mockResolvedValueOnce({
+        sessionId: session.sessionId,
+        savedAt: session.endedAt,
+      });
+    renderPractice(controller, { sessionService });
+    emit(controller, readySnapshot());
+
+    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
+    expect(await screen.findByText("练习会话尚未保存")).toBeVisible();
+    expect(screen.getByText("STORE_UNAVAILABLE")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "重试保存" }));
+    expect(controller.finalizeSession).toHaveBeenCalledOnce();
+    expect(sessionService.save).toHaveBeenNthCalledWith(2, session);
+  });
+
+  it("prevents a window close until the finalized session is saved", async () => {
+    const controller = new FakePracticeController();
+    const session = practiceSession();
+    controller.finalizeSession.mockReturnValue(session);
+    const sessionService = fakeSessionService();
+    const windowCloseService = new FakeWindowCloseService();
+    const onSessionSaved = vi.fn();
+    renderPractice(controller, {
+      sessionService,
+      windowCloseService,
+      onSessionSaved,
+    });
+    emit(controller, readySnapshot());
+    await waitFor(() =>
+      expect(windowCloseService.subscribe).toHaveBeenCalled(),
+    );
+
+    const preventDefault = windowCloseService.emit();
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(sessionService.save).toHaveBeenCalledWith(session),
+    );
+    expect(windowCloseService.destroy).toHaveBeenCalledOnce();
+    expect(onSessionSaved).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed close save recoverable and ignores duplicate close writes", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const session = practiceSession();
+    controller.finalizeSession.mockReturnValue(session);
+    const sessionService = fakeSessionService();
+    vi.mocked(sessionService.save).mockRejectedValue(
+      Object.assign(new Error("unavailable"), { code: "STORE_UNAVAILABLE" }),
+    );
+    const windowCloseService = new FakeWindowCloseService();
+    renderPractice(controller, { sessionService, windowCloseService });
+    emit(controller, readySnapshot());
+    await waitFor(() =>
+      expect(windowCloseService.subscribe).toHaveBeenCalled(),
+    );
+
+    const firstPreventDefault = windowCloseService.emit();
+    const secondPreventDefault = windowCloseService.emit();
+
+    expect(firstPreventDefault).toHaveBeenCalledOnce();
+    expect(secondPreventDefault).toHaveBeenCalledOnce();
+    expect(await screen.findByText("练习会话尚未保存")).toBeVisible();
+    expect(sessionService.save).toHaveBeenCalledOnce();
+    expect(windowCloseService.destroy).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "放弃并返回歌曲库" }));
+    expect(windowCloseService.destroy).toHaveBeenCalledOnce();
   });
 });

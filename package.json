@@ -18,6 +18,11 @@
     "license:check": "node tooling/check-licenses.mjs",
     "lint": "eslint . --max-warnings 0",
     "prepare:m4:clean-windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/prepare-m4-clean-windows.ps1",
+    "prepare:m6:clean-windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/prepare-m6-clean-windows.ps1",
+    "prepare:m6:installer": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/prepare-m6-installer.ps1",
+    "release:assets": "node tooling/m6-release-assets.mjs",
+    "release:manifest": "node tooling/m6-release-assets.mjs --finalize",
+    "build:m6": "pnpm build:analyzer && pnpm prepare:m6:installer && pnpm tauri build && pnpm release:manifest",
     "tauri": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/tauri.ps1",
     "test": "vitest run --config tooling/vitest.unit.config.ts",
     "test:contracts": "vitest run --config tooling/vitest.contract.config.ts",
@@ -32,6 +37,11 @@
     "test:m4:quality": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m4-quality.ps1",
     "test:m4:supply": "node tooling/m4-supply-chain.mjs",
     "test:m5:import": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m5-import-integration.ps1",
+    "test:m6:supply": "node tooling/m6-release-assets.mjs",
+    "test:m6:installer": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m6-installer-smoke.ps1",
+    "test:m6:privacy": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m6-privacy.ps1",
+    "test:m6:clean-windows": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File artifacts/m6/clean-windows-package/m6-clean-windows-smoke.ps1 -PackageRoot artifacts/m6/clean-windows-package -EvidencePath artifacts/m6/clean-windows-package/m6-clean-windows-evidence.json",
+    "test:m6:soak": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m6-windows-soak.ps1",
     "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p packages/scoring/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {

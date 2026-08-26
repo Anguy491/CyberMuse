@@ -541,6 +541,21 @@ pub fn mark_song_status(
         .map_err(|_| SongStoreError::storage("mark_song_status"))
 }
 
+pub fn mark_last_practice_at(
+    app_root: &Path,
+    song_id: &str,
+    practiced_at: &str,
+) -> Result<(), SongStoreError> {
+    let song_root = app_root.join("data").join("songs").join(song_id);
+    let metadata_path = song_root.join("song.json");
+    let mut song = read_song_at(&metadata_path)?;
+    validate_song_identity(&song, song_id)?;
+    song.last_practice_at = Some(practiced_at.to_owned());
+    song.updated_at = timestamp();
+    write_versioned_json(&metadata_path, &song)
+        .map_err(|_| SongStoreError::storage("mark_last_practice_at"))
+}
+
 pub fn prepare_delete(app_root: &Path, song_id: &str) -> Result<DeletePlan, SongStoreError> {
     let song_root = app_root.join("data").join("songs").join(song_id);
     let song = read_song_at(&song_root.join("song.json"))?;

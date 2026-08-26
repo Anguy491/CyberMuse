@@ -48,6 +48,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 interface LibraryPageProps {
   service?: SongServicePort;
   onOpenPractice?: (song: SongSummary, assets: PracticeAssets) => void;
+  onOpenReview?: (song: SongSummary) => Promise<void>;
   onOpenModels?: () => void;
 }
 
@@ -83,6 +84,7 @@ function errorDetail(error: AppError): string {
 export function LibraryPage({
   service = defaultService,
   onOpenPractice,
+  onOpenReview,
   onOpenModels,
 }: LibraryPageProps) {
   const [songs, setSongs] = useState<SongSummary[]>([]);
@@ -252,6 +254,18 @@ export function LibraryPage({
     } catch (caught) {
       setError(appError(caught));
       await refresh();
+    } finally {
+      setOperation(null);
+    }
+  }
+
+  async function openReview(song: SongSummary): Promise<void> {
+    setOperation(`review:${song.songId}`);
+    setError(null);
+    try {
+      await onOpenReview?.(song);
+    } catch (caught) {
+      setError(appError(caught));
     } finally {
       setOperation(null);
     }
@@ -512,6 +526,16 @@ export function LibraryPage({
                         {operation === `open:${song.songId}`
                           ? "[LOADING] 打开"
                           : "开始练习"}
+                      </Button>
+                    ) : null}
+                    {song.lastPracticeAt !== null ? (
+                      <Button
+                        disabled={operation !== null}
+                        onClick={() => void openReview(song)}
+                      >
+                        {operation === `review:${song.songId}`
+                          ? "[LOADING] 打开复盘"
+                          : "最近复盘"}
                       </Button>
                     ) : null}
                     {song.status === "needs_analysis" ||

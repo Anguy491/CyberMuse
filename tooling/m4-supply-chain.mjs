@@ -59,8 +59,11 @@ execFileSync(
   },
 );
 
-if (dependencies.schemaVersion !== 1 || dependencies.milestone !== "M5") {
-  fail("dependency review is not the current M5 schemaVersion 1 inventory");
+if (
+  dependencies.schemaVersion !== 1 ||
+  !["M5", "M6"].includes(dependencies.milestone)
+) {
+  fail("dependency review is not a compatible schemaVersion 1 inventory");
 }
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files)) {
   fail("runtime manifest schema is invalid");

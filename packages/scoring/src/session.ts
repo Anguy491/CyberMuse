@@ -100,6 +100,7 @@ export class InMemoryPracticeSession {
     const take = this.current;
     if (take === null) return null;
     take.endedAtSongTimeMs = Math.max(
+      take.endedAtSongTimeMs,
       take.startedAtSongTimeMs,
       Math.round(endedAtSongTimeMs),
     );

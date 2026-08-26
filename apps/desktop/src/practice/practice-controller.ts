@@ -12,8 +12,13 @@ import {
   type InstantFeedback,
   type SessionMetrics,
 } from "@cybermuse/scoring";
+import type { PracticeSession } from "@cybermuse/contracts";
 
 import { AudioInputController } from "../audio/audio-input-controller";
+import {
+  findAudioDeviceByFingerprint,
+  fingerprintAudioDevice,
+} from "../audio/device-identity";
 import type {
   AudioInputControllerPort,
   AudioInputSnapshot,
@@ -62,9 +67,14 @@ export interface PracticeControllerSnapshot {
 export interface PlaybackEnginePort {
   getSnapshot(): PlaybackEngineSnapshot;
   getAudioContext(): AudioContext | null;
+  setVolume(value: number): void;
   subscribe(listener: (snapshot: PlaybackEngineSnapshot) => void): () => void;
   loadFixture(fixture?: PracticeFixture): Promise<void>;
-  loadAssets(assets: PracticeAssets, title: string): Promise<void>;
+  loadAssets(
+    assets: PracticeAssets,
+    title: string,
+    outputDeviceId?: string,
+  ): Promise<void>;
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
@@ -81,13 +91,19 @@ export interface PracticeControllerPort {
   ): () => void;
   getLaneData(width?: number, height?: number): PitchLaneData | null;
   loadFixture(): Promise<void>;
-  loadSong(assets: PracticeAssets, title: string): Promise<void>;
+  loadSong(
+    assets: PracticeAssets,
+    title: string,
+    outputDeviceId?: string,
+  ): Promise<void>;
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
   seek(songTimeMs: number): void;
   startOver(): void;
-  startInput(): Promise<void>;
+  startInput(
+    preferredInputDeviceFingerprint?: string | null,
+  ): Promise<PracticeInputStartResult>;
   retryInput(): Promise<void>;
   setLoopBoundary(boundary: "start" | "end", timeMs: number): void;
   setLoopBoundaryToCurrent(boundary: "start" | "end"): void;
@@ -95,7 +111,23 @@ export interface PracticeControllerPort {
   enableLoop(): Promise<void>;
   disableLoop(): void;
   clearLoop(): void;
+  setVolume(value: number): void;
+  setSessionContext(context: PracticeSessionContext): void;
+  finalizeSession(): PracticeSession | null;
   dispose(): Promise<void>;
+}
+
+export interface PracticeSessionContext {
+  inputDeviceFingerprint: string | null;
+  outputDeviceFingerprint: string | null;
+  appliedLatencyMs: number;
+  latencySource: "measured" | "manual" | "none";
+}
+
+export interface PracticeInputStartResult {
+  inputDeviceFingerprint: string | null;
+  sampleRateHz: number | null;
+  restoreStatus: "not_configured" | "restored" | "fallback" | "unavailable";
 }
 
 interface PracticeControllerOptions {
@@ -103,6 +135,8 @@ interface PracticeControllerOptions {
   inputFactory?: (context: AudioContext) => AudioInputControllerPort;
   scheduleUiUpdate?: (callback: FrameRequestCallback) => number;
   cancelUiUpdate?: (handle: number) => void;
+  now?: () => Date;
+  sessionIdFactory?: () => string;
 }
 
 const EMPTY_METRICS: SessionMetrics = Object.freeze({
@@ -153,6 +187,12 @@ function sessionLimitError(): PracticeRuntimeError {
   };
 }
 
+function defaultSessionIdFactory(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ?? "00000000-0000-4000-8000-000000000001"
+  );
+}
+
 function loopValidation(
   code: Exclude<LoopValidationResult, { ok: true }>["code"],
   message: string,
@@ -193,6 +233,8 @@ export class PracticeController implements PracticeControllerPort {
   ) => AudioInputControllerPort;
   private readonly scheduleUiUpdate: (callback: FrameRequestCallback) => number;
   private readonly cancelUiUpdate: (handle: number) => void;
+  private readonly now: () => Date;
+  private readonly sessionIdFactory: () => string;
   private readonly listeners = new Set<
     (snapshot: PracticeControllerSnapshot) => void
   >();
@@ -208,12 +250,22 @@ export class PracticeController implements PracticeControllerPort {
   private lastMetricFrameCount = 0;
   private uiFrameHandle: number | null = null;
   private disposed = false;
+  private loadedIdentity: { songId: string; analysisId: string } | null = null;
+  private startedAt: Date | null = null;
+  private sessionContext: PracticeSessionContext = {
+    inputDeviceFingerprint: null,
+    outputDeviceFingerprint: null,
+    appliedLatencyMs: 0,
+    latencySource: "none",
+  };
 
   constructor(options: PracticeControllerOptions = {}) {
     this.playback = options.playback ?? new PlaybackEngine();
     this.inputFactory = options.inputFactory ?? defaultInputFactory;
     this.scheduleUiUpdate = options.scheduleUiUpdate ?? defaultScheduleUiUpdate;
     this.cancelUiUpdate = options.cancelUiUpdate ?? defaultCancelUiUpdate;
+    this.now = options.now ?? (() => new Date());
+    this.sessionIdFactory = options.sessionIdFactory ?? defaultSessionIdFactory;
     this.snapshot = initialSnapshot(this.playback.getSnapshot());
     this.unsubscribePlayback = this.playback.subscribe((playback) =>
       this.receivePlayback(playback),
@@ -250,6 +302,8 @@ export class PracticeController implements PracticeControllerPort {
     await this.playback.loadFixture(PRACTICE_FIXTURE_V1);
     const fixture = this.playback.getSnapshot().fixture;
     if (fixture !== null) {
+      this.loadedIdentity = null;
+      this.startedAt = this.now();
       this.session = new InMemoryPracticeSession(fixture.referenceTrack);
       this.currentLane = [];
       this.previousLane = [];
@@ -263,12 +317,21 @@ export class PracticeController implements PracticeControllerPort {
     }
   }
 
-  async loadSong(assets: PracticeAssets, title: string): Promise<void> {
+  async loadSong(
+    assets: PracticeAssets,
+    title: string,
+    outputDeviceId = "default",
+  ): Promise<void> {
     if (this.disposed) return;
     await this.releaseInput();
-    await this.playback.loadAssets(assets, title);
+    await this.playback.loadAssets(assets, title, outputDeviceId);
     const fixture = this.playback.getSnapshot().fixture;
     if (fixture !== null) {
+      this.loadedIdentity = {
+        songId: assets.songId,
+        analysisId: assets.analysisId,
+      };
+      this.startedAt = this.now();
       this.session = new InMemoryPracticeSession(fixture.referenceTrack);
       this.currentLane = [];
       this.previousLane = [];
@@ -338,9 +401,17 @@ export class PracticeController implements PracticeControllerPort {
     this.seek(0);
   }
 
-  async startInput(): Promise<void> {
+  async startInput(
+    preferredInputDeviceFingerprint: string | null = null,
+  ): Promise<PracticeInputStartResult> {
     const context = this.playback.getAudioContext();
-    if (context === null) return;
+    if (context === null) {
+      return {
+        inputDeviceFingerprint: null,
+        sampleRateHz: null,
+        restoreStatus: "unavailable",
+      };
+    }
     if (this.input === null) {
       this.input = this.inputFactory(context);
       this.unsubscribeInput = this.input.subscribe((snapshot) =>
@@ -348,6 +419,44 @@ export class PracticeController implements PracticeControllerPort {
       );
     }
     await this.input.requestPermission();
+    let inputSnapshot = this.input.getSnapshot();
+    let restoreStatus: PracticeInputStartResult["restoreStatus"] =
+      preferredInputDeviceFingerprint === null ? "not_configured" : "fallback";
+    if (
+      inputSnapshot.status === "ready" &&
+      preferredInputDeviceFingerprint !== null
+    ) {
+      const preferred = await findAudioDeviceByFingerprint(
+        "audioinput",
+        inputSnapshot.devices,
+        preferredInputDeviceFingerprint,
+      );
+      if (preferred !== null) {
+        if (preferred.deviceId !== inputSnapshot.selectedDeviceId) {
+          await this.input.switchDevice(preferred.deviceId);
+          inputSnapshot = this.input.getSnapshot();
+        }
+        restoreStatus = "restored";
+      }
+    }
+    if (inputSnapshot.status !== "ready") {
+      return {
+        inputDeviceFingerprint: null,
+        sampleRateHz: inputSnapshot.sampleRateHz,
+        restoreStatus: "unavailable",
+      };
+    }
+    const selected = inputSnapshot.devices.find(
+      (device) => device.deviceId === inputSnapshot.selectedDeviceId,
+    ) ?? { deviceId: inputSnapshot.selectedDeviceId, groupId: "" };
+    return {
+      inputDeviceFingerprint: await fingerprintAudioDevice(
+        "audioinput",
+        selected,
+      ),
+      sampleRateHz: inputSnapshot.sampleRateHz,
+      restoreStatus,
+    };
   }
 
   async retryInput(): Promise<void> {
@@ -431,6 +540,79 @@ export class PracticeController implements PracticeControllerPort {
         validation: null,
       },
     });
+  }
+
+  setVolume(value: number): void {
+    this.playback.setVolume(value);
+  }
+
+  setSessionContext(context: PracticeSessionContext): void {
+    const validLatency =
+      Number.isSafeInteger(context.appliedLatencyMs) &&
+      ((context.latencySource === "measured" &&
+        context.appliedLatencyMs >= 0 &&
+        context.appliedLatencyMs <= 2_000 &&
+        context.inputDeviceFingerprint !== null &&
+        context.outputDeviceFingerprint !== null) ||
+        (context.latencySource === "manual" &&
+          context.appliedLatencyMs >= -250 &&
+          context.appliedLatencyMs <= 500 &&
+          context.inputDeviceFingerprint !== null &&
+          context.outputDeviceFingerprint !== null) ||
+        (context.latencySource === "none" && context.appliedLatencyMs === 0));
+    this.sessionContext = validLatency
+      ? { ...context }
+      : {
+          inputDeviceFingerprint: null,
+          outputDeviceFingerprint: null,
+          appliedLatencyMs: 0,
+          latencySource: "none",
+        };
+  }
+
+  finalizeSession(): PracticeSession | null {
+    if (
+      this.session === null ||
+      this.loadedIdentity === null ||
+      this.startedAt === null
+    ) {
+      return null;
+    }
+    this.finishCurrentTake(this.snapshot.playback.positionMs);
+    const takes = this.session.getTakes();
+    const metrics = this.session.getSessionMetrics();
+    const maximumEnd = new Date(this.startedAt.getTime() + 3_600_000);
+    const observedEnd = this.now();
+    const endedAt = observedEnd > maximumEnd ? maximumEnd : observedEnd;
+    return {
+      schemaVersion: 1,
+      scoringVersion: "1.0.0",
+      sessionId: this.sessionIdFactory(),
+      songId: this.loadedIdentity.songId,
+      analysisId: this.loadedIdentity.analysisId,
+      startedAt: this.startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      inputDeviceFingerprint: this.sessionContext.inputDeviceFingerprint,
+      outputDeviceFingerprint: this.sessionContext.outputDeviceFingerprint,
+      appliedLatencyMs: this.sessionContext.appliedLatencyMs,
+      latencySource: this.sessionContext.latencySource,
+      takes: takes.map((take) => ({
+        takeId: take.takeId,
+        loopRegion: take.loopRegion === null ? null : { ...take.loopRegion },
+        startedAtSongTimeMs: take.startedAtSongTimeMs,
+        endedAtSongTimeMs: take.endedAtSongTimeMs,
+        observations: take.observations.map((observation) => ({
+          timeMs: observation.timeMs,
+          userMidi: observation.userMidi,
+          referenceMidi: observation.referenceMidi,
+          signedCents: observation.signedCents,
+          confidence: observation.confidence,
+          voiced: true,
+        })),
+        metrics: { ...take.metrics },
+      })),
+      metrics: { ...metrics },
+    };
   }
 
   async dispose(): Promise<void> {
@@ -536,10 +718,13 @@ export class PracticeController implements PracticeControllerPort {
       this.emit();
       return;
     }
+    const alignedSongTimeMs = Math.round(
+      songTimeMs - this.sessionContext.appliedLatencyMs,
+    );
     const aligned: PitchObservation = {
       ...observation,
-      timeMs: Math.round(songTimeMs),
-      alignedSongTimeMs: Math.round(songTimeMs),
+      timeMs: Math.max(0, alignedSongTimeMs),
+      alignedSongTimeMs,
     };
     this.currentLane.push({ timeMs: aligned.timeMs, midi: observation.midi });
     if (this.currentLane.length > 36_000) {

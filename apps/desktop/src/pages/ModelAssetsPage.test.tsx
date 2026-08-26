@@ -1,12 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { AppSettings } from "@cybermuse/contracts";
 
 import type {
   ModelEvent,
   ModelServicePort,
   ModelStatus,
 } from "../services/model-service";
+import type { SettingsServicePort } from "../services/settings-service";
 import { ModelAssetsPage } from "./ModelAssetsPage";
 
 const spleeter: ModelStatus = {
@@ -44,11 +46,42 @@ class FakeModelService implements ModelServicePort {
   }
 }
 
+function fakeSettingsService(): SettingsServicePort & {
+  update: ReturnType<typeof vi.fn>;
+} {
+  let settings: AppSettings = {
+    schemaVersion: 1,
+    revision: 0,
+    inputDeviceFingerprint: null,
+    outputDeviceFingerprint: null,
+    volume: 0.65,
+    themePreference: "system",
+    motionPreference: "system",
+    modelCacheSelection: [],
+    latencyCalibrations: [],
+  };
+  const update = vi.fn(async (patch, expectedRevision) => {
+    if (expectedRevision !== settings.revision) throw new Error("conflict");
+    settings = { ...settings, ...patch, revision: settings.revision + 1 };
+    return settings;
+  });
+  return {
+    load: vi.fn(async () => ({ settings, recovered: false })),
+    update,
+    clear: vi.fn(async () => settings),
+  };
+}
+
 describe("FR-019 model assets", () => {
   it("loads only local status and requires exact explicit consent before download", async () => {
     const user = userEvent.setup();
     const service = new FakeModelService();
-    render(<ModelAssetsPage service={service} />);
+    render(
+      <ModelAssetsPage
+        service={service}
+        settingsService={fakeSettingsService()}
+      />,
+    );
 
     expect(await screen.findByText("Spleeter 2 stems")).toBeVisible();
     expect(screen.getByText("人声与伴奏分离")).toBeVisible();
@@ -71,7 +104,12 @@ describe("FR-019 model assets", () => {
   it("shows byte progress and exposes a keyboard-operable cancel action", async () => {
     const user = userEvent.setup();
     const service = new FakeModelService();
-    render(<ModelAssetsPage service={service} />);
+    render(
+      <ModelAssetsPage
+        service={service}
+        settingsService={fakeSettingsService()}
+      />,
+    );
     await screen.findByText("Spleeter 2 stems");
     await user.click(
       screen.getByRole("checkbox", { name: /同意下载此精确版本/ }),
@@ -105,12 +143,34 @@ describe("FR-019 model assets", () => {
     service.getStatuses.mockResolvedValue([
       { ...spleeter, installed: true, valid: true },
     ]);
-    render(<ModelAssetsPage service={service} />);
+    const settingsService = fakeSettingsService();
+    render(
+      <ModelAssetsPage service={service} settingsService={settingsService} />,
+    );
 
     const remove = await screen.findByRole("button", { name: "删除本地模型" });
     await user.click(remove);
     expect(service.remove).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "确认删除本地模型" }));
     await waitFor(() => expect(service.remove).toHaveBeenCalledOnce());
+  });
+
+  it("persists the exact installed model cache selection", async () => {
+    const service = new FakeModelService();
+    service.getStatuses.mockResolvedValue([
+      { ...spleeter, installed: true, valid: true },
+    ]);
+    const settingsService = fakeSettingsService();
+    render(
+      <ModelAssetsPage service={service} settingsService={settingsService} />,
+    );
+
+    expect(await screen.findByText(/缓存选择/)).toBeVisible();
+    await waitFor(() =>
+      expect(settingsService.update).toHaveBeenCalledWith(
+        { modelCacheSelection: ["spleeter-2stems@1.4.0"] },
+        0,
+      ),
+    );
   });
 });

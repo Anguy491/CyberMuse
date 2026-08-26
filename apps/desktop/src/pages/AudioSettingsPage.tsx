@@ -1,16 +1,54 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
 import { AudioInputController } from "../audio/audio-input-controller";
+import {
+  LatencyCalibrationController,
+  type CalibrationAnalysis,
+  type LatencyCalibrationPort,
+} from "../audio/latency-calibration";
 import type {
   AudioInputControllerPort,
   AudioInputSnapshot,
 } from "../audio/runtime-types";
 import { Button } from "../components/Button";
 import { PageState, type PageStateKind } from "../components/PageState";
+import {
+  AudioOutputDeviceService,
+  findAudioDeviceByFingerprint,
+  fingerprintAudioDevice,
+  type AudioOutputDevice,
+  type AudioOutputDeviceServicePort,
+} from "../audio/device-identity";
+import {
+  SettingsService,
+  findInputDeviceByFingerprint,
+  type AppSettingsPatch,
+  type SettingsServicePort,
+} from "../services/settings-service";
+import {
+  DiagnosticService,
+  type DiagnosticPreparation,
+  type DiagnosticServicePort,
+} from "../services/diagnostic-service";
+import type { AppSettings, LatencyCalibration } from "@cybermuse/contracts";
 
 interface AudioSettingsPageProps {
   controllerFactory?: () => AudioInputControllerPort;
+  calibrationFactory?: () => LatencyCalibrationPort;
+  settingsService?: SettingsServicePort;
+  diagnosticService?: DiagnosticServicePort;
+  outputDeviceService?: AudioOutputDeviceServicePort;
 }
+
+const defaultSettingsService = new SettingsService();
+const defaultDiagnosticService = new DiagnosticService();
+const defaultOutputDeviceService = new AudioOutputDeviceService();
 
 interface StatusPresentation {
   eyebrow: string;
@@ -114,13 +152,53 @@ function defaultControllerFactory(): AudioInputControllerPort {
   return new AudioInputController();
 }
 
+function defaultCalibrationFactory(): LatencyCalibrationPort {
+  return new LatencyCalibrationController();
+}
+
+function applyDisplayPreferences(settings: AppSettings): void {
+  document.documentElement.dataset.theme = settings.themePreference;
+  document.documentElement.dataset.motion = settings.motionPreference;
+}
+
 export function AudioSettingsPage({
   controllerFactory = defaultControllerFactory,
+  calibrationFactory = defaultCalibrationFactory,
+  settingsService = defaultSettingsService,
+  diagnosticService = defaultDiagnosticService,
+  outputDeviceService = defaultOutputDeviceService,
 }: AudioSettingsPageProps) {
   const [controller] = useState<AudioInputControllerPort>(() =>
     controllerFactory(),
   );
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
+  const [calibration] = useState<LatencyCalibrationPort>(() =>
+    calibrationFactory(),
+  );
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const settingsRef = useRef<AppSettings | null>(null);
+  const settingsQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const [settingsStatus, setSettingsStatus] = useState<
+    "loading" | "ready" | "recovered" | "saving" | "error"
+  >("loading");
+  const [calibrationStatus, setCalibrationStatus] = useState<
+    "idle" | "measuring" | CalibrationAnalysis["status"] | "saved" | "error"
+  >("idle");
+  const [manualLatencyMs, setManualLatencyMs] = useState("0");
+  const [deviceRestoreStatus, setDeviceRestoreStatus] = useState<
+    "idle" | "restored" | "fallback" | "manual"
+  >("idle");
+  const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
+  const [selectedOutputDeviceId, setSelectedOutputDeviceId] =
+    useState("default");
+  const [outputRestoreStatus, setOutputRestoreStatus] = useState<
+    "idle" | "restored" | "fallback" | "manual"
+  >("idle");
+  const [diagnosticPreparation, setDiagnosticPreparation] =
+    useState<DiagnosticPreparation | null>(null);
+  const [diagnosticStatus, setDiagnosticStatus] = useState<
+    "idle" | "preparing" | "saving" | "saved" | "cancelled" | "error"
+  >("idle");
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -129,6 +207,330 @@ export function AudioSettingsPage({
       void controller.dispose();
     };
   }, [controller]);
+
+  useEffect(() => {
+    let active = true;
+    void settingsService
+      .load()
+      .then(({ settings: loaded, recovered }) => {
+        if (!active) return;
+        settingsRef.current = loaded;
+        setSettings(loaded);
+        setSettingsStatus(recovered ? "recovered" : "ready");
+        applyDisplayPreferences(loaded);
+      })
+      .catch(() => {
+        if (active) setSettingsStatus("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [settingsService]);
+
+  const updateSettings = useCallback(
+    async (patch: AppSettingsPatch) => {
+      let result: AppSettings | null = null;
+      const update = async () => {
+        const current = settingsRef.current;
+        if (current === null) return;
+        setSettingsStatus("saving");
+        try {
+          const updated = await settingsService.update(patch, current.revision);
+          settingsRef.current = updated;
+          setSettings(updated);
+          setSettingsStatus("ready");
+          applyDisplayPreferences(updated);
+          result = updated;
+        } catch {
+          setSettingsStatus("error");
+        }
+      };
+      const queued = settingsQueueRef.current.then(update, update);
+      settingsQueueRef.current = queued;
+      await queued;
+      return result;
+    },
+    [settingsService],
+  );
+
+  const persistDevicePair = useCallback(
+    async (
+      inputDevice = controller
+        .getSnapshot()
+        .devices.find(
+          (device) =>
+            device.deviceId === controller.getSnapshot().selectedDeviceId,
+        ),
+      outputDevice = outputDevices.find(
+        (device) => device.deviceId === selectedOutputDeviceId,
+      ),
+    ) => {
+      const selectedInputId = controller.getSnapshot().selectedDeviceId;
+      if (selectedInputId.length === 0 || settingsRef.current === null) return;
+      const [inputDeviceFingerprint, outputDeviceFingerprint] =
+        await Promise.all([
+          fingerprintAudioDevice(
+            "audioinput",
+            inputDevice ?? { deviceId: selectedInputId, groupId: "" },
+          ),
+          fingerprintAudioDevice(
+            "audiooutput",
+            outputDevice ?? { deviceId: "default", groupId: "" },
+          ),
+        ]);
+      await updateSettings({
+        inputDeviceFingerprint,
+        outputDeviceFingerprint,
+      });
+    },
+    [controller, outputDevices, selectedOutputDeviceId, updateSettings],
+  );
+
+  const requestPermission = async () => {
+    await controller.requestPermission();
+    const current = controller.getSnapshot();
+    if (current.status !== "ready") return;
+    const currentSettings = settingsRef.current;
+    if (currentSettings === null) return;
+    let selectedInput = current.devices.find(
+      (device) => device.deviceId === current.selectedDeviceId,
+    );
+    if (currentSettings.inputDeviceFingerprint !== null) {
+      const preferred = await findInputDeviceByFingerprint(
+        current.devices,
+        currentSettings.inputDeviceFingerprint,
+      );
+      if (preferred === null) {
+        const fallback = current.devices.find((device) => device.isDefault);
+        if (
+          fallback !== undefined &&
+          fallback.deviceId !== current.selectedDeviceId
+        ) {
+          await controller.switchDevice(fallback.deviceId);
+        }
+        selectedInput = fallback;
+        setDeviceRestoreStatus("fallback");
+      } else {
+        if (preferred.deviceId !== current.selectedDeviceId) {
+          await controller.switchDevice(preferred.deviceId);
+        }
+        selectedInput = preferred;
+        setDeviceRestoreStatus("restored");
+      }
+    }
+
+    const listedOutputs = await outputDeviceService.list();
+    setOutputDevices(listedOutputs);
+    let selectedOutput = listedOutputs.find((device) => device.isDefault);
+    if (currentSettings.outputDeviceFingerprint !== null) {
+      const preferredOutput = await findAudioDeviceByFingerprint(
+        "audiooutput",
+        listedOutputs,
+        currentSettings.outputDeviceFingerprint,
+      );
+      if (preferredOutput === null) {
+        setOutputRestoreStatus("fallback");
+      } else {
+        selectedOutput = preferredOutput;
+        setOutputRestoreStatus("restored");
+      }
+    }
+    if (selectedOutput !== undefined) {
+      setSelectedOutputDeviceId(selectedOutput.deviceId);
+    }
+    await persistDevicePair(selectedInput, selectedOutput);
+  };
+
+  useEffect(() => {
+    if (snapshot.status !== "ready") return;
+    return outputDeviceService.subscribe(() => {
+      void (async () => {
+        const listedOutputs = await outputDeviceService.list();
+        const currentSettings = settingsRef.current;
+        if (currentSettings === null) return;
+        const preferred =
+          currentSettings.outputDeviceFingerprint === null
+            ? null
+            : await findAudioDeviceByFingerprint(
+                "audiooutput",
+                listedOutputs,
+                currentSettings.outputDeviceFingerprint,
+              );
+        const selected =
+          preferred ?? listedOutputs.find((device) => device.isDefault);
+        setOutputDevices(listedOutputs);
+        if (selected !== undefined) {
+          setSelectedOutputDeviceId(selected.deviceId);
+          setOutputRestoreStatus(preferred === null ? "fallback" : "restored");
+          await persistDevicePair(undefined, selected);
+        }
+      })();
+    });
+  }, [outputDeviceService, persistDevicePair, snapshot.status]);
+
+  const switchOutputDevice = async (deviceId: string) => {
+    const selected = outputDevices.find(
+      (device) => device.deviceId === deviceId,
+    );
+    if (selected === undefined) return;
+    setSelectedOutputDeviceId(deviceId);
+    setOutputRestoreStatus("manual");
+    await persistDevicePair(undefined, selected);
+  };
+
+  const switchDevice = async (deviceId: string) => {
+    await controller.switchDevice(deviceId);
+    if (controller.getSnapshot().status === "ready") {
+      setDeviceRestoreStatus("manual");
+      await persistDevicePair();
+    }
+  };
+
+  /*
+   * Device IDs stay in memory only. Persisting a pair always hashes the current
+   * input and output identities first, so a system-default device change makes
+   * the prior calibration ineligible without exposing either raw identifier.
+   */
+
+  const saveCalibration = async (
+    latencyMs: number,
+    source: "measured" | "manual",
+    confidence: number | null,
+    sampleRateHz: number,
+  ) => {
+    if (settings === null || snapshot.selectedDeviceId.length === 0) return;
+    const inputDevice = snapshot.devices.find(
+      (device) => device.deviceId === snapshot.selectedDeviceId,
+    );
+    const outputDevice = outputDevices.find(
+      (device) => device.deviceId === selectedOutputDeviceId,
+    );
+    const [inputDeviceFingerprint, outputDeviceFingerprint] = await Promise.all(
+      [
+        fingerprintAudioDevice(
+          "audioinput",
+          inputDevice ?? { deviceId: snapshot.selectedDeviceId, groupId: "" },
+        ),
+        fingerprintAudioDevice(
+          "audiooutput",
+          outputDevice ?? { deviceId: "default", groupId: "" },
+        ),
+      ],
+    );
+    const next: LatencyCalibration = {
+      calibrationId: globalThis.crypto.randomUUID(),
+      inputDeviceFingerprint,
+      outputDeviceFingerprint,
+      sampleRateHz,
+      latencyMs,
+      source,
+      confidence,
+      measuredAt: new Date().toISOString(),
+    };
+    const latencyCalibrations = settings.latencyCalibrations.filter(
+      (candidate) =>
+        candidate.inputDeviceFingerprint !== inputDeviceFingerprint ||
+        candidate.outputDeviceFingerprint !== outputDeviceFingerprint,
+    );
+    latencyCalibrations.push(next);
+    const updated = await updateSettings({
+      inputDeviceFingerprint,
+      outputDeviceFingerprint,
+      latencyCalibrations,
+    });
+    setCalibrationStatus(updated === null ? "error" : "saved");
+  };
+
+  const measureLatency = async () => {
+    setCalibrationStatus("measuring");
+    const result = await calibration.measure(
+      snapshot.selectedDeviceId,
+      selectedOutputDeviceId,
+    );
+    if (result.status === "measured") {
+      await saveCalibration(
+        result.latencyMs,
+        "measured",
+        result.confidence,
+        result.sampleRateHz,
+      );
+    } else {
+      setCalibrationStatus(result.status);
+    }
+  };
+
+  const saveManualLatency = async () => {
+    const value = Number(manualLatencyMs);
+    if (
+      !Number.isSafeInteger(value) ||
+      value < -250 ||
+      value > 500 ||
+      snapshot.sampleRateHz === null
+    ) {
+      setCalibrationStatus("error");
+      return;
+    }
+    await saveCalibration(value, "manual", null, snapshot.sampleRateHz);
+  };
+
+  const clearCurrentCalibration = async () => {
+    if (
+      settings === null ||
+      settings.inputDeviceFingerprint === null ||
+      settings.outputDeviceFingerprint === null
+    ) {
+      return;
+    }
+    const updated = await updateSettings({
+      latencyCalibrations: settings.latencyCalibrations.filter(
+        (candidate) =>
+          candidate.inputDeviceFingerprint !==
+            settings.inputDeviceFingerprint ||
+          candidate.outputDeviceFingerprint !==
+            settings.outputDeviceFingerprint,
+      ),
+    });
+    setCalibrationStatus(updated === null ? "error" : "idle");
+  };
+
+  const prepareDiagnostic = async () => {
+    setDiagnosticStatus("preparing");
+    try {
+      const preparation = await diagnosticService.prepare({
+        inputState: snapshot.status,
+        ...(snapshot.sampleRateHz === null
+          ? {}
+          : { sampleRateHz: snapshot.sampleRateHz }),
+        ...(snapshot.channels === null ? {} : { channels: snapshot.channels }),
+        validObservationCount: snapshot.latency.validObservationCount,
+        ...(snapshot.latency.p95Ms === null
+          ? {}
+          : { latencyP95Ms: snapshot.latency.p95Ms }),
+        ...(snapshot.latency.p99Ms === null
+          ? {}
+          : { latencyP99Ms: snapshot.latency.p99Ms }),
+        errorCodes: snapshot.error === null ? [] : [snapshot.error.code],
+      });
+      setDiagnosticPreparation(preparation);
+      setDiagnosticStatus("idle");
+    } catch {
+      setDiagnosticStatus("error");
+    }
+  };
+
+  const saveDiagnostic = async () => {
+    if (diagnosticPreparation === null) return;
+    setDiagnosticStatus("saving");
+    try {
+      const result = await diagnosticService.save(
+        diagnosticPreparation.consentToken,
+      );
+      setDiagnosticPreparation(null);
+      setDiagnosticStatus(result.saved ? "saved" : "cancelled");
+    } catch {
+      setDiagnosticStatus("error");
+    }
+  };
 
   const currentPresentation = presentation(snapshot);
   const levelPercent = Math.max(
@@ -147,6 +549,14 @@ export function AudioSettingsPage({
     snapshot.error?.code === "AUDIO_CONTEXT_SUSPENDED" &&
     snapshot.contextState !== "closed" &&
     snapshot.contextState !== "unavailable";
+  const currentCalibration =
+    settings?.latencyCalibrations.find(
+      (candidate) =>
+        candidate.inputDeviceFingerprint === settings.inputDeviceFingerprint &&
+        candidate.outputDeviceFingerprint ===
+          settings.outputDeviceFingerprint &&
+        candidate.sampleRateHz === snapshot.sampleRateHz,
+    ) ?? null;
 
   return (
     <main className="page audio-page" id="main-content">
@@ -177,7 +587,7 @@ export function AudioSettingsPage({
           <Button
             variant="primary"
             aria-describedby="permission-explanation"
-            onClick={() => void controller.requestPermission()}
+            onClick={() => void requestPermission()}
           >
             请求麦克风权限
           </Button>
@@ -203,8 +613,32 @@ export function AudioSettingsPage({
           </Button>
         ) : null}
         <span className="milestone-note" id="permission-explanation">
-          设备选择仅保留在当前页面会话；切换或离开时停止旧输入资源。
+          设备只保存不可逆 fingerprint；切换或离开时停止旧输入资源。
         </span>
+        {deviceRestoreStatus === "fallback" ? (
+          <PageState
+            code="AUDIO_SAVED_DEVICE_UNAVAILABLE"
+            detail="已保存的输入设备当前不存在，现已回退到系统默认输入。连接原设备后可重新选择并保存。"
+            kind="recoverable_error"
+            title="已回退到系统默认输入"
+          />
+        ) : deviceRestoreStatus === "restored" ? (
+          <p className="milestone-note" role="status">
+            [RESTORED] 已恢复保存的输入设备。
+          </p>
+        ) : null}
+        {outputRestoreStatus === "fallback" ? (
+          <PageState
+            code="AUDIO_SAVED_OUTPUT_UNAVAILABLE"
+            detail="已保存的输出设备当前不存在，现已回退到系统默认输出；旧设备组合的校准不会应用。"
+            kind="recoverable_error"
+            title="已回退到系统默认输出"
+          />
+        ) : outputRestoreStatus === "restored" ? (
+          <p className="milestone-note" role="status">
+            [RESTORED] 已恢复保存的输出设备。
+          </p>
+        ) : null}
       </section>
 
       <section
@@ -220,9 +654,7 @@ export function AudioSettingsPage({
               snapshot.devices.length === 0 || snapshot.status === "requesting"
             }
             value={snapshot.selectedDeviceId}
-            onChange={(event) =>
-              void controller.switchDevice(event.currentTarget.value)
-            }
+            onChange={(event) => void switchDevice(event.currentTarget.value)}
           >
             {snapshot.devices.length === 0 ? (
               <option value="default">等待权限</option>
@@ -236,6 +668,31 @@ export function AudioSettingsPage({
           </select>
           <span>
             使用设备原生采样率；关闭回声消除、降噪和自动增益以保持检测可解释。
+          </span>
+        </div>
+
+        <div className="setting-row">
+          <label htmlFor="output-device">输出设备</label>
+          <select
+            id="output-device"
+            disabled={outputDevices.length === 0 || snapshot.status !== "ready"}
+            value={selectedOutputDeviceId}
+            onChange={(event) =>
+              void switchOutputDevice(event.currentTarget.value)
+            }
+          >
+            {outputDevices.length === 0 ? (
+              <option value="default">等待权限</option>
+            ) : (
+              outputDevices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label}
+                </option>
+              ))
+            )}
+          </select>
+          <span>
+            Practice 与延迟校准使用同一输出；只持久化不可逆 fingerprint。
           </span>
         </div>
 
@@ -260,6 +717,230 @@ export function AudioSettingsPage({
           kind={currentPresentation.stateKind}
           title={currentPresentation.stateTitle}
         />
+
+        <div className="settings-persistence" aria-label="持久化应用设置">
+          <div className="setting-row">
+            <label htmlFor="playback-volume">伴奏音量</label>
+            <input
+              id="playback-volume"
+              disabled={settings === null || settingsStatus === "saving"}
+              max="1"
+              min="0"
+              step="0.05"
+              type="range"
+              value={settings?.volume ?? 1}
+              onChange={(event) =>
+                void updateSettings({
+                  volume: Number(event.currentTarget.value),
+                })
+              }
+            />
+            <span>{Math.round((settings?.volume ?? 1) * 100)}%</span>
+          </div>
+          <div className="setting-row">
+            <label htmlFor="theme-preference">主题</label>
+            <select
+              id="theme-preference"
+              disabled={settings === null || settingsStatus === "saving"}
+              value={settings?.themePreference ?? "system"}
+              onChange={(event) =>
+                void updateSettings({
+                  themePreference: event.currentTarget.value as
+                    "system" | "dark" | "light",
+                })
+              }
+            >
+              <option value="system">跟随 Windows</option>
+              <option value="dark">深色</option>
+              <option value="light">浅色</option>
+            </select>
+            <span>深色与浅色使用同一组语义 token。</span>
+          </div>
+          <div className="setting-row">
+            <label htmlFor="motion-preference">动效</label>
+            <select
+              id="motion-preference"
+              disabled={settings === null || settingsStatus === "saving"}
+              value={settings?.motionPreference ?? "system"}
+              onChange={(event) =>
+                void updateSettings({
+                  motionPreference: event.currentTarget.value as
+                    "system" | "reduce" | "full",
+                })
+              }
+            >
+              <option value="system">跟随 Windows</option>
+              <option value="reduce">减少动效</option>
+              <option value="full">完整动效</option>
+            </select>
+            <span>动效偏好不会改变 AudioContext 时序。</span>
+          </div>
+          <div className="settings-status" role="status">
+            {settingsStatus === "loading"
+              ? "[LOADING] 正在读取设置"
+              : settingsStatus === "saving"
+                ? "[LOADING] 正在原子保存"
+                : settingsStatus === "recovered"
+                  ? "[ERROR] 原设置已损坏，已恢复安全默认值"
+                  : settingsStatus === "error"
+                    ? "[ERROR] 设置未保存；当前页面值不覆盖最后有效版本"
+                    : `[SAVED] SETTINGS REV ${settings?.revision ?? 0}`}
+          </div>
+          {settingsStatus === "recovered" || settingsStatus === "error" ? (
+            <Button
+              onClick={() =>
+                void settingsService.clear().then((cleared) => {
+                  settingsRef.current = cleared;
+                  setSettings(cleared);
+                  setSettingsStatus("ready");
+                  applyDisplayPreferences(cleared);
+                })
+              }
+            >
+              清除并恢复默认设置
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="latency-calibration" aria-labelledby="latency-heading">
+          <span className="technical-label">TC-LAT-001 / DEVICE PAIR</span>
+          <h2 id="latency-heading">麦克风延迟校准</h2>
+          <p>
+            将播放三次短促校准声。建议戴耳机并把麦克风靠近耳机；测量只分析有界包络，不保存
+            PCM。
+          </p>
+          {currentCalibration === null ? (
+            <PageState
+              detail="当前输入或系统默认输出没有已确认补偿。切换任一设备后必须重新测量或手动设置。"
+              kind="permission_required"
+              title="当前设备组合尚未校准"
+            />
+          ) : (
+            <PageState
+              detail={`${currentCalibration.source === "measured" ? "回环测量" : "手动设置"} · ${currentCalibration.confidence === null ? "无自动置信度" : `置信度 ${currentCalibration.confidence.toFixed(2)}`}`}
+              kind="ready"
+              title={`已保存 ${currentCalibration.latencyMs} ms 输入补偿`}
+            />
+          )}
+          <div className="primary-actions">
+            <Button
+              disabled={
+                snapshot.status !== "ready" ||
+                calibrationStatus === "measuring" ||
+                settings === null
+              }
+              onClick={() => void measureLatency()}
+            >
+              {calibrationStatus === "measuring"
+                ? "[LOADING] 正在播放并测量"
+                : "播放校准声并测量"}
+            </Button>
+            <label>
+              手动补偿（ms）
+              <input
+                max="500"
+                min="-250"
+                step="1"
+                type="number"
+                value={manualLatencyMs}
+                onChange={(event) =>
+                  setManualLatencyMs(event.currentTarget.value)
+                }
+              />
+            </label>
+            <Button
+              disabled={settings === null || snapshot.status !== "ready"}
+              onClick={() => void saveManualLatency()}
+            >
+              保存手动补偿
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={currentCalibration === null}
+              onClick={() => void clearCurrentCalibration()}
+            >
+              清除当前校准
+            </Button>
+          </div>
+          <p className="milestone-note" role="status">
+            {calibrationStatus === "signal_insufficient"
+              ? "[ERROR] 校准信号不足，没有保存结果；靠近耳机后重试。"
+              : calibrationStatus === "ambiguous"
+                ? "[ERROR] 检测到多个相近峰值，没有保存结果；降低环境回声后重试。"
+                : calibrationStatus === "device_unavailable"
+                  ? "[ERROR] 无法路由到所选输出设备；重新选择输出后重试。"
+                  : calibrationStatus === "saved"
+                    ? "[SAVED] 当前设备组合校准已原子保存。"
+                    : calibrationStatus === "error"
+                      ? "[ERROR] 请输入 -250–500 的整数毫秒，并先启用当前设备。"
+                      : "校准结果按输入/输出 fingerprint 与采样率确认；任一变化都不会沿用旧值。"}
+          </p>
+        </div>
+
+        <div className="diagnostic-export" aria-labelledby="diagnostic-heading">
+          <span className="technical-label">
+            LOCAL DIAGNOSTICS / PREVIEW FIRST
+          </span>
+          <h2 id="diagnostic-heading">诊断与日志</h2>
+          {diagnosticPreparation === null ? (
+            <Button
+              disabled={diagnosticStatus === "preparing"}
+              onClick={() => void prepareDiagnostic()}
+            >
+              {diagnosticStatus === "preparing"
+                ? "[LOADING] 正在执行脱敏扫描"
+                : "预览诊断包内容"}
+            </Button>
+          ) : (
+            <div className="diagnostic-preview">
+              <h3>将包含</h3>
+              <ul>
+                {diagnosticPreparation.preview.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <h3>明确排除</h3>
+              <ul>
+                {diagnosticPreparation.preview.excluded.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <p>
+                估算 {diagnosticPreparation.preview.estimatedSizeBytes} bytes ·
+                脱敏事件 {diagnosticPreparation.preview.eventCount} 项
+              </p>
+              <Button
+                disabled={diagnosticStatus === "saving"}
+                onClick={() => void saveDiagnostic()}
+              >
+                {diagnosticStatus === "saving"
+                  ? "[LOADING] 等待保存位置"
+                  : "选择位置并保存"}
+              </Button>
+              <Button
+                variant="quiet"
+                onClick={() => setDiagnosticPreparation(null)}
+              >
+                取消
+              </Button>
+            </div>
+          )}
+          <Button
+            variant="quiet"
+            onClick={() => void diagnosticService.clearLogs()}
+          >
+            清除本地诊断日志
+          </Button>
+          <p className="milestone-note" role="status">
+            {diagnosticStatus === "saved"
+              ? "[SAVED] 诊断包已保存到你选择的位置。"
+              : diagnosticStatus === "cancelled"
+                ? "已取消，没有创建诊断文件。"
+                : diagnosticStatus === "error"
+                  ? "[ERROR] 诊断包未保存，现有本地数据未改变。"
+                  : "日志最多保留 14 天 / 200 项；没有自动上传。"}
+          </p>
+        </div>
       </section>
 
       <section

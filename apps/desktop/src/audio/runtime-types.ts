@@ -19,6 +19,7 @@ export interface AudioRuntimeError {
 
 export interface AudioInputDevice {
   deviceId: string;
+  groupId: string;
   label: string;
   isDefault: boolean;
 }

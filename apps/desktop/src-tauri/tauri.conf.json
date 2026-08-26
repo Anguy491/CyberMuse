@@ -6,6 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "pnpm --dir ../.. release:assets",
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
@@ -26,13 +27,34 @@
     ]
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "CyberMuse",
+    "category": "Education",
+    "shortDescription": "Local-first personal singing trainer",
+    "longDescription": "CyberMuse is a Windows-first, local-first personal singing trainer with explainable pitch feedback.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
     "resources": {
       "../../../artifacts/m4/tauri-resources/analyzer/": "analyzer",
       "../../../artifacts/m4/tauri-resources/spleeter-engine/": "spleeter-engine",
       "../../../artifacts/m4/tauri-resources/ffmpeg/": "ffmpeg",
-      "../../../artifacts/m4/tauri-resources/runtime-manifest.json": "runtime-manifest.json"
+      "../../../artifacts/m4/tauri-resources/runtime-manifest.json": "runtime-manifest.json",
+      "../../../artifacts/m6/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
+      "../../../artifacts/m6/cybermuse-0.1.0.spdx.json": "cybermuse-0.1.0.spdx.json",
+      "../../../artifacts/m6/model-manifest.json": "model-manifest.json"
+    },
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "nsis": {
+        "compression": "zlib",
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "languages": ["SimpChinese", "English"]
+      }
     }
   }
 }

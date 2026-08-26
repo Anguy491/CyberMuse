@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 
+import type {
+  AppSettings,
+  PracticeSession,
+  SessionLoopRegion,
+} from "@cybermuse/contracts";
 import type { SessionMetrics } from "@cybermuse/scoring";
 
 import { Button } from "../components/Button";
 import { PageState, type PageStateKind } from "../components/PageState";
+import {
+  AudioOutputDeviceService,
+  findAudioDeviceByFingerprint,
+  fingerprintAudioDevice,
+  type AudioOutputDeviceServicePort,
+} from "../audio/device-identity";
 import {
   PracticeController,
   type PracticeControllerPort,
@@ -11,12 +22,43 @@ import {
 } from "../practice/practice-controller";
 import type { PitchLaneData } from "../practice/pitch-lane-model";
 import type { PracticeAssets } from "../services/song-service";
+import {
+  PracticeSessionService,
+  type PracticeSessionServicePort,
+} from "../services/practice-session-service";
+import {
+  SettingsService,
+  type SettingsServicePort,
+} from "../services/settings-service";
+import {
+  DiagnosticService,
+  type DiagnosticPreparation,
+  type DiagnosticServicePort,
+} from "../services/diagnostic-service";
+import {
+  WindowCloseService,
+  type WindowCloseServicePort,
+} from "../services/window-close-service";
 
 interface PracticePageProps {
   controllerFactory?: () => PracticeControllerPort;
   assets?: PracticeAssets | null;
   songTitle?: string;
+  initialLoop?: SessionLoopRegion | null;
+  sessionService?: PracticeSessionServicePort;
+  settingsService?: SettingsServicePort;
+  diagnosticService?: DiagnosticServicePort;
+  windowCloseService?: WindowCloseServicePort;
+  outputDeviceService?: AudioOutputDeviceServicePort;
+  onSessionSaved?: (session: PracticeSession) => void;
+  onLeaveWithoutSession?: () => void;
 }
+
+const defaultSessionService = new PracticeSessionService();
+const defaultSettingsService = new SettingsService();
+const defaultDiagnosticService = new DiagnosticService();
+const defaultWindowCloseService = new WindowCloseService();
+const defaultOutputDeviceService = new AudioOutputDeviceService();
 
 const GRADE_LABELS = {
   perfect: "精准",
@@ -156,7 +198,7 @@ function micState(snapshot: PracticeControllerSnapshot): {
         kind: "ready",
         title: "麦克风与播放共享同一 AudioContext 时钟",
         detail:
-          "延迟语义为 latencySource=none、appliedLatencyMs=0，仅存在内存中。",
+          "当前设备身份与采样率已核对；只有完全匹配的校准才会进入评分时钟。",
       };
     case "permission_denied":
       return {
@@ -223,13 +265,39 @@ export function PracticePage({
   controllerFactory = defaultControllerFactory,
   assets = null,
   songTitle,
+  initialLoop = null,
+  sessionService = defaultSessionService,
+  settingsService = defaultSettingsService,
+  diagnosticService = defaultDiagnosticService,
+  windowCloseService = defaultWindowCloseService,
+  outputDeviceService = defaultOutputDeviceService,
+  onSessionSaved,
+  onLeaveWithoutSession,
 }: PracticePageProps) {
   const [controller] = useState<PracticeControllerPort>(() =>
     controllerFactory(),
   );
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
   const [laneWidth, setLaneWidth] = useState(1_000);
+  const [saveState, setSaveState] = useState<
+    "idle" | "choosing_empty" | "saving" | "failed"
+  >("idle");
+  const [saveErrorCode, setSaveErrorCode] = useState<string | null>(null);
+  const [diagnosticState, setDiagnosticState] = useState<
+    "idle" | "preparing" | "saved" | "cancelled" | "failed"
+  >("idle");
+  const [diagnosticPreparation, setDiagnosticPreparation] =
+    useState<DiagnosticPreparation | null>(null);
   const laneShellRef = useRef<HTMLElement>(null);
+  const pendingSessionRef = useRef<PracticeSession | null>(null);
+  const closeAfterDecisionRef = useRef(false);
+  const closeRequestInFlightRef = useRef(false);
+  const closeHandlerRef = useRef<() => void>(() => undefined);
+  const settingsRef = useRef<AppSettings | null>(null);
+  const outputFingerprintRef = useRef<string | null>(null);
+  const [audioRestoreStatus, setAudioRestoreStatus] = useState<
+    "idle" | "restored" | "fallback" | "uncalibrated"
+  >("idle");
 
   useEffect(() => {
     const unsubscribe = controller.subscribe(setSnapshot);
@@ -241,9 +309,129 @@ export function PracticePage({
 
   useEffect(() => {
     if (assets !== null && songTitle !== undefined) {
-      void controller.loadSong(assets, songTitle);
+      void (async () => {
+        let outputDeviceId = "default";
+        let volume = 0.65;
+        outputFingerprintRef.current = null;
+        let loadedSettings: AppSettings | null = null;
+        try {
+          const { settings } = await settingsService.load();
+          settingsRef.current = settings;
+          loadedSettings = settings;
+          volume = settings.volume;
+        } catch {
+          settingsRef.current = null;
+        }
+        try {
+          const outputs = await outputDeviceService.list();
+          const preferredOutput =
+            loadedSettings?.outputDeviceFingerprint == null
+              ? null
+              : await findAudioDeviceByFingerprint(
+                  "audiooutput",
+                  outputs,
+                  loadedSettings.outputDeviceFingerprint,
+                );
+          const selectedOutput =
+            preferredOutput ?? outputs.find((device) => device.isDefault);
+          if (selectedOutput !== undefined) {
+            outputDeviceId = selectedOutput.deviceId;
+            outputFingerprintRef.current = await fingerprintAudioDevice(
+              "audiooutput",
+              selectedOutput,
+            );
+          }
+          if (
+            loadedSettings?.outputDeviceFingerprint !== null &&
+            loadedSettings !== null &&
+            preferredOutput === null
+          ) {
+            setAudioRestoreStatus("fallback");
+          }
+        } catch {
+          outputFingerprintRef.current = null;
+        }
+        await controller.loadSong(assets, songTitle, outputDeviceId);
+        controller.setSessionContext({
+          inputDeviceFingerprint: null,
+          outputDeviceFingerprint: outputFingerprintRef.current,
+          appliedLatencyMs: 0,
+          latencySource: "none",
+        });
+        controller.setVolume(volume);
+        if (initialLoop !== null) {
+          controller.setLoopBoundary("start", initialLoop.startMs);
+          controller.setLoopBoundary("end", initialLoop.endMs);
+          await controller.enableLoop();
+        }
+      })();
     }
-  }, [assets, controller, songTitle]);
+  }, [
+    assets,
+    controller,
+    initialLoop,
+    outputDeviceService,
+    settingsService,
+    songTitle,
+  ]);
+
+  const startInput = async () => {
+    const loadedSettings = settingsRef.current;
+    const result = await controller.startInput(
+      loadedSettings?.inputDeviceFingerprint ?? null,
+    );
+    if (
+      result.inputDeviceFingerprint === null ||
+      result.sampleRateHz === null ||
+      outputFingerprintRef.current === null
+    ) {
+      controller.setSessionContext({
+        inputDeviceFingerprint: result.inputDeviceFingerprint,
+        outputDeviceFingerprint: outputFingerprintRef.current,
+        appliedLatencyMs: 0,
+        latencySource: "none",
+      });
+      return;
+    }
+    const calibration = loadedSettings?.latencyCalibrations.find(
+      (candidate) =>
+        candidate.inputDeviceFingerprint === result.inputDeviceFingerprint &&
+        candidate.outputDeviceFingerprint === outputFingerprintRef.current &&
+        candidate.sampleRateHz === result.sampleRateHz,
+    );
+    controller.setSessionContext({
+      inputDeviceFingerprint: result.inputDeviceFingerprint,
+      outputDeviceFingerprint: outputFingerprintRef.current,
+      appliedLatencyMs: calibration?.latencyMs ?? 0,
+      latencySource: calibration?.source ?? "none",
+    });
+    setAudioRestoreStatus(
+      result.restoreStatus === "fallback"
+        ? "fallback"
+        : calibration === undefined
+          ? "uncalibrated"
+          : "restored",
+    );
+    if (
+      loadedSettings !== null &&
+      (loadedSettings.inputDeviceFingerprint !==
+        result.inputDeviceFingerprint ||
+        loadedSettings.outputDeviceFingerprint !== outputFingerprintRef.current)
+    ) {
+      try {
+        settingsRef.current = await settingsService.update(
+          {
+            inputDeviceFingerprint: result.inputDeviceFingerprint,
+            outputDeviceFingerprint: outputFingerprintRef.current,
+          },
+          loadedSettings.revision,
+        );
+      } catch {
+        // Runtime identity and safe zero-latency fallback remain correct; the
+        // Settings page can reconcile an external revision conflict explicitly.
+      }
+    }
+  };
 
   useEffect(() => {
     const element = laneShellRef.current;
@@ -281,6 +469,124 @@ export function PracticePage({
     snapshot.playback.status !== "loading" &&
     snapshot.playback.status !== "fatal_error" &&
     snapshot.error?.code !== "PRACTICE_SESSION_LIMIT_REACHED";
+
+  const persistSession = async (session: PracticeSession): Promise<boolean> => {
+    setSaveState("saving");
+    setSaveErrorCode(null);
+    try {
+      await sessionService.save(session);
+    } catch (error) {
+      setSaveErrorCode(
+        error instanceof Error &&
+          "code" in error &&
+          typeof error.code === "string"
+          ? error.code
+          : "SESSION_STORE_UNAVAILABLE",
+      );
+      setSaveState("failed");
+      return false;
+    }
+    pendingSessionRef.current = null;
+    if (closeAfterDecisionRef.current) {
+      closeAfterDecisionRef.current = false;
+      try {
+        await windowCloseService.destroy();
+      } catch {
+        onSessionSaved?.(session);
+      }
+    } else {
+      onSessionSaved?.(session);
+    }
+    return true;
+  };
+
+  const finishPractice = async (retainEmpty = false, closeWindow = false) => {
+    if (closeWindow) closeAfterDecisionRef.current = true;
+    controller.pause();
+    const session = pendingSessionRef.current ?? controller.finalizeSession();
+    if (session === null) {
+      if (closeAfterDecisionRef.current) {
+        closeAfterDecisionRef.current = false;
+        await windowCloseService.destroy();
+      }
+      return;
+    }
+    pendingSessionRef.current = session;
+    if (session.metrics.validFrameCount === 0 && !retainEmpty) {
+      setSaveState("choosing_empty");
+      return;
+    }
+    await persistSession(session);
+  };
+
+  const leaveWithoutSession = async () => {
+    pendingSessionRef.current = null;
+    if (closeAfterDecisionRef.current) {
+      closeAfterDecisionRef.current = false;
+      await windowCloseService.destroy();
+    } else {
+      onLeaveWithoutSession?.();
+    }
+  };
+
+  useEffect(() => {
+    closeHandlerRef.current = () => {
+      if (closeRequestInFlightRef.current) return;
+      closeRequestInFlightRef.current = true;
+      void finishPractice(false, true);
+    };
+  });
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    void windowCloseService
+      .subscribe((request) => {
+        request.preventDefault();
+        closeHandlerRef.current();
+      })
+      .then((value) => {
+        if (active) unsubscribe = value;
+        else value();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [windowCloseService]);
+
+  const exportDiagnostic = async () => {
+    setDiagnosticState("preparing");
+    try {
+      const preparation = await diagnosticService.prepare({
+        inputState: snapshot.micStatus,
+        validObservationCount: snapshot.inputObservationCount,
+        errorCodes: [
+          ...(snapshot.error === null ? [] : [snapshot.error.code]),
+          ...(snapshot.micError === null ? [] : [snapshot.micError.code]),
+          ...(saveErrorCode === null ? [] : [saveErrorCode]),
+        ],
+      });
+      setDiagnosticPreparation(preparation);
+      setDiagnosticState("idle");
+    } catch {
+      setDiagnosticState("failed");
+    }
+  };
+
+  const saveDiagnostic = async () => {
+    if (diagnosticPreparation === null) return;
+    setDiagnosticState("preparing");
+    try {
+      const result = await diagnosticService.save(
+        diagnosticPreparation.consentToken,
+      );
+      setDiagnosticPreparation(null);
+      setDiagnosticState(result.saved ? "saved" : "cancelled");
+    } catch {
+      setDiagnosticState("failed");
+    }
+  };
 
   return (
     <main className="page practice-page" id="main-content">
@@ -424,7 +730,82 @@ export function PracticePage({
             {formatTime(snapshot.playback.positionMs)} /{" "}
             {formatTime(snapshot.playback.durationMs)}
           </span>
+          <Button
+            disabled={!loaded || saveState === "saving"}
+            onClick={() => void finishPractice()}
+          >
+            {saveState === "saving" ? "[LOADING] 保存会话" : "结束练习并保存"}
+          </Button>
         </div>
+
+        {saveState === "choosing_empty" ? (
+          <div
+            className="practice-save-panel"
+            role="group"
+            aria-label="空会话处理"
+          >
+            <PageState
+              detail="本次没有有效匹配帧，因此不会显示虚假分数。可以保留空会话作为练习记录，或直接丢弃。"
+              kind="recoverable_error"
+              title="没有可评分的观察"
+            />
+            <Button onClick={() => void finishPractice(true)}>
+              保留空会话
+            </Button>
+            <Button variant="quiet" onClick={() => void leaveWithoutSession()}>
+              丢弃并返回歌曲库
+            </Button>
+          </div>
+        ) : null}
+
+        {saveState === "failed" ? (
+          <div className="practice-save-panel">
+            <PageState
+              code={saveErrorCode ?? "SESSION_STORE_UNAVAILABLE"}
+              detail="当前内存会话仍在离开前保留。可以重试保存、先导出诊断，或确认放弃后返回歌曲库。"
+              kind="recoverable_error"
+              title="练习会话尚未保存"
+            />
+            <Button onClick={() => void finishPractice(true)}>重试保存</Button>
+            <Button onClick={() => void exportDiagnostic()}>导出诊断</Button>
+            <Button variant="quiet" onClick={() => void leaveWithoutSession()}>
+              放弃并返回歌曲库
+            </Button>
+            <span className="milestone-note" role="status">
+              {diagnosticState === "preparing"
+                ? "[LOADING] 正在准备诊断预览"
+                : diagnosticState === "saved"
+                  ? "[SAVED] 诊断包已保存"
+                  : diagnosticState === "cancelled"
+                    ? "已取消诊断导出，没有创建文件"
+                    : diagnosticState === "failed"
+                      ? "[ERROR] 诊断导出失败"
+                      : "诊断包不包含音频、完整路径或音高全轨"}
+            </span>
+            {diagnosticPreparation === null ? null : (
+              <div className="diagnostic-preview">
+                <strong>保存前预览</strong>
+                <ul>
+                  {diagnosticPreparation.preview.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <span>
+                  明确排除：{diagnosticPreparation.preview.excluded.join("、")}
+                </span>
+                <Button onClick={() => void saveDiagnostic()}>
+                  选择位置并保存
+                </Button>
+                <Button
+                  variant="quiet"
+                  onClick={() => setDiagnosticPreparation(null)}
+                >
+                  取消
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
         <label className="seek-control">
           <span>播放位置</span>
           <input
@@ -451,10 +832,7 @@ export function PracticePage({
             title={currentMicState.title}
           />
           {snapshot.micStatus === "not_requested" ? (
-            <Button
-              disabled={!loaded}
-              onClick={() => void controller.startInput()}
-            >
+            <Button disabled={!loaded} onClick={() => void startInput()}>
               开始录唱
             </Button>
           ) : null}
@@ -463,13 +841,19 @@ export function PracticePage({
           ) : null}
           {snapshot.micStatus === "permission_denied" ||
           snapshot.micStatus === "recoverable_error" ? (
-            <Button onClick={() => void controller.retryInput()}>
+            <Button onClick={() => void startInput()}>
               检查设备后重试录唱
             </Button>
           ) : null}
           {snapshot.micStatus === "ready" ? (
             <span className="milestone-note">
-              录唱已开启 · 当前页面内存会话 · 不持久化
+              {audioRestoreStatus === "restored"
+                ? "[RESTORED] 已应用当前设备与采样率的已确认校准"
+                : audioRestoreStatus === "fallback"
+                  ? "[FALLBACK] 已保存设备不可用；当前输入/输出使用零补偿"
+                  : audioRestoreStatus === "uncalibrated"
+                    ? "[CALIBRATION REQUIRED] 当前设备或采样率没有可用校准，使用零补偿"
+                    : "录唱已开启 · 结束练习时原子保存 session"}
             </span>
           ) : null}
         </div>
@@ -594,9 +978,9 @@ export function PracticePage({
           SOURCES {snapshot.playback.resources.activeSources} ACTIVE /{" "}
           {snapshot.playback.resources.createdSources} CREATED
         </span>
-        <span>LATENCY SOURCE NONE · APPLIED 0 MS</span>
+        <span>LATENCY APPLIED IN SCORING</span>
         <span>ASSET URL SESSION ONLY</span>
-        <span>SESSION MEMORY ONLY · LEAVE TO CLEAR</span>
+        <span>SESSION MEMORY UNTIL SAVE OR DISCARD</span>
       </section>
     </main>
   );

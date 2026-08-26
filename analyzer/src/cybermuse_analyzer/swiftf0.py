@@ -98,6 +98,7 @@ def _convert_to_mono_16k(
             "f32le",
             str(destination),
         ],
+        state_directory=request.staging_path / "work" / "process-state",
         cancel=cancel,
         stage="pitch",
         timeout_seconds=300,

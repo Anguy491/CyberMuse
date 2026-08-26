@@ -1,11 +1,26 @@
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { AppSettings } from "@cybermuse/contracts";
 
 import type {
   AudioInputControllerPort,
   AudioInputSnapshot,
 } from "../audio/runtime-types";
+import {
+  fingerprintAudioDevice,
+  type AudioOutputDeviceServicePort,
+} from "../audio/device-identity";
+import {
+  fingerprintDeviceId,
+  type SettingsServicePort,
+} from "../services/settings-service";
 import { AudioSettingsPage } from "./AudioSettingsPage";
 
 const baseSnapshot: AudioInputSnapshot = {
@@ -38,7 +53,9 @@ const baseSnapshot: AudioInputSnapshot = {
 
 class FakeController implements AudioInputControllerPort {
   readonly requestPermission = vi.fn(async () => undefined);
-  readonly switchDevice = vi.fn(async () => undefined);
+  readonly switchDevice = vi.fn(async (deviceId: string) => {
+    this.emit({ ...this.snapshot, selectedDeviceId: deviceId });
+  });
   readonly retry = vi.fn(async () => undefined);
   readonly resume = vi.fn(async () => undefined);
   readonly dispose = vi.fn(async () => undefined);
@@ -60,6 +77,37 @@ class FakeController implements AudioInputControllerPort {
     this.snapshot = snapshot;
     this.listener?.(snapshot);
   }
+}
+
+function settingsWith(patch: Partial<AppSettings> = {}): AppSettings {
+  return {
+    schemaVersion: 1,
+    revision: 0,
+    inputDeviceFingerprint: null,
+    outputDeviceFingerprint: null,
+    volume: 0.65,
+    themePreference: "system",
+    motionPreference: "system",
+    modelCacheSelection: [],
+    latencyCalibrations: [],
+    ...patch,
+  };
+}
+
+function fakeSettingsService(initial: AppSettings): SettingsServicePort & {
+  update: ReturnType<typeof vi.fn>;
+} {
+  let current = initial;
+  const update = vi.fn(async (patch, expectedRevision) => {
+    if (expectedRevision !== current.revision) throw new Error("conflict");
+    current = { ...current, ...patch, revision: current.revision + 1 };
+    return current;
+  });
+  return {
+    load: vi.fn(async () => ({ settings: current, recovered: false })),
+    update,
+    clear: vi.fn(async () => settingsWith()),
+  };
 }
 
 describe("FR-010 Audio Settings", () => {
@@ -114,8 +162,18 @@ describe("FR-010 Audio Settings", () => {
         ...baseSnapshot,
         status: "ready",
         devices: [
-          { deviceId: "default", label: "系统默认输入", isDefault: true },
-          { deviceId: "usb", label: "USB 麦克风", isDefault: false },
+          {
+            deviceId: "default",
+            groupId: "built-in-group",
+            label: "系统默认输入",
+            isDefault: true,
+          },
+          {
+            deviceId: "usb",
+            groupId: "usb-group",
+            label: "USB 麦克风",
+            isDefault: false,
+          },
         ],
         observation: {
           timeMs: 100,
@@ -179,5 +237,221 @@ describe("FR-010 Audio Settings", () => {
 
     await user.click(screen.getByRole("button", { name: "恢复音频上下文" }));
     expect(controller.resume).toHaveBeenCalledOnce();
+  });
+
+  it("falls back visibly when the saved input fingerprint is unavailable", async () => {
+    const user = userEvent.setup();
+    const controller = new FakeController();
+    controller.requestPermission.mockImplementation(async () => {
+      controller.emit({
+        ...baseSnapshot,
+        status: "ready",
+        devices: [
+          {
+            deviceId: "default",
+            groupId: "built-in-group",
+            label: "系统默认输入",
+            isDefault: true,
+          },
+        ],
+        selectedDeviceId: "default",
+      });
+    });
+    const settingsService = fakeSettingsService(
+      settingsWith({
+        inputDeviceFingerprint: await fingerprintDeviceId("missing-usb"),
+      }),
+    );
+    render(
+      <AudioSettingsPage
+        controllerFactory={() => controller}
+        settingsService={settingsService}
+      />,
+    );
+    await screen.findByText(/SETTINGS REV 0/);
+
+    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+
+    expect(await screen.findByText("已回退到系统默认输入")).toBeVisible();
+    expect(settingsService.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputDeviceFingerprint: await fingerprintAudioDevice("audioinput", {
+          deviceId: "default",
+          groupId: "built-in-group",
+        }),
+      }),
+      0,
+    );
+  });
+
+  it("restores a matching saved input after permission is granted", async () => {
+    const user = userEvent.setup();
+    const controller = new FakeController();
+    controller.requestPermission.mockImplementation(async () => {
+      controller.emit({
+        ...baseSnapshot,
+        status: "ready",
+        devices: [
+          {
+            deviceId: "default",
+            groupId: "built-in-group",
+            label: "系统默认输入",
+            isDefault: true,
+          },
+          {
+            deviceId: "usb",
+            groupId: "usb-group",
+            label: "USB 麦克风",
+            isDefault: false,
+          },
+        ],
+        selectedDeviceId: "default",
+      });
+    });
+    const settingsService = fakeSettingsService(
+      settingsWith({
+        inputDeviceFingerprint: await fingerprintDeviceId("usb"),
+      }),
+    );
+    render(
+      <AudioSettingsPage
+        controllerFactory={() => controller}
+        settingsService={settingsService}
+      />,
+    );
+    await screen.findByText(/SETTINGS REV 0/);
+
+    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+
+    expect(controller.switchDevice).toHaveBeenCalledWith("usb");
+    expect(await screen.findByText(/已恢复保存的输入设备/)).toBeVisible();
+  });
+
+  it("serializes rapid setting changes against the latest revision", async () => {
+    const settingsService = fakeSettingsService(settingsWith());
+    render(<AudioSettingsPage settingsService={settingsService} />);
+    await screen.findByText(/SETTINGS REV 0/);
+
+    fireEvent.change(screen.getByLabelText("主题"), {
+      target: { value: "dark" },
+    });
+    fireEvent.change(screen.getByLabelText("动效"), {
+      target: { value: "reduce" },
+    });
+
+    await waitFor(() =>
+      expect(settingsService.update).toHaveBeenCalledTimes(2),
+    );
+    expect(settingsService.update).toHaveBeenNthCalledWith(
+      1,
+      { themePreference: "dark" },
+      0,
+    );
+    expect(settingsService.update).toHaveBeenNthCalledWith(
+      2,
+      { motionPreference: "reduce" },
+      1,
+    );
+  });
+
+  it("restores the real output and saves calibration for the exact pair and sample rate", async () => {
+    const user = userEvent.setup();
+    const controller = new FakeController();
+    const inputDevices = [
+      {
+        deviceId: "default",
+        groupId: "built-in-input",
+        label: "系统默认输入",
+        isDefault: true,
+      },
+      {
+        deviceId: "usb-mic",
+        groupId: "usb-input",
+        label: "USB 麦克风",
+        isDefault: false,
+      },
+    ];
+    controller.requestPermission.mockImplementation(async () => {
+      controller.emit({
+        ...baseSnapshot,
+        status: "ready",
+        devices: inputDevices,
+        selectedDeviceId: "default",
+        sampleRateHz: 48_000,
+        channels: 1,
+        contextState: "running",
+      });
+    });
+    const outputs = [
+      {
+        deviceId: "default",
+        groupId: "built-in-output",
+        label: "系统默认输出",
+        isDefault: true,
+      },
+      {
+        deviceId: "usb-speakers",
+        groupId: "usb-output",
+        label: "USB 扬声器",
+        isDefault: false,
+      },
+    ];
+    const outputDeviceService: AudioOutputDeviceServicePort = {
+      list: vi.fn(async () => outputs),
+      subscribe: vi.fn(() => () => undefined),
+    };
+    const usbInput = inputDevices[1];
+    const usbOutput = outputs[1];
+    if (usbInput === undefined || usbOutput === undefined) {
+      throw new Error("missing USB device fixtures");
+    }
+    const settingsService = fakeSettingsService(
+      settingsWith({
+        inputDeviceFingerprint: await fingerprintAudioDevice(
+          "audioinput",
+          usbInput,
+        ),
+        outputDeviceFingerprint: await fingerprintAudioDevice(
+          "audiooutput",
+          usbOutput,
+        ),
+      }),
+    );
+    const measure = vi.fn(async () => ({
+      status: "measured" as const,
+      latencyMs: 84,
+      confidence: 0.91,
+      sampleRateHz: 48_000,
+    }));
+    render(
+      <AudioSettingsPage
+        calibrationFactory={() => ({ measure })}
+        controllerFactory={() => controller}
+        outputDeviceService={outputDeviceService}
+        settingsService={settingsService}
+      />,
+    );
+    await screen.findByText(/SETTINGS REV 0/);
+    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+
+    expect(controller.switchDevice).toHaveBeenCalledWith("usb-mic");
+    expect(screen.getByLabelText("输出设备")).toHaveValue("usb-speakers");
+    await screen.findByText(/SETTINGS REV 1/);
+
+    await user.click(screen.getByRole("button", { name: "播放校准声并测量" }));
+    expect(measure).toHaveBeenCalledWith("usb-mic", "usb-speakers");
+    await screen.findByText(/当前设备组合校准已原子保存/);
+    expect(settingsService.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        latencyCalibrations: [
+          expect.objectContaining({
+            sampleRateHz: 48_000,
+            latencyMs: 84,
+            source: "measured",
+          }),
+        ],
+      }),
+      1,
+    );
   });
 });
