@@ -74,23 +74,18 @@ function normalizeOutputs(
     {
       deviceId: "default",
       groupId: defaultDevice?.groupId ?? "",
-      label: "系统默认输出",
+      label: "",
       isDefault: true,
     },
   ];
-  let anonymousIndex = 1;
   for (const device of outputs) {
     if (device.deviceId === "default") continue;
     normalized.push({
       deviceId: device.deviceId,
       groupId: device.groupId,
-      label:
-        device.label.trim().length > 0
-          ? device.label
-          : `输出设备 ${anonymousIndex}`,
+      label: device.label.trim().length > 0 ? device.label : "",
       isDefault: false,
     });
-    anonymousIndex += 1;
   }
   return normalized;
 }
@@ -102,7 +97,7 @@ export class AudioOutputDeviceService implements AudioOutputDeviceServicePort {
         {
           deviceId: "default",
           groupId: "",
-          label: "系统默认输出",
+          label: "",
           isDefault: true,
         },
       ];

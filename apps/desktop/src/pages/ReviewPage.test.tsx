@@ -66,7 +66,7 @@ describe("TC-REV-001 Review page", () => {
     expect(
       screen.getByRole("heading", { name: "复盘《测试歌曲》" }),
     ).toBeVisible();
-    expect(screen.getByText("整体偏高约 70 cents。")).toBeVisible();
+    expect(screen.getByText("整体约偏高 70 cents。")).toBeVisible();
     expect(screen.getByText("音准准确率")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "重新练习此处" }));
     expect(onPracticeRegion).toHaveBeenCalledWith(
@@ -99,8 +99,8 @@ describe("TC-REV-001 Review page", () => {
       />,
     );
 
-    expect(screen.getByText("部分音高数据已损坏")).toBeVisible();
+    expect(screen.getByText("部分音高数据不可用")).toBeVisible();
     expect(screen.getAllByText("70.0c")).toHaveLength(2);
-    expect(screen.getByText(/不会把损坏范围显示为准确或失败/)).toBeVisible();
+    expect(screen.getByText(/已保存指标和其他区间仍有效/)).toBeVisible();
   });
 });

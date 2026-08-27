@@ -10,6 +10,13 @@ import type { SessionMetrics } from "@cybermuse/scoring";
 import { Button } from "../components/Button";
 import { PageState, type PageStateKind } from "../components/PageState";
 import {
+  PreferencesProvider,
+  useOptionalPreferences,
+  usePreferences,
+} from "../preferences/PreferencesProvider";
+import type { TranslationParams } from "../i18n/i18n";
+import { diagnosticPreviewKey } from "../i18n/diagnostic-preview";
+import {
   AudioOutputDeviceService,
   findAudioDeviceByFingerprint,
   fingerprintAudioDevice,
@@ -60,13 +67,6 @@ const defaultDiagnosticService = new DiagnosticService();
 const defaultWindowCloseService = new WindowCloseService();
 const defaultOutputDeviceService = new AudioOutputDeviceService();
 
-const GRADE_LABELS = {
-  perfect: "精准",
-  good: "接近",
-  off: "需调整",
-  miss: "偏差较大",
-} as const;
-
 const NOTE_NAMES = [
   "C",
   "C♯",
@@ -105,71 +105,82 @@ function points(data: readonly { x: number; y: number }[]): string {
     .join(" ");
 }
 
+type Translate = (key: string, params?: TranslationParams) => string;
+
 function heading(
   snapshot: PracticeControllerSnapshot,
+  t: Translate,
   songTitle?: string,
 ): string {
   switch (snapshot.playback.status) {
     case "empty":
-      return "从歌曲库打开一首可练习歌曲。";
+      return t("practice.heading.empty");
     case "loading":
-      return "正在加载本地伴奏与参考轨。";
+      return t("practice.heading.loading");
     case "fatal_error":
-      return "此环境无法播放练习资产。";
+      return t("practice.heading.fatal");
     case "recoverable_error":
-      return "练习已安全暂停。";
+      return t("practice.heading.paused");
     default:
       return songTitle === undefined
-        ? "跟随参考轨练习。"
-        : `练习《${songTitle}》。`;
+        ? t("practice.heading.default")
+        : t("practice.heading.song", { song: songTitle });
   }
 }
 
-function feedbackSummary(snapshot: PracticeControllerSnapshot): string {
+function feedbackSummary(
+  snapshot: PracticeControllerSnapshot,
+  t: Translate,
+): string {
   const feedback = snapshot.feedback;
   if (snapshot.observationState === "unvoiced") {
-    return "未检测到稳定音高。没有产生准确或失败评价。";
+    return t("practice.feedback.noPitch");
   }
   if (snapshot.observationState === "no_reference") {
-    return "已检测到用户音高，但 NOW 处没有有效参考音高，当前不评分。";
+    return t("practice.feedback.noReference");
   }
   if (feedback === null) {
-    return "尚未开始录唱。播放夹具不会自动开启麦克风。";
+    return t("practice.feedback.notStarted");
   }
   const direction =
     feedback.direction === "high"
-      ? "↑ 偏高"
+      ? t("practice.direction.high")
       : feedback.direction === "low"
-        ? "↓ 偏低"
-        : "◆ 准确";
-  return `目标 ${noteName(feedback.referenceMidi)}，当前 ${noteName(feedback.userMidi)}，${direction} ${Math.abs(feedback.smoothedCents).toFixed(1)} cents，${GRADE_LABELS[feedback.grade]}。`;
+        ? t("practice.direction.low")
+        : t("practice.direction.accurate");
+  return t("practice.feedback.summary", {
+    target: noteName(feedback.referenceMidi),
+    current: noteName(feedback.userMidi),
+    direction,
+    cents: Math.abs(feedback.smoothedCents).toFixed(1),
+    grade: t(`practice.grade.${feedback.grade}`),
+  });
 }
 
 function playbackState(snapshot: PracticeControllerSnapshot): {
   kind: PageStateKind;
-  title: string;
-  detail: string;
+  titleKey: string;
+  detailKey: string;
 } | null {
   if (snapshot.error?.code === "PRACTICE_SESSION_LIMIT_REACHED") {
     return {
       kind: "recoverable_error",
-      title: "内存练习已达到 60 分钟容量",
-      detail:
-        "当前 take 与摘要仍在内存中。离开 Practice 会清理；重新打开歌曲可开始新 session。",
+      titleKey: "practice.playback.limit.title",
+      detailKey: "practice.playback.limit.detail",
     };
   }
   if (snapshot.playback.status === "fatal_error") {
     return {
       kind: "fatal_error",
-      title: "Web Audio 播放环境不可用",
-      detail: "练习数据未创建。更新 Windows WebView2 Runtime 后重新启动应用。",
+      titleKey: "practice.playback.fatal.title",
+      detailKey: "practice.playback.fatal.detail",
     };
   }
   if (snapshot.playback.status === "recoverable_error") {
     return {
       kind: "recoverable_error",
-      title: "播放已停止，内存 take 保持可见",
-      detail: "恢复音频上下文或从歌曲库重新打开后可继续。",
+      titleKey: "practice.playback.recoverable.title",
+      detailKey: "practice.playback.recoverable.detail",
     };
   }
   return null;
@@ -177,46 +188,45 @@ function playbackState(snapshot: PracticeControllerSnapshot): {
 
 function micState(snapshot: PracticeControllerSnapshot): {
   kind: PageStateKind;
-  title: string;
-  detail: string;
+  titleKey: string;
+  detailKey: string;
 } {
   switch (snapshot.micStatus) {
     case "not_requested":
       return {
         kind: "permission_required",
-        title: "麦克风尚未开启",
-        detail: "可先预览伴奏；只有选择“开始录唱”后才会请求权限。",
+        titleKey: "practice.mic.notRequested.title",
+        detailKey: "practice.mic.notRequested.detail",
       };
     case "requesting":
       return {
         kind: "loading",
-        title: "正在等待 Windows 麦克风响应",
-        detail: "夹具播放保持独立，PCM 不进入 React 或 Tauri IPC。",
+        titleKey: "practice.mic.requesting.title",
+        detailKey: "practice.mic.requesting.detail",
       };
     case "ready":
       return {
         kind: "ready",
-        title: "麦克风与播放共享同一 AudioContext 时钟",
-        detail:
-          "当前设备身份与采样率已核对；只有完全匹配的校准才会进入评分时钟。",
+        titleKey: "practice.mic.ready.title",
+        detailKey: "practice.mic.ready.detail",
       };
     case "permission_denied":
       return {
         kind: "permission_denied",
-        title: "麦克风访问被拒绝",
-        detail: "伴奏仍可预览。检查 Windows 隐私设置后重试录唱。",
+        titleKey: "practice.mic.denied.title",
+        detailKey: "practice.mic.denied.detail",
       };
     case "recoverable_error":
       return {
         kind: "recoverable_error",
-        title: "麦克风输入已安全停止",
-        detail: "伴奏与内存摘要安全。重新连接设备后可重试。",
+        titleKey: "practice.mic.recoverable.title",
+        detailKey: "practice.mic.recoverable.detail",
       };
     case "fatal_error":
       return {
         kind: "fatal_error",
-        title: "此环境不支持麦克风输入",
-        detail: "仍可预览本地伴奏；更新 WebView2 Runtime 后重启应用。",
+        titleKey: "practice.mic.fatal.title",
+        detailKey: "practice.mic.fatal.detail",
       };
   }
 }
@@ -228,28 +238,29 @@ function Metrics({
   label: string;
   metrics: SessionMetrics;
 }) {
+  const { t } = usePreferences();
   return (
     <div className="practice-metric-group">
       <span className="technical-label">{label}</span>
       <dl>
         <div>
-          <dt>准确率</dt>
+          <dt>{t("practice.metrics.accuracy")}</dt>
           <dd>{metric(metrics.pitchAccuracy, "%")}</dd>
         </div>
         <div>
-          <dt>绝对误差</dt>
+          <dt>{t("practice.metrics.absoluteError")}</dt>
           <dd>{metric(metrics.medianAbsoluteErrorCents, "c")}</dd>
         </div>
         <div>
-          <dt>偏差</dt>
+          <dt>{t("practice.metrics.bias")}</dt>
           <dd>{metric(metrics.signedMedianErrorCents, "c")}</dd>
         </div>
         <div>
-          <dt>稳定性</dt>
+          <dt>{t("practice.metrics.stability")}</dt>
           <dd>{metric(metrics.stability, "%")}</dd>
         </div>
         <div>
-          <dt>覆盖率</dt>
+          <dt>{t("practice.metrics.coverage")}</dt>
           <dd>{metric(metrics.coverage, "%")}</dd>
         </div>
       </dl>
@@ -261,7 +272,23 @@ function defaultControllerFactory(): PracticeControllerPort {
   return new PracticeController();
 }
 
-export function PracticePage({
+export function PracticePage(props: PracticePageProps) {
+  const preferences = useOptionalPreferences();
+  if (preferences === null) {
+    return (
+      <PreferencesProvider
+        {...(props.settingsService === undefined
+          ? {}
+          : { service: props.settingsService })}
+      >
+        <PracticeContent {...props} />
+      </PreferencesProvider>
+    );
+  }
+  return <PracticeContent {...props} />;
+}
+
+function PracticeContent({
   controllerFactory = defaultControllerFactory,
   assets = null,
   songTitle,
@@ -274,6 +301,7 @@ export function PracticePage({
   onSessionSaved,
   onLeaveWithoutSession,
 }: PracticePageProps) {
+  const { t } = usePreferences();
   const [controller] = useState<PracticeControllerPort>(() =>
     controllerFactory(),
   );
@@ -454,12 +482,12 @@ export function PracticePage({
       : `${feedback.smoothedCents >= 0 ? "+" : "−"}${Math.abs(feedback.smoothedCents).toFixed(1)}`;
   const direction =
     feedback?.direction === "high"
-      ? "↑ 偏高"
+      ? t("practice.direction.high")
       : feedback?.direction === "low"
-        ? "↓ 偏低"
+        ? t("practice.direction.low")
         : feedback === null
-          ? "等待录唱"
-          : "◆ 准确";
+          ? t("practice.direction.waiting")
+          : t("practice.direction.accurate");
   const currentPlaybackState = playbackState(snapshot);
   const currentMicState = micState(snapshot);
   const loaded = snapshot.playback.fixture !== null;
@@ -593,23 +621,23 @@ export function PracticePage({
       <section className="primary-layer practice-primary" data-layer="primary">
         <div className="practice-heading">
           <div>
-            <p className="eyebrow">
-              PRACTICE /{" "}
-              {assets === null
-                ? "NO SONG"
-                : `ANALYSIS ${assets.analysisId.slice(0, 8)}`}
-            </p>
-            <h1>{heading(snapshot, songTitle)}</h1>
+            <h1>{heading(snapshot, t, songTitle)}</h1>
           </div>
-          <div className="practice-feedback" aria-label="当前音高偏差">
+          <div
+            className="practice-feedback"
+            aria-label={t("practice.feedback.label")}
+          >
             <p className="metric-placeholder">
               {signedCents} <span>CENTS</span>
             </p>
             <strong>{direction}</strong>
             <span>
               {feedback === null
-                ? "目标 — / 当前 —"
-                : `目标 ${noteName(feedback.referenceMidi)} / 当前 ${noteName(feedback.userMidi)}`}
+                ? t("practice.targetCurrent.empty")
+                : t("practice.targetCurrent", {
+                    target: noteName(feedback.referenceMidi),
+                    current: noteName(feedback.userMidi),
+                  })}
             </span>
           </div>
         </div>
@@ -617,9 +645,9 @@ export function PracticePage({
         {!loaded && assets === null ? (
           <div className="practice-load">
             <PageState
-              detail="回到歌曲库，选择状态为“可练习”的歌曲。"
+              detail={t("practice.noSong.detail")}
               kind="empty"
-              title="尚未选择歌曲"
+              title={t("practice.noSong.title")}
             />
           </div>
         ) : null}
@@ -629,18 +657,18 @@ export function PracticePage({
         snapshot.playback.status !== "fatal_error" &&
         snapshot.playback.status !== "recoverable_error" ? (
           <PageState
-            detail="伴奏通过当前应用会话的只读能力 URL 加载，完整本机路径不会进入页面。"
+            detail={t("practice.assets.detail")}
             kind="loading"
-            title="正在验证练习资产"
+            title={t("practice.assets.title")}
           />
         ) : null}
 
         {currentPlaybackState === null ? null : (
           <PageState
             {...(snapshot.error === null ? {} : { code: snapshot.error.code })}
-            detail={currentPlaybackState.detail}
+            detail={t(currentPlaybackState.detailKey)}
             kind={currentPlaybackState.kind}
-            title={currentPlaybackState.title}
+            title={t(currentPlaybackState.titleKey)}
           />
         )}
 
@@ -688,22 +716,23 @@ export function PracticePage({
             data-pattern-break="now-line"
             aria-hidden="true"
           >
-            <span>NOW · {formatTime(snapshot.playback.positionMs)}</span>
+            <span>
+              {t("practice.now")} · {formatTime(snapshot.playback.positionMs)}
+            </span>
           </div>
           <figcaption id="pitch-lane-caption">
-            固定 NOW 位于宽度 38%。未来参考轨使用虚线，当前 take 使用实线，最近
-            take 使用灰色点线。
+            {t("practice.pitchLane.caption")}
           </figcaption>
         </figure>
         <p className="pitch-lane-summary" id="pitch-lane-summary">
-          {feedbackSummary(snapshot)}
+          {feedbackSummary(snapshot, t)}
         </p>
       </section>
 
       <section
         className="secondary-layer practice-secondary"
         data-layer="secondary"
-        aria-label="练习控制与摘要"
+        aria-label={t("practice.controls")}
       >
         <div className="transport-row">
           <Button
@@ -713,17 +742,17 @@ export function PracticePage({
               void (isPlaying ? controller.pause() : controller.play())
             }
           >
-            {isPlaying ? "暂停" : "播放伴奏"}
+            {isPlaying ? t("practice.pause") : t("practice.play")}
           </Button>
           <Button
             disabled={!canTransport}
             onClick={() => controller.startOver()}
           >
-            回到开头
+            {t("practice.startOver")}
           </Button>
           {snapshot.playback.error?.code === "PRACTICE_CONTEXT_SUSPENDED" ? (
             <Button onClick={() => void controller.resumeAfterSuspend()}>
-              恢复音频上下文
+              {t("practice.resumeAudio")}
             </Button>
           ) : null}
           <span className="transport-time">
@@ -734,7 +763,9 @@ export function PracticePage({
             disabled={!loaded || saveState === "saving"}
             onClick={() => void finishPractice()}
           >
-            {saveState === "saving" ? "[LOADING] 保存会话" : "结束练习并保存"}
+            {saveState === "saving"
+              ? t("practice.saving")
+              : t("practice.finish")}
           </Button>
         </div>
 
@@ -742,18 +773,18 @@ export function PracticePage({
           <div
             className="practice-save-panel"
             role="group"
-            aria-label="空会话处理"
+            aria-label={t("practice.emptySession.label")}
           >
             <PageState
-              detail="本次没有有效匹配帧，因此不会显示虚假分数。可以保留空会话作为练习记录，或直接丢弃。"
+              detail={t("practice.emptySession.detail")}
               kind="recoverable_error"
-              title="没有可评分的观察"
+              title={t("practice.emptySession.title")}
             />
             <Button onClick={() => void finishPractice(true)}>
-              保留空会话
+              {t("practice.emptySession.keep")}
             </Button>
             <Button variant="quiet" onClick={() => void leaveWithoutSession()}>
-              丢弃并返回歌曲库
+              {t("practice.emptySession.discard")}
             </Button>
           </div>
         ) : null}
@@ -762,54 +793,62 @@ export function PracticePage({
           <div className="practice-save-panel">
             <PageState
               code={saveErrorCode ?? "SESSION_STORE_UNAVAILABLE"}
-              detail="当前内存会话仍在离开前保留。可以重试保存、先导出诊断，或确认放弃后返回歌曲库。"
+              detail={t("practice.saveFailed.detail")}
               kind="recoverable_error"
-              title="练习会话尚未保存"
+              title={t("practice.saveFailed.title")}
             />
-            <Button onClick={() => void finishPractice(true)}>重试保存</Button>
-            <Button onClick={() => void exportDiagnostic()}>导出诊断</Button>
+            <Button onClick={() => void finishPractice(true)}>
+              {t("practice.saveFailed.retry")}
+            </Button>
+            <Button onClick={() => void exportDiagnostic()}>
+              {t("practice.exportDiagnostics")}
+            </Button>
             <Button variant="quiet" onClick={() => void leaveWithoutSession()}>
-              放弃并返回歌曲库
+              {t("practice.saveFailed.discard")}
             </Button>
             <span className="milestone-note" role="status">
               {diagnosticState === "preparing"
-                ? "[LOADING] 正在准备诊断预览"
+                ? t("practice.diagnostics.preparing")
                 : diagnosticState === "saved"
-                  ? "[SAVED] 诊断包已保存"
+                  ? t("practice.diagnostics.saved")
                   : diagnosticState === "cancelled"
-                    ? "已取消诊断导出，没有创建文件"
+                    ? t("practice.diagnostics.cancelled")
                     : diagnosticState === "failed"
-                      ? "[ERROR] 诊断导出失败"
-                      : "诊断包不包含音频、完整路径或音高全轨"}
+                      ? t("practice.diagnostics.failed")
+                      : t("practice.diagnostics.idle")}
             </span>
             {diagnosticPreparation === null ? null : (
               <div className="diagnostic-preview">
-                <strong>保存前预览</strong>
+                <strong>{t("practice.diagnostics.preview")}</strong>
                 <ul>
                   {diagnosticPreparation.preview.items.map((item) => (
-                    <li key={item}>{item}</li>
+                    <li key={item}>{t(diagnosticPreviewKey(item))}</li>
                   ))}
                 </ul>
                 <span>
-                  明确排除：{diagnosticPreparation.preview.excluded.join("、")}
+                  {t("practice.diagnostics.excluded", {
+                    items: diagnosticPreparation.preview.excluded
+                      .map((item) => t(diagnosticPreviewKey(item)))
+                      .join(" · "),
+                  })}
                 </span>
                 <Button onClick={() => void saveDiagnostic()}>
-                  选择位置并保存
+                  {t("diagnostics.save")}
                 </Button>
                 <Button
                   variant="quiet"
                   onClick={() => setDiagnosticPreparation(null)}
                 >
-                  取消
+                  {t("common.cancel")}
                 </Button>
               </div>
             )}
           </div>
         ) : null}
         <label className="seek-control">
-          <span>播放位置</span>
+          <span>{t("practice.position")}</span>
           <input
-            aria-label="播放位置"
+            aria-label={t("practice.position")}
             disabled={!canTransport}
             max={snapshot.playback.durationMs || 1}
             min="0"
@@ -827,42 +866,42 @@ export function PracticePage({
             {...(snapshot.micError === null
               ? {}
               : { code: snapshot.micError.code })}
-            detail={currentMicState.detail}
+            detail={t(currentMicState.detailKey)}
             kind={currentMicState.kind}
-            title={currentMicState.title}
+            title={t(currentMicState.titleKey)}
           />
           {snapshot.micStatus === "not_requested" ? (
             <Button disabled={!loaded} onClick={() => void startInput()}>
-              开始录唱
+              {t("practice.startSinging")}
             </Button>
           ) : null}
           {snapshot.micStatus === "requesting" ? (
-            <Button disabled>[LOADING] 等待权限</Button>
+            <Button disabled>{t("practice.waitingPermission")}</Button>
           ) : null}
           {snapshot.micStatus === "permission_denied" ||
           snapshot.micStatus === "recoverable_error" ? (
             <Button onClick={() => void startInput()}>
-              检查设备后重试录唱
+              {t("practice.retrySinging")}
             </Button>
           ) : null}
           {snapshot.micStatus === "ready" ? (
             <span className="milestone-note">
               {audioRestoreStatus === "restored"
-                ? "[RESTORED] 已应用当前设备与采样率的已确认校准"
+                ? t("practice.calibration.restored")
                 : audioRestoreStatus === "fallback"
-                  ? "[FALLBACK] 已保存设备不可用；当前输入/输出使用零补偿"
+                  ? t("practice.calibration.fallback")
                   : audioRestoreStatus === "uncalibrated"
-                    ? "[CALIBRATION REQUIRED] 当前设备或采样率没有可用校准，使用零补偿"
-                    : "录唱已开启 · 结束练习时原子保存 session"}
+                    ? t("practice.calibration.required")
+                    : t("practice.recording")}
             </span>
           ) : null}
         </div>
 
         <fieldset className="loop-controls" disabled={!canTransport}>
-          <legend>A-B LOOP · 半开区间 [A, B)</legend>
+          <legend>{t("practice.loop.title")}</legend>
           <div className="loop-values">
             <label>
-              A 点（秒）
+              {t("practice.loop.start")}
               <input
                 min="0"
                 step="0.1"
@@ -877,7 +916,7 @@ export function PracticePage({
               />
             </label>
             <label>
-              B 点（秒）
+              {t("practice.loop.end")}
               <input
                 min="0"
                 step="0.1"
@@ -896,10 +935,10 @@ export function PracticePage({
             <Button
               onClick={() => controller.setLoopBoundaryToCurrent("start")}
             >
-              当前位置设为 A
+              {t("practice.loop.setStart")}
             </Button>
             <Button onClick={() => controller.setLoopBoundaryToCurrent("end")}>
-              当前位置设为 B
+              {t("practice.loop.setEnd")}
             </Button>
             <Button
               onClick={() => controller.adjustLoopBoundary("start", -100)}
@@ -922,65 +961,68 @@ export function PracticePage({
                   : controller.enableLoop())
               }
             >
-              {snapshot.loop.enabled ? "停止循环" : "启用循环"}
+              {snapshot.loop.enabled
+                ? t("practice.loop.disable")
+                : t("practice.loop.enable")}
             </Button>
             <Button variant="quiet" onClick={() => controller.clearLoop()}>
-              清除区间
+              {t("practice.loop.clear")}
             </Button>
           </div>
           {snapshot.loop.validation === null ? (
             <p>
-              预备点 {formatTime(Math.max(0, snapshot.loop.startMs - 500))} ·
-              预备区检测但不评分 · B 后间隔 300 ms
+              {t("practice.loop.detail", {
+                time: formatTime(Math.max(0, snapshot.loop.startMs - 500)),
+              })}
             </p>
           ) : (
             <p className="inline-error" role="alert">
-              [ERROR] {snapshot.loop.validation.message} ·{" "}
+              {t(`practice.loop.error.${snapshot.loop.validation.code}`)} ·{" "}
               <code>{snapshot.loop.validation.code}</code>
             </p>
           )}
         </fieldset>
 
-        <div className="practice-metrics" aria-label="内存练习指标">
-          <Metrics label="CURRENT TAKE" metrics={snapshot.currentTakeMetrics} />
-          <Metrics label="RECENT TAKE" metrics={snapshot.previousTakeMetrics} />
+        <div
+          className="practice-metrics"
+          aria-label={t("practice.metrics.label")}
+        >
           <Metrics
-            label="IN-MEMORY SESSION"
+            label={t("practice.metrics.current")}
+            metrics={snapshot.currentTakeMetrics}
+          />
+          <Metrics
+            label={t("practice.metrics.previous")}
+            metrics={snapshot.previousTakeMetrics}
+          />
+          <Metrics
+            label={t("practice.metrics.session")}
             metrics={snapshot.sessionMetrics}
           />
         </div>
-      </section>
-
-      <section
-        className="tertiary-layer practice-legend"
-        data-layer="tertiary"
-        aria-label="音高轨图例和技术状态"
-      >
-        <span>
-          <i
-            className="legend-line legend-line--reference"
-            aria-hidden="true"
-          />
-          参考音高 · 虚线
-        </span>
-        <span>
-          <i className="legend-line legend-line--user" aria-hidden="true" />
-          当前 take · 实线
-        </span>
-        <span>
-          <i className="legend-line legend-line--previous" aria-hidden="true" />
-          最近 take · 灰色点线
-        </span>
-        <span>TAKE {snapshot.currentTakeId ?? "—"}</span>
-        <span>TAKES {snapshot.takeCount}</span>
-        <span>LOOP {snapshot.playback.loopIteration}</span>
-        <span>
-          SOURCES {snapshot.playback.resources.activeSources} ACTIVE /{" "}
-          {snapshot.playback.resources.createdSources} CREATED
-        </span>
-        <span>LATENCY APPLIED IN SCORING</span>
-        <span>ASSET URL SESSION ONLY</span>
-        <span>SESSION MEMORY UNTIL SAVE OR DISCARD</span>
+        <div
+          className="practice-legend"
+          aria-label={t("practice.legend.label")}
+        >
+          <span>
+            <i
+              className="legend-line legend-line--reference"
+              aria-hidden="true"
+            />
+            {t("practice.legend.reference")}
+          </span>
+          <span>
+            <i className="legend-line legend-line--user" aria-hidden="true" />
+            {t("practice.legend.current")}
+          </span>
+          <span>
+            <i
+              className="legend-line legend-line--previous"
+              aria-hidden="true"
+            />
+            {t("practice.legend.previous")}
+          </span>
+        </div>
       </section>
     </main>
   );

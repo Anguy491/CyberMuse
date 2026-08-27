@@ -34,7 +34,13 @@ export {
 export {
   parseAppSettings,
   type AppSettings,
+  type LanguagePreference,
   type LatencyCalibration,
   type MotionPreference,
   type ThemePreference,
 } from "./settings";
+export {
+  type StorageCategoryId,
+  type StorageCategoryUsage,
+  type StorageOverview,
+} from "./storage-overview";

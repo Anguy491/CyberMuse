@@ -13,6 +13,7 @@ pub mod session_store;
 pub mod settings_store;
 pub mod song_store;
 pub mod storage;
+pub mod storage_overview;
 pub mod tauri_api;
 pub mod tool_manager;
 
@@ -49,6 +50,7 @@ pub fn run() {
             tauri_api::get_app_settings,
             tauri_api::update_app_settings,
             tauri_api::clear_app_settings,
+            tauri_api::get_storage_overview,
             tauri_api::prepare_diagnostic_bundle,
             tauri_api::save_diagnostic_bundle,
             tauri_api::clear_diagnostic_logs,

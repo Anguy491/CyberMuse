@@ -81,12 +81,12 @@
 
 ## M6 — Review and Windows Release
 
-- 责任域：sessions、Review、calibration、diagnostics、release、全量 QA。
-- 允许：正式 session store、Review、延迟校准、设置、诊断、安装/升级/卸载、SBOM/notices。
+- 责任域：sessions、Review、calibration、统一设置、i18n、存储管理、diagnostics、release、全量 QA。
+- 允许：正式 session store、Review、延迟校准、统一设置、双语与存储统计、诊断、安装/升级/卸载、SBOM/notices。
 - 禁止：v0.2 功能、默认遥测、用户音频上传。
 - 输入：M5 gate；全部主流程稳定。
 - 输出：v0.1 release candidate、installer、性能/隐私/许可/测试证据包和已知限制。
-- 必跑验证：TC-LAT-001、TC-SES-001、TC-REV-001、TC-SET-001、TC-DIA-001/002、TC-PLAT-001、TC-SOAK-001/002、TC-PRIV-001、TC-BUILD-001、TC-GATE-001。
+- 必跑验证：TC-LAT-001、TC-SES-001、TC-REV-001、TC-SET-001、TC-I18N-001、TC-STO-003、TC-DIA-001/002、TC-PLAT-001、TC-SOAK-001/002、TC-PRIV-001、TC-BUILD-001、TC-GATE-001。
 - 退出：全部 Must 需求和 NFR 通过，无 High/Critical 开放风险，干净 Win11 构建/安装成功；用户决定是否发布。
 
 ## 变更和阻塞

@@ -10,9 +10,11 @@ import {
   type ModelStatus,
 } from "../services/model-service";
 import {
-  SettingsService,
-  type SettingsServicePort,
-} from "../services/settings-service";
+  PreferencesProvider,
+  useOptionalPreferences,
+  usePreferences,
+} from "../preferences/PreferencesProvider";
+import type { SettingsServicePort } from "../services/settings-service";
 
 interface ModelAssetsPageProps {
   service?: ModelServicePort;
@@ -25,10 +27,6 @@ interface ActiveInstall {
   downloadedBytes: number;
   totalBytes: number;
   status: "downloading" | "verifying" | "installing";
-}
-
-function formatSize(bytes: number): string {
-  return `${(bytes / 1024 / 1024).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MiB`;
 }
 
 function errorFrom(value: unknown): AppError {
@@ -44,13 +42,28 @@ function errorFrom(value: unknown): AppError {
 
 export function ModelAssetsPage({
   service,
-  settingsService: providedSettingsService,
+  settingsService,
 }: ModelAssetsPageProps) {
+  const preferences = useOptionalPreferences();
+  if (preferences === null) {
+    return (
+      <PreferencesProvider
+        {...(settingsService === undefined ? {} : { service: settingsService })}
+      >
+        <ModelAssetsContent service={service} />
+      </PreferencesProvider>
+    );
+  }
+  return <ModelAssetsContent service={service} />;
+}
+
+function ModelAssetsContent({
+  service,
+}: {
+  service: ModelServicePort | undefined;
+}) {
   const modelService = useMemo(() => service ?? new ModelService(), [service]);
-  const settingsService = useMemo(
-    () => providedSettingsService ?? new SettingsService(),
-    [providedSettingsService],
-  );
+  const { settings, t, update, formatBytes } = usePreferences();
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
@@ -64,24 +77,21 @@ export function ModelAssetsPage({
   const syncCacheSelection = useCallback(
     async (statuses: ModelStatus[]): Promise<void> => {
       try {
-        const { settings } = await settingsService.load();
         const selected = statuses
           .filter((model) => model.installed && model.valid)
           .map((model) => `${model.modelId}@${model.version}`)
           .sort();
         const current = [...settings.modelCacheSelection].sort();
         if (selected.join("\n") !== current.join("\n")) {
-          await settingsService.update(
-            { modelCacheSelection: selected },
-            settings.revision,
-          );
+          const updated = await update({ modelCacheSelection: selected });
+          if (updated === null) throw new Error("SETTINGS_UPDATE_FAILED");
         }
         setCacheSelectionStatus("saved");
       } catch {
         setCacheSelectionStatus("error");
       }
     },
-    [settingsService],
+    [settings.modelCacheSelection, update],
   );
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -195,44 +205,19 @@ export function ModelAssetsPage({
   }
 
   return (
-    <main className="page models-page" id="main-content">
-      <section className="primary-layer models-primary" data-layer="primary">
-        <div
-          className="model-index"
-          data-pattern-break="model-index"
-          aria-hidden="true"
-        >
-          02
-        </div>
-        <p className="eyebrow">LOCAL MODELS / EXPLICIT CONSENT</p>
-        <h1>OFFLINE ANALYZER</h1>
-        <p className="lede">
-          两个固定版本的模型只在你明确同意后下载。安装完成后，歌曲、分轨、音高与分析结果均留在本机；analyzer
-          不联网。
-        </p>
-      </section>
-
-      <section
-        className="secondary-layer model-list"
-        data-layer="secondary"
-        aria-label="分析模型"
-      >
-        <div className="section-heading">
-          <h2>模型资产</h2>
-          <span className="technical-label">STATIC CATALOG / CPU</span>
-        </div>
+    <section className="settings-section" aria-labelledby="models-heading">
+      <header className="settings-section__header">
+        <h2 id="models-heading">{t("models.title")}</h2>
+      </header>
+      <div className="model-list">
         {loading ? (
-          <PageState
-            kind="loading"
-            title="正在读取本地模型状态"
-            detail="此操作只读取本地清单，不会发起网络请求。"
-          />
+          <PageState kind="loading" title={t("models.loading")} detail="" />
         ) : null}
         {!loading && models.length === 0 && error === null ? (
           <PageState
             kind="empty"
-            title="没有可用的已批准模型"
-            detail="发布目录中的静态模型清单不可用；歌曲数据未受影响。"
+            title={t("models.empty.title")}
+            detail={t("models.empty.detail")}
           />
         ) : null}
         {models.map((model) => {
@@ -251,25 +236,32 @@ export function ModelAssetsPage({
                 </div>
                 <strong className="model-status">
                   {installed
-                    ? "[INSTALLED] 已校验"
+                    ? t("models.status.installed")
                     : model.installed
-                      ? "[INVALID] 需要重新安装"
-                      : "[NOT INSTALLED]"}
+                      ? t("models.status.invalid")
+                      : t("models.status.missing")}
                 </strong>
               </div>
               <dl className="model-metadata">
                 <div>
-                  <dt>用途</dt>
-                  <dd>{model.purpose}</dd>
-                </div>
-                <div>
-                  <dt>版本 / 大小</dt>
+                  <dt>{t("models.purpose")}</dt>
                   <dd>
-                    {model.version} / {formatSize(model.sizeBytes)}
+                    {t(
+                      model.modelId === "spleeter-2stems" ||
+                        model.modelId === "swiftf0"
+                        ? `models.purpose.${model.modelId}`
+                        : "models.purpose.default",
+                    )}
                   </dd>
                 </div>
                 <div>
-                  <dt>许可证</dt>
+                  <dt>{t("models.versionSize")}</dt>
+                  <dd>
+                    {model.version} / {formatBytes(model.sizeBytes)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("models.license")}</dt>
                   <dd>
                     <a href={model.licenseUrl} rel="noreferrer" target="_blank">
                       {model.licenseExpression}
@@ -277,10 +269,10 @@ export function ModelAssetsPage({
                   </dd>
                 </div>
                 <div>
-                  <dt>来源</dt>
+                  <dt>{t("models.source")}</dt>
                   <dd>
                     <a href={model.sourceUrl} rel="noreferrer" target="_blank">
-                      官方 artifact
+                      {t("models.officialArtifact")}
                     </a>
                   </dd>
                 </div>
@@ -301,15 +293,16 @@ export function ModelAssetsPage({
                       }}
                       type="checkbox"
                     />
-                    我已查看来源、大小和 {model.licenseExpression}{" "}
-                    许可证，同意下载此精确版本。
+                    {t("models.consent", {
+                      license: model.licenseExpression,
+                    })}
                   </label>
                   <Button
                     variant="primary"
                     disabled={!(consents[model.modelId] ?? false)}
                     onClick={() => void beginInstall(model)}
                   >
-                    下载并校验
+                    {t("models.install")}
                   </Button>
                 </div>
               ) : null}
@@ -317,9 +310,9 @@ export function ModelAssetsPage({
               {install !== undefined ? (
                 <div className="model-progress" aria-live="polite">
                   <label htmlFor={`progress-${model.modelId}`}>
-                    {install.status.toUpperCase()} ·{" "}
-                    {formatSize(install.downloadedBytes)} /{" "}
-                    {formatSize(install.totalBytes)}
+                    {t(`models.progress.${install.status}`)} ·{" "}
+                    {formatBytes(install.downloadedBytes)} /{" "}
+                    {formatBytes(install.totalBytes)}
                   </label>
                   <progress
                     id={`progress-${model.modelId}`}
@@ -330,24 +323,21 @@ export function ModelAssetsPage({
                     variant="secondary"
                     onClick={() => void cancelInstall(install)}
                   >
-                    取消下载
+                    {t("models.cancel")}
                   </Button>
                 </div>
               ) : null}
 
               {installed ? (
                 <div className="model-actions">
-                  <span className="milestone-note">
-                    SHA-256 与本地 manifest
-                    已验证；删除后下次分析会重新要求同意。
-                  </span>
+                  <span className="milestone-note">{t("models.verified")}</span>
                   <Button
                     variant="danger"
                     onClick={() => void confirmRemove(model)}
                   >
                     {removeConfirm === model.modelId
-                      ? "确认删除本地模型"
-                      : "删除本地模型"}
+                      ? t("models.removeConfirm")
+                      : t("models.remove")}
                   </Button>
                 </div>
               ) : null}
@@ -358,29 +348,18 @@ export function ModelAssetsPage({
           <PageState
             code={error.code}
             kind="recoverable_error"
-            title="模型操作未完成"
-            detail="没有部分模型会被 analyzer 加载，已有歌曲和分析结果保持安全。检查网络或磁盘空间后重试。"
+            title={t("models.error.title")}
+            detail={t("models.error.detail")}
           />
         ) : null}
         <p className="milestone-note" role="status">
           {cacheSelectionStatus === "loading"
-            ? "[LOADING] 正在读取模型缓存选择"
+            ? t("models.cache.loading")
             : cacheSelectionStatus === "error"
-              ? "[ERROR] 模型状态可用，但缓存选择未能保存到本地设置。"
-              : "[SAVED] 已校验模型的精确版本已同步到本地缓存选择。"}
+              ? t("models.cache.error")
+              : t("models.cache.saved")}
         </p>
-      </section>
-
-      <section
-        className="tertiary-layer"
-        data-layer="tertiary"
-        aria-label="模型策略"
-      >
-        <span>NETWORK EXPLICIT DOWNLOAD ONLY</span>
-        <span>INFERENCE CPU-ONLY / OFFLINE</span>
-        <span>HASH SHA-256 / ATOMIC INSTALL</span>
-        <span>CATALOG VERSION 1</span>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }

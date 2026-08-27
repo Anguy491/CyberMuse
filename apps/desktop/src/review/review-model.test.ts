@@ -1,7 +1,7 @@
 import type { PracticeSession } from "@cybermuse/contracts";
 import { describe, expect, it } from "vitest";
 
-import { buildReviewErrorIntervals, reviewBiasSummary } from "./review-model";
+import { buildReviewErrorIntervals, reviewBiasResult } from "./review-model";
 
 function session(): PracticeSession {
   return {
@@ -81,6 +81,9 @@ describe("TC-REV-001 review model", () => {
   });
 
   it("uses an explainable signed-bias summary", () => {
-    expect(reviewBiasSummary(session())).toBe("整体偏高约 60 cents。");
+    expect(reviewBiasResult(session())).toEqual({
+      direction: "high",
+      cents: 60,
+    });
   });
 });

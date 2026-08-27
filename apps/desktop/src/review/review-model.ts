@@ -71,13 +71,19 @@ export function buildReviewErrorIntervals(
   });
 }
 
-export function reviewBiasSummary(session: PracticeSession): string {
+export function reviewBiasResult(session: PracticeSession): {
+  direction: "insufficient" | "centered" | "high" | "low";
+  cents: number | null;
+} {
   const bias = session.metrics.signedMedianErrorCents;
   if (bias === null || session.metrics.validFrameCount === 0) {
-    return "有效样本不足，未生成偏高或偏低结论。";
+    return { direction: "insufficient", cents: null };
   }
   if (Math.abs(bias) < 5) {
-    return "整体音高中心接近参考；请结合稳定性与覆盖率判断。";
+    return { direction: "centered", cents: Math.abs(bias) };
   }
-  return `整体${bias > 0 ? "偏高" : "偏低"}约 ${Math.abs(bias).toFixed(0)} cents。`;
+  return {
+    direction: bias > 0 ? "high" : "low",
+    cents: Math.abs(bias),
+  };
 }

@@ -17,7 +17,7 @@
 - 运行相关 typecheck、lint、unit/contract/integration 检查且无跳过。
 - 行为、接口、风险、命令或依赖变化同步更新文档。
 - 新依赖通过许可证/供应链审查并锁定版本。
-- UI 变更遵守 Signal UI dark/light semantic tokens、三层视觉层级、适用状态矩阵、键盘/focus、对比度与 reduced-motion 约束；无渐变/阴影/blur/skeleton/Toast、运行时字体请求或未审查品牌资产。
+- UI 变更遵守 Signal UI dark/light semantic tokens、主任务/支持内容层级、适用状态矩阵、键盘/focus、对比度与 reduced-motion 约束；无独立技术右栏、渐变/阴影/blur/skeleton/Toast、运行时字体请求或未审查品牌资产。
 - 工作树只含任务相关变更；无密钥、音频、模型、临时产物。
 - 交付说明包含验证命令、退出码和剩余限制。
 
@@ -36,7 +36,7 @@
 
 ### 产品
 
-- FR-001..FR-020 全部通过；FR-021 若不交付，有用户书面接受且保留基本脱敏错误报告。
+- FR-001..FR-020、FR-022、FR-023 全部通过；FR-021 若不交付，有用户书面接受且保留基本脱敏错误报告。
 - 空状态、主流程、权限拒绝、分析失败、磁盘不足、设备断开和删除均可恢复。
 - Review 不提供虚假音色/医疗结论，也不以单一总分替代解释指标。
 

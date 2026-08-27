@@ -88,6 +88,7 @@ function settingsWith(patch: Partial<AppSettings> = {}): AppSettings {
     volume: 0.65,
     themePreference: "system",
     motionPreference: "system",
+    languagePreference: "system",
     modelCacheSelection: [],
     latencyCalibrations: [],
     ...patch,
@@ -117,10 +118,10 @@ describe("FR-010 Audio Settings", () => {
     render(<AudioSettingsPage controllerFactory={() => controller} />);
 
     expect(controller.requestPermission).not.toHaveBeenCalled();
-    expect(screen.getByText(/进入此页不会自动请求权限/)).toBeVisible();
-    expect(screen.getByText(/不会保存 PCM/)).toBeVisible();
+    expect(screen.getByText(/只有在你开始输入测试时/)).toBeVisible();
+    expect(screen.getByText(/不会录音或发送到网络/)).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+    await user.click(screen.getByRole("button", { name: "允许访问麦克风" }));
     expect(controller.requestPermission).toHaveBeenCalledOnce();
   });
 
@@ -143,11 +144,11 @@ describe("FR-010 Audio Settings", () => {
       });
     });
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "ACCESS BLOCKED",
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
+      "输入与输出",
     );
     expect(screen.getByText("AUDIO_PERMISSION_DENIED")).toBeVisible();
-    expect(screen.getByText(/歌曲和分析数据安全/)).toBeVisible();
+    expect(screen.getByText(/检查 Windows 隐私设置/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "检查设置后重试" }),
     ).toBeEnabled();
@@ -203,12 +204,10 @@ describe("FR-010 Audio Settings", () => {
       });
     });
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "READY",
-    );
+    expect(screen.getByText("输入设备已就绪")).toBeVisible();
     expect(screen.getByText("A4 · 440.0 Hz · MIDI 69.00")).toBeVisible();
     expect(screen.getByText("-18.2 dBFS")).toBeVisible();
-    expect(screen.getByText("SAMPLE RATE 48000 HZ")).toBeVisible();
+    expect(screen.queryByText("SAMPLE RATE 48000 HZ")).not.toBeInTheDocument();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("输入设备"), "usb");
@@ -235,7 +234,7 @@ describe("FR-010 Audio Settings", () => {
       });
     });
 
-    await user.click(screen.getByRole("button", { name: "恢复音频上下文" }));
+    await user.click(screen.getByRole("button", { name: "恢复音频" }));
     expect(controller.resume).toHaveBeenCalledOnce();
   });
 
@@ -268,11 +267,11 @@ describe("FR-010 Audio Settings", () => {
         settingsService={settingsService}
       />,
     );
-    await screen.findByText(/SETTINGS REV 0/);
+    await waitFor(() => expect(settingsService.load).toHaveBeenCalledOnce());
 
-    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+    await user.click(screen.getByRole("button", { name: "允许访问麦克风" }));
 
-    expect(await screen.findByText("已回退到系统默认输入")).toBeVisible();
+    expect(await screen.findByText("正在使用默认输入")).toBeVisible();
     expect(settingsService.update).toHaveBeenCalledWith(
       expect.objectContaining({
         inputDeviceFingerprint: await fingerprintAudioDevice("audioinput", {
@@ -319,24 +318,24 @@ describe("FR-010 Audio Settings", () => {
         settingsService={settingsService}
       />,
     );
-    await screen.findByText(/SETTINGS REV 0/);
+    await waitFor(() => expect(settingsService.load).toHaveBeenCalledOnce());
 
-    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+    await user.click(screen.getByRole("button", { name: "允许访问麦克风" }));
 
     expect(controller.switchDevice).toHaveBeenCalledWith("usb");
     expect(await screen.findByText(/已恢复保存的输入设备/)).toBeVisible();
   });
 
-  it("serializes rapid setting changes against the latest revision", async () => {
+  it("serializes rapid volume changes against the latest revision", async () => {
     const settingsService = fakeSettingsService(settingsWith());
     render(<AudioSettingsPage settingsService={settingsService} />);
-    await screen.findByText(/SETTINGS REV 0/);
+    await waitFor(() => expect(settingsService.load).toHaveBeenCalledOnce());
 
-    fireEvent.change(screen.getByLabelText("主题"), {
-      target: { value: "dark" },
+    fireEvent.change(screen.getByLabelText("伴奏音量"), {
+      target: { value: "0.5" },
     });
-    fireEvent.change(screen.getByLabelText("动效"), {
-      target: { value: "reduce" },
+    fireEvent.change(screen.getByLabelText("伴奏音量"), {
+      target: { value: "0.4" },
     });
 
     await waitFor(() =>
@@ -344,12 +343,12 @@ describe("FR-010 Audio Settings", () => {
     );
     expect(settingsService.update).toHaveBeenNthCalledWith(
       1,
-      { themePreference: "dark" },
+      { volume: 0.5 },
       0,
     );
     expect(settingsService.update).toHaveBeenNthCalledWith(
       2,
-      { motionPreference: "reduce" },
+      { volume: 0.4 },
       1,
     );
   });
@@ -431,16 +430,18 @@ describe("FR-010 Audio Settings", () => {
         settingsService={settingsService}
       />,
     );
-    await screen.findByText(/SETTINGS REV 0/);
-    await user.click(screen.getByRole("button", { name: "请求麦克风权限" }));
+    await waitFor(() => expect(settingsService.load).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "允许访问麦克风" }));
 
     expect(controller.switchDevice).toHaveBeenCalledWith("usb-mic");
     expect(screen.getByLabelText("输出设备")).toHaveValue("usb-speakers");
-    await screen.findByText(/SETTINGS REV 1/);
+    await waitFor(() =>
+      expect(settingsService.update).toHaveBeenCalledTimes(1),
+    );
 
     await user.click(screen.getByRole("button", { name: "播放校准声并测量" }));
     expect(measure).toHaveBeenCalledWith("usb-mic", "usb-speakers");
-    await screen.findByText(/当前设备组合校准已原子保存/);
+    await screen.findByText(/已保存当前设备组合的校准/);
     expect(settingsService.update).toHaveBeenLastCalledWith(
       expect.objectContaining({
         latencyCalibrations: [

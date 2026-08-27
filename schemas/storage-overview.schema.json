@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/storage-overview.schema.json",
+  "title": "StorageOverview",
+  "type": "object",
+  "required": ["schemaVersion", "calculatedAtMs", "totalBytes", "categories"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "calculatedAtMs": { "type": "integer", "minimum": 0 },
+    "totalBytes": { "type": "integer", "minimum": 0 },
+    "categories": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["id", "bytes", "itemCount"],
+        "properties": {
+          "id": {
+            "enum": ["songs", "models", "diagnostics", "temporary", "other"]
+          },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "itemCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

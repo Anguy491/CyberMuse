@@ -293,12 +293,28 @@ interface AppSettings {
   volume: number;                   // 0..1
   themePreference: "system" | "dark" | "light";
   motionPreference: "system" | "reduce" | "full";
+  languagePreference: "system" | "zh-CN" | "en-US";
   modelCacheSelection: string[];    // exact modelId@version，最多 32 项
   latencyCalibrations: LatencyCalibration[]; // 每设备组合最多一项，最多 32 项
 }
 ```
 
-`AppSettings.revision` 是乐观并发版本；更新必须携带 `expectedRevision`，冲突不覆盖较新设置。损坏或未知版本的设置在启动/读取时恢复为安全默认值并返回 `recovered=true`，不阻塞 Library。设备原始 ID/名称不得进入 `settings.json`；页面只提交 SHA-256 fingerprint。物理设备使用当前 origin 的 `deviceId`，语义 `default` 项把当前 `groupId` 纳入 fingerprint，因此 Windows 默认设备变化不会继续命中旧校准。用户授权后页面以当前枚举重新计算 fingerprint 并恢复匹配输入/输出；无匹配项时可见地回退系统默认并保存新 fingerprint。校准还必须匹配共享 AudioContext 的 `sampleRateHz`；任一设备或采样率变化时使用零补偿，直到用户重测或手动确认。`measured` 必须带 0..1 confidence，`manual` 必须为 null confidence。模型缓存选择由已安装且通过 hash 验证的 exact cache 项同步，不授权自动下载或删除。
+`AppSettings.revision` 是乐观并发版本；更新必须携带 `expectedRevision`，冲突不覆盖较新设置。`languagePreference` 是同一 v1 schema 的兼容新增字段：旧文件缺失时规范化为 `system`，新写入总是包含该字段，非法值按损坏设置恢复。损坏或未知版本的设置在启动/读取时恢复为安全默认值并返回 `recovered=true`，不阻塞 Library。设备原始 ID/名称不得进入 `settings.json`；页面只提交 SHA-256 fingerprint。物理设备使用当前 origin 的 `deviceId`，语义 `default` 项把当前 `groupId` 纳入 fingerprint，因此 Windows 默认设备变化不会继续命中旧校准。用户授权后页面以当前枚举重新计算 fingerprint 并恢复匹配输入/输出；无匹配项时可见地回退系统默认并保存新 fingerprint。校准还必须匹配共享 AudioContext 的 `sampleRateHz`；任一设备或采样率变化时使用零补偿，直到用户重测或手动确认。`measured` 必须带 0..1 confidence，`manual` 必须为 null confidence。模型缓存选择由已安装且通过 hash 验证的 exact cache 项同步，不授权自动下载或删除。
+
+```ts
+interface StorageOverview {
+  schemaVersion: 1;
+  calculatedAtMs: number;
+  totalBytes: number;
+  categories: Array<{
+    id: "songs" | "models" | "diagnostics" | "temporary" | "other";
+    bytes: number;
+    itemCount: number;
+  }>;
+}
+```
+
+`StorageOverview` 是按需计算的只读快照，不持久化。Rust 只扫描应用控制的固定目录，跳过 symbolic link、junction 和 reparse point，不接受页面路径，也不返回完整路径。`itemCount` 是每个分类固定根下的直接项目数，`bytes` 包含该项目的受限递归内容；缺失目录计为零。
 
 诊断导出是单个版本化 JSON 文件：
 

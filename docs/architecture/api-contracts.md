@@ -5,7 +5,7 @@
 | 状态 | Baseline |
 | 版本 | 0.1.0 |
 | 责任域 | TypeScript ↔ Rust ↔ Python 契约 |
-| 上游依据 | `data-model.md`、`architecture.md`、FR-003 至 FR-021 |
+| 上游依据 | `data-model.md`、`architecture.md`、FR-003 至 FR-023 |
 | 关联文件 | `song-analyzer.md`、`requirements-traceability.md` |
 
 ## 版本与通用 envelope
@@ -49,6 +49,7 @@ interface AppError {
 | `get_app_settings` | `{apiVersion}` | `{settings: AppSettings, recovered}` | `SETTINGS_STORE_UNAVAILABLE` |
 | `update_app_settings` | `{apiVersion, patch, expectedRevision}` | `{settings: AppSettings, recovered:false}` | `SETTINGS_CONFLICT`、`SETTINGS_INVALID` |
 | `clear_app_settings` | `{apiVersion}` | `{settings: AppSettings, recovered:false}` | `SETTINGS_STORE_UNAVAILABLE` |
+| `get_storage_overview` | `{apiVersion}` | `StorageOverview` | `STORAGE_OVERVIEW_UNAVAILABLE`、`STORAGE_OVERVIEW_INVALID` |
 | `get_model_status` | `{apiVersion}` | `{models: ModelStatus[]}` | `MODEL_STORE_UNAVAILABLE` |
 | `install_model` | `{apiVersion, modelId, version, consentToken}` | `{jobId}` | `MODEL_NOT_APPROVED`、`MODEL_CONSENT_REQUIRED`、`MODEL_JOB_ALREADY_ACTIVE` |
 | `cancel_model_install` | `{apiVersion, jobId}` | `{jobId}` | `MODEL_JOB_NOT_FOUND`、`MODEL_JOB_ALREADY_TERMINAL` |
@@ -108,6 +109,8 @@ interface SessionUnavailableRange {
 M6 保持单次 `save_practice_session`：上限同时固定为 16 MiB、60 分钟和 180,000 个有效 observation。Rust 重验 session、歌曲和当前 analysis 引用；相同 session 内容可幂等重试，不同内容返回 `SESSION_INVALID`。`list_practice_sessions` 只返回摘要，完整 observation 仅由 `get_practice_session` 按需读取。读取 Review 时，Rust 保留合法 session/take 字段和已存整体指标，过滤单个损坏 observation 或 take observations，并以 `unavailableRanges` 明确标出；主结构、引用或整体指标无法验证时仍返回结构化错误，不伪造复盘。
 
 `AppSettings.latencyCalibrations[]` 以 input/output fingerprint 设备对唯一，并携带 `sampleRateHz`。自动测量只接受 `latencyMs=0..2000`、非空 0..1 confidence；手动补偿只接受 `latencyMs=-250..500`、`confidence=null`。Practice 不得在打开歌曲时预先信任已存校准：获得麦克风权限并恢复实际输入、解析实际输出、确认共享 AudioContext 采样率后，三者完全匹配才设置 session 的 `latencySource`；否则使用 `none/0` 并可见提示。非默认输出由 WebView2 `AudioContext.setSinkId` 路由，不支持时返回可恢复播放错误，不能静默播放到另一设备并沿用校准。
+
+`AppSettings.languagePreference` 接受 `system | zh-CN | en-US`。同主版本旧文件可缺少该字段，读取时规范化为 `system`；非法值触发既有损坏设置恢复。`get_storage_overview` 不接受路径，在后台线程扫描歌曲、模型、日志、临时和设置固定根；响应只有分类、字节、项目数与计算时间，禁止返回路径。目录缺失按零处理，符号链接与 Windows reparse point 不跟随。
 
 诊断导出采用两步本地 capability：`prepare_diagnostic_bundle` 返回确切包含项、明确排除项、估算大小和五分钟一次性 consent token；`save_diagnostic_bundle` 消费 token 后由 Rust 打开原生保存对话框，页面不能提交或收到完整路径。取消返回 `saved=false` 且不创建文件；保存前 Rust 再次执行字段 allowlist 和路径/音频/F0/设备标识扫描。
 

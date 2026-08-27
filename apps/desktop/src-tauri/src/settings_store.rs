@@ -28,6 +28,8 @@ pub struct AppSettings {
     pub volume: f64,
     pub theme_preference: String,
     pub motion_preference: String,
+    #[serde(default = "default_language_preference")]
+    pub language_preference: String,
     pub model_cache_selection: Vec<String>,
     pub latency_calibrations: Vec<LatencyCalibration>,
 }
@@ -40,6 +42,7 @@ pub struct AppSettingsPatch {
     pub volume: Option<f64>,
     pub theme_preference: Option<String>,
     pub motion_preference: Option<String>,
+    pub language_preference: Option<String>,
     pub model_cache_selection: Option<Vec<String>>,
     pub latency_calibrations: Option<Vec<LatencyCalibration>>,
 }
@@ -91,6 +94,7 @@ pub fn default_settings() -> AppSettings {
         volume: 0.65,
         theme_preference: "system".to_owned(),
         motion_preference: "system".to_owned(),
+        language_preference: default_language_preference(),
         model_cache_selection: Vec::new(),
         latency_calibrations: Vec::new(),
     }
@@ -141,6 +145,9 @@ pub fn update_settings(
     if let Some(value) = patch.motion_preference {
         settings.motion_preference = value;
     }
+    if let Some(value) = patch.language_preference {
+        settings.language_preference = value;
+    }
     if let Some(value) = patch.model_cache_selection {
         settings.model_cache_selection = value;
     }
@@ -183,6 +190,10 @@ fn validate_settings(settings: &AppSettings) -> Result<(), SettingsStoreError> {
         || !matches!(
             settings.motion_preference.as_str(),
             "system" | "reduce" | "full"
+        )
+        || !matches!(
+            settings.language_preference.as_str(),
+            "system" | "zh-CN" | "en-US"
         )
         || settings.model_cache_selection.len() > 32
         || settings.latency_calibrations.len() > 32
@@ -231,6 +242,10 @@ fn validate_settings(settings: &AppSettings) -> Result<(), SettingsStoreError> {
         }
     }
     Ok(())
+}
+
+fn default_language_preference() -> String {
+    "system".to_owned()
 }
 
 fn settings_path(app_root: &Path) -> std::path::PathBuf {
@@ -331,6 +346,59 @@ mod tests {
         assert_eq!(
             clear_settings(&app_root).expect("clear"),
             default_settings()
+        );
+        let _ignored = fs::remove_dir_all(app_root);
+    }
+
+    #[test]
+    fn tc_i18n_001_normalizes_legacy_v1_language_and_rejects_invalid_values() {
+        let app_root = root("legacy-language");
+        fs::create_dir_all(app_root.join("data")).expect("data");
+        let legacy = serde_json::json!({
+            "schemaVersion": 1,
+            "revision": 0,
+            "inputDeviceFingerprint": null,
+            "outputDeviceFingerprint": null,
+            "volume": 0.65,
+            "themePreference": "system",
+            "motionPreference": "system",
+            "modelCacheSelection": [],
+            "latencyCalibrations": []
+        });
+        fs::write(
+            settings_path(&app_root),
+            serde_json::to_vec_pretty(&legacy).expect("legacy json"),
+        )
+        .expect("legacy fixture");
+        let (loaded, recovered) = load_settings(&app_root).expect("legacy load");
+        assert!(!recovered);
+        assert_eq!(loaded.language_preference, "system");
+
+        let updated = update_settings(
+            &app_root,
+            AppSettingsPatch {
+                language_preference: Some("en-US".to_owned()),
+                ..AppSettingsPatch::default()
+            },
+            0,
+        )
+        .expect("language update");
+        assert_eq!(updated.language_preference, "en-US");
+        let persisted = fs::read_to_string(settings_path(&app_root)).expect("persisted settings");
+        assert!(persisted.contains("languagePreference"));
+
+        assert_eq!(
+            update_settings(
+                &app_root,
+                AppSettingsPatch {
+                    language_preference: Some("fr-FR".to_owned()),
+                    ..AppSettingsPatch::default()
+                },
+                1,
+            )
+            .expect_err("unsupported language")
+            .code,
+            "SETTINGS_INVALID"
         );
         let _ignored = fs::remove_dir_all(app_root);
     }

@@ -26,6 +26,7 @@
     "volume": { "type": "number", "minimum": 0, "maximum": 1 },
     "themePreference": { "enum": ["system", "dark", "light"] },
     "motionPreference": { "enum": ["system", "reduce", "full"] },
+    "languagePreference": { "enum": ["system", "zh-CN", "en-US"] },
     "modelCacheSelection": {
       "type": "array",
       "maxItems": 32,

@@ -92,6 +92,36 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
   });
 
+  it("themes native select popups and leaves forced colors to Windows", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(
+      /select,\s*option,\s*optgroup\s*\{[^}]*color:\s*var\(--color-text-primary\)[^}]*background-color:\s*var\(--color-surface\)[^}]*color-scheme:/s,
+    );
+    expect(css).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*select,\s*option,\s*optgroup\s*\{[^}]*color:\s*CanvasText[^}]*background:\s*Canvas/s,
+    );
+  });
+
+  it("keeps every desktop page free of an independent technical rail", async () => {
+    const pageFiles = [
+      "LibraryPage.tsx",
+      "PracticePage.tsx",
+      "ReviewPage.tsx",
+      "SettingsPage.tsx",
+      "AudioSettingsPage.tsx",
+      "ModelAssetsPage.tsx",
+    ];
+    for (const pageFile of pageFiles) {
+      const source = await readFile(
+        resolve("apps/desktop/src/pages", pageFile),
+        "utf8",
+      );
+      expect(source, pageFile).not.toContain("tertiary-layer");
+    }
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).not.toContain(".tertiary-layer");
+  });
+
   it("keeps M3 Pitch Lane semantics independent of color and CSS timing", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toMatch(/\.now-line[\s\S]*left: 38%/);

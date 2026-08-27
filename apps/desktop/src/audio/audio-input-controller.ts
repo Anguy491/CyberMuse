@@ -208,11 +208,10 @@ function normalizeDevices(
     {
       deviceId: "default",
       groupId: defaultDevice?.groupId ?? "",
-      label: "系统默认输入",
+      label: "",
       isDefault: true,
     },
   ];
-  let anonymousIndex = 1;
   for (const device of inputs) {
     if (device.deviceId === "default") {
       continue;
@@ -220,13 +219,9 @@ function normalizeDevices(
     normalized.push({
       deviceId: device.deviceId,
       groupId: device.groupId,
-      label:
-        device.label.trim().length > 0
-          ? device.label
-          : `输入设备 ${anonymousIndex}`,
+      label: device.label.trim().length > 0 ? device.label : "",
       isDefault: false,
     });
-    anonymousIndex += 1;
   }
   return normalized;
 }

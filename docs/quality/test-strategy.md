@@ -19,7 +19,7 @@
 - TypeScript strict typecheck、ESLint、格式检查。
 - Rust `clippy`、format check、禁止 panic 的边界审查。
 - Python Ruff、mypy、format check。
-- JSON Schema/fixture 校验、Markdown 链接和稳定 ID 检查。
+- JSON Schema/fixture 校验、Markdown 链接和稳定 ID 检查；双语 JSON key 与参数占位严格对齐。
 - 依赖许可证、漏洞和锁文件检查。
 - Signal UI dark/light token 对比度；禁用未登记颜色/字体/CDN、渐变、阴影、blur、skeleton、Toast 和基础自动可访问性检查。
 
@@ -63,7 +63,11 @@
 
 UI 自动化不伪造硬件结论；真实麦克风/声卡行为归入人工矩阵。
 
-UI 视觉回归覆盖 Library、Import、Audio Settings、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对每屏恰好三层、一个无卡片 primary、一个 deliberate pattern break，以及字体/字号/字重预算。Canvas 测试同时断言可访问摘要和 legend，不以像素截图替代时间语义断言。
+UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Canvas 测试同时断言可访问摘要和 legend，不以像素截图替代时间语义断言。
+
+`TC-I18N-001` 必须比较 `zh-CN.json` 与 `en-US.json` 的全部 key 和占位符，并在两种语言下遍历 Library、Practice、Review、设置六分类、动态状态、错误与 ARIA 文本；除品牌、稳定错误码、标准单位和批准技术专名外不得混入另一语言。另测 `system` 解析、`languagechange`、即时切换、重启恢复、清除设置、旧 v1 缺字段、非法值与 revision 冲突回滚。
+
+`TC-STO-003` 使用 Rust fixture 覆盖 Unicode/空格根、缺失目录、五分类字节与项目数、symbolic link/junction/reparse point 跳过和序列化无路径；UI 覆盖进入/刷新/清理后刷新、错误恢复，以及歌曲、模型、日志动作只进入现有确认流程。
 
 M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动正常；Space Grotesk/Space Mono/Doto 候选未批准时只使用系统 fallback；采用后 artifact/hash/NOTICE 与依赖清单一致；字体文件缺失或加载失败时中英文内容、tabular 数字、44×44 px 命中区和主流程不破坏。
 

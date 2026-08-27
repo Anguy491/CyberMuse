@@ -37,6 +37,8 @@
 | FR-019 | Storage model；License policy | TC-MOD-001 同意/下载/hash/离线/删除 | M4 | `model_manager.rs` 本地服务器成功/复用/hash/size/redirect/cancel/remove 测试、Model Assets UI；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md) |
 | FR-020 | AppSettings API；UX Settings；ADR-017 | TC-SET-001 保存/修订冲突/设备失效 | M6 | `settings_store.rs` 默认/恢复/修订冲突/校准，`app-settings.schema.json`；Audio Settings 并发 revision 队列、真实 input/output 恢复、默认设备 group 变化可见回退、显示偏好/音量，Practice 恢复实际设备后再应用校准，Model Assets exact cache 同步 UI tests；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | FR-021 | Storage logs；native diagnostic capability；ADR-017 | TC-DIA-001 预览/redaction/取消 | M6 | `diagnostics.rs` preview、14 天/200 项、clear、禁字段扫描和原子 JSON tests；开发主机隐私 smoke 禁字段 0；原生保存发布 E2E 仍开放；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
+| FR-022 | UX Settings；AppSettings language；ADR-019 | TC-I18N-001 词汇包/切换/恢复/全页面扫描 | M6 | `i18n.test.ts`、`PreferencesProvider.test.tsx`、设置中心页面测试与发布显示矩阵；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
+| FR-023 | StorageOverview；Settings Storage；ADR-019 | TC-STO-003 固定根/Unicode/reparse/无路径泄露 | M6 | `storage_overview.rs`、`StorageSettings.test.tsx`、`storage-overview.schema.json`；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 
 ## 非功能需求映射
 
@@ -66,7 +68,7 @@
 
 ## M0 一致性证据
 
-- 所有 FR-001..FR-021 在本表出现一次。
+- 所有 FR-001..FR-023 在本表出现一次。
 - 所有 NFR-001..NFR-021 在本表出现一次。
 - Must 需求均有设计、测试和里程碑。
 - 测试 ID 在 Test Strategy 的层级或 Milestone Specs 中有执行位置。
@@ -114,7 +116,7 @@
 
 ## M6 进行中证据
 
-- FR-015/017/018/020/021 的 versioned contracts、Rust persistence、Practice 保存/关闭恢复、Review salvage/retry、设置 revision/device fallback 和脱敏诊断已实现；校准只在实际 input/output fingerprint 与共享采样率完全命中后应用。当前 `pnpm check` 为 22 个 unit 文件/126 项、3 个 contract 文件/14 项，Rust 为 49 项。
+- FR-015/017/018/020..023 的 versioned contracts、Rust persistence、Practice 保存/关闭恢复、Review salvage/retry、统一设置、双语、存储统计和脱敏诊断已实现；校准只在实际 input/output fingerprint 与共享采样率完全命中后应用。最终命令与计数以 [M6 evidence](../delivery/evidence/m6-review-and-release.md) 为准。
 - 开发主机已生成并烟测 NSIS installer；首次安装/同版本重装、1,066 个 payload 文件扫描、supply assets byte-identical、卸载和已有用户数据不变均通过。301 个依赖包加根包的 SPDX 2.3、notices、model manifest 和 installer SHA-256 已进入 release manifest，但该构建 unsigned、dirty 且 `distributionAllowed=false`。
 - TC-PRIV-001/TC-NET-001/TC-DIA-002 的开发主机捕获显示应用控制 endpoint class 0、静态非许可网络匹配 0、诊断禁字段 0；系统 WebView2 `Established` 类别继续按 RISK-018 单独披露。
 - Standalone package diagnostic 在真实 Spleeter 分析后发现安装目录生成 `~/.keras` 与字面 `%SystemDrive%/ProgramData`；ADR-018 将全部工具可写状态映射到 `staging/work/process-state`，Analyzer 全量 32+1 项和重新封装后的真实分析/三 artifact hash/干净卸载通过。诊断主机在线、有开发工具且跳过 Defender，所以 `cleanHostGateSatisfied=false`。

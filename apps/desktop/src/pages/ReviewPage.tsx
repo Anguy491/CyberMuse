@@ -6,10 +6,8 @@ import type {
 
 import { Button } from "../components/Button";
 import { PageState } from "../components/PageState";
-import {
-  buildReviewErrorIntervals,
-  reviewBiasSummary,
-} from "../review/review-model";
+import { useLocalizedText } from "../preferences/PreferencesProvider";
+import { buildReviewErrorIntervals } from "../review/review-model";
 
 interface ReviewPageProps {
   session: PracticeSession;
@@ -35,29 +33,41 @@ export function ReviewPage({
   onBackToLibrary,
   unavailableRanges = [],
 }: ReviewPageProps) {
+  const { t } = useLocalizedText();
   const intervals = buildReviewErrorIntervals(session);
   const durationMs = Math.max(
     1,
     ...session.takes.map((take) => take.endedAtSongTimeMs),
   );
+  const bias = session.metrics.signedMedianErrorCents;
+  const biasSummary =
+    bias === null || session.metrics.validFrameCount === 0
+      ? t("review.bias.insufficient")
+      : Math.abs(bias) < 5
+        ? t("review.bias.centered")
+        : t(bias > 0 ? "review.bias.high" : "review.bias.low", {
+            cents: Math.abs(bias).toFixed(0),
+          });
 
   return (
     <main className="page review-page" id="main-content">
       <section className="primary-layer review-primary" data-layer="primary">
-        <p className="eyebrow">
-          REVIEW / SESSION {session.sessionId.slice(0, 8)}
-        </p>
-        <h1>复盘《{songTitle}》</h1>
-        <p className="lede">{reviewBiasSummary(session)}</p>
+        <h1>{t("review.title", { song: songTitle })}</h1>
+        <p className="lede">{biasSummary}</p>
+        <div className="primary-actions">
+          <Button variant="quiet" onClick={onBackToLibrary}>
+            {t("review.back")}
+          </Button>
+        </div>
         <div className="review-hero-metrics" data-pattern-break="review-bias">
           <div>
-            <span>MEDIAN ERROR</span>
+            <span>{t("review.medianError")}</span>
             <strong>
               {metric(session.metrics.medianAbsoluteErrorCents, "c")}
             </strong>
           </div>
           <div>
-            <span>SIGNED BIAS</span>
+            <span>{t("review.signedBias")}</span>
             <strong>
               {metric(session.metrics.signedMedianErrorCents, "c")}
             </strong>
@@ -68,23 +78,23 @@ export function ReviewPage({
       <section
         className="secondary-layer review-secondary"
         data-layer="secondary"
-        aria-label="练习指标与错误区间"
+        aria-label={t("review.contentLabel")}
       >
         <dl className="review-metrics">
           <div>
-            <dt>音准准确率</dt>
+            <dt>{t("review.accuracy")}</dt>
             <dd>{metric(session.metrics.pitchAccuracy, "%")}</dd>
           </div>
           <div>
-            <dt>稳定性</dt>
+            <dt>{t("review.stability")}</dt>
             <dd>{metric(session.metrics.stability, "%")}</dd>
           </div>
           <div>
-            <dt>覆盖率</dt>
+            <dt>{t("review.coverage")}</dt>
             <dd>{metric(session.metrics.coverage, "%")}</dd>
           </div>
           <div>
-            <dt>有效帧</dt>
+            <dt>{t("review.validFrames")}</dt>
             <dd>{session.metrics.validFrameCount}</dd>
           </div>
         </dl>
@@ -106,67 +116,54 @@ export function ReviewPage({
             ))}
           </div>
           <figcaption id="review-timeline-caption">
-            时间线突出持续超过 50 cents 的区间；高低方向同时用文字和线型表达。
+            {t("review.timeline")}
           </figcaption>
         </figure>
 
         {unavailableRanges.length === 0 ? null : (
           <PageState
             code="SESSION_PARTIAL_DATA"
-            detail={`${unavailableRanges.length} 个音高数据范围不可用；已保存的整体指标和其他区间仍可复盘，不会把损坏范围显示为准确或失败。`}
+            detail={t("review.partial.detail", {
+              count: unavailableRanges.length,
+            })}
             kind="recoverable_error"
-            title="部分音高数据已损坏"
+            title={t("review.partial.title")}
           />
         )}
 
         {intervals.length === 0 ? (
           <PageState
-            detail="没有发现持续超过 50 cents 的区间；仍可结合覆盖率和稳定性继续练习。"
+            detail={t("review.noIntervals.detail")}
             kind="ready"
-            title="没有明显持续偏差"
+            title={t("review.noIntervals.title")}
           />
         ) : (
-          <ol className="review-intervals" aria-label="可重新练习的错误区间">
+          <ol className="review-intervals" aria-label={t("review.intervals")}>
             {intervals.map((interval, index) => (
               <li key={`${interval.startMs}-${interval.endMs}-${index}`}>
                 <div>
                   <strong>
                     {time(interval.startMs)}–{time(interval.endMs)} ·{" "}
                     {interval.direction === "high"
-                      ? "偏高"
+                      ? t("review.direction.high")
                       : interval.direction === "low"
-                        ? "偏低"
-                        : "高低混合"}
+                        ? t("review.direction.low")
+                        : t("review.direction.mixed")}
                   </strong>
                   <span>
-                    中位绝对误差 {interval.medianAbsoluteErrorCents.toFixed(1)}{" "}
-                    cents · {interval.sampleCount} 帧
+                    {t("review.interval.detail", {
+                      cents: interval.medianAbsoluteErrorCents.toFixed(1),
+                      count: interval.sampleCount,
+                    })}
                   </span>
                 </div>
                 <Button onClick={() => onPracticeRegion(interval)}>
-                  重新练习此处
+                  {t("review.practiceAgain")}
                 </Button>
               </li>
             ))}
           </ol>
         )}
-      </section>
-
-      <section
-        className="tertiary-layer review-tertiary"
-        data-layer="tertiary"
-        aria-label="会话技术信息"
-      >
-        <span>TAKES {session.takes.length}</span>
-        <span>SCORING {session.scoringVersion}</span>
-        <span>
-          LATENCY {session.latencySource.toUpperCase()} /{" "}
-          {session.appliedLatencyMs} MS
-        </span>
-        <span>ANALYSIS {session.analysisId.slice(0, 8)}</span>
-        <Button variant="quiet" onClick={onBackToLibrary}>
-          返回歌曲库
-        </Button>
       </section>
     </main>
   );

@@ -29,7 +29,7 @@
 - 视觉实现必须遵守 `docs/product/ui-design-system.md` 的语义 token、组件状态、品牌边界和 motion 约束；若与 FR/NFR 或 UX Flows 冲突，以 FR/NFR 和流程行为为准。
 - 不得复制 Nothing logo/Glyph/专有图标或引入未审查品牌字体；Nothing-inspired 只描述单色、点阵节奏、工程感和克制交互方向。
 - Dark/light 必须共用语义 token 并同等覆盖；默认跟随 Windows。字体只能使用完成 M1 审查的固定本地 artifact 和系统 fallback，不得发起字体/CDN 网络请求。
-- 每屏恰好使用 primary/secondary/tertiary 三层、一个无卡片 primary 焦点和一个可解释的 pattern break；单屏最多两个字体家族、三个字号、两个字重。
+- 每屏使用一个无卡片 primary 焦点和清晰的 supporting content；不得设置独立技术信息右栏。必要的图例、稳定状态或辅助动作只能在相关任务附近以紧凑 tertiary 信息呈现；单屏最多两个字体家族、三个字号、两个字重。
 - 容器优先级为留白、分隔线、border、surface；禁止渐变、阴影、blur、skeleton、Toast/snackbar、mascot/emoji、zebra table 和依赖颜色的状态。
 - 页面必须覆盖 loading、empty、ready、recoverable error、fatal error 和 permission denied。
 - 用户可见错误说明发生了什么、数据是否安全、可执行的恢复动作。

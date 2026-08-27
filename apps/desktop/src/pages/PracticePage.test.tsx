@@ -353,6 +353,7 @@ describe("FR-009/012/014 Practice UI", () => {
       volume: 0.7,
       themePreference: "system",
       motionPreference: "system",
+      languagePreference: "system",
       modelCacheSelection: [],
       latencyCalibrations: [
         {
@@ -453,8 +454,8 @@ describe("FR-009/012/014 Practice UI", () => {
     expect(screen.getByText(/未检测到稳定音高/)).toBeVisible();
     expect(screen.queryByText(/0 Hz/)).not.toBeInTheDocument();
     expect(screen.getByText("参考音高 · 虚线")).toBeVisible();
-    expect(screen.getByText("当前 take · 实线")).toBeVisible();
-    expect(screen.getByText("最近 take · 灰色点线")).toBeVisible();
+    expect(screen.getByText("当前录唱 · 实线")).toBeVisible();
+    expect(screen.getByText("上次录唱 · 点线")).toBeVisible();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
   });
 });
@@ -493,9 +494,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     renderPractice(controller);
     emit(controller, readySnapshot());
 
-    expect(screen.getByLabelText("内存练习指标")).toHaveTextContent(
-      "CURRENT TAKE",
-    );
+    expect(screen.getByLabelText("练习指标")).toHaveTextContent("当前录唱");
     expect(screen.getAllByText("—").length).toBeGreaterThan(3);
     expect(screen.queryByText(/总分|TOTAL SCORE/)).not.toBeInTheDocument();
   });
@@ -521,9 +520,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
 
     expect(screen.getByRole("button", { name: "播放伴奏" })).toBeEnabled();
     expect(screen.getByText("AUDIO_PERMISSION_DENIED")).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "检查设备后重试录唱" }),
-    );
+    await user.click(screen.getByRole("button", { name: "检查设备后重试" }));
     expect(controller.startInput).toHaveBeenCalledOnce();
   });
 
@@ -546,7 +543,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
       }),
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("A-B 区间至少需要");
+    expect(screen.getByRole("alert")).toHaveTextContent("循环区间至少需要一秒");
     expect(screen.getByText("LOOP_TOO_SHORT")).toBeVisible();
   });
 });

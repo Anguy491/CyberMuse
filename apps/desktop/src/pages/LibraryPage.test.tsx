@@ -134,9 +134,9 @@ describe("FR-001..008 Library import and recovery UI", () => {
     await user.click(screen.getByRole("button", { name: "导入歌曲" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("我的 歌.flac");
     expect(screen.getByRole("dialog")).toHaveTextContent("当前可用");
-    expect(screen.getByRole("dialog")).toHaveTextContent("46.57 GiB");
+    expect(screen.getByRole("dialog")).toHaveTextContent("46.6 GB");
 
-    await user.click(screen.getByRole("button", { name: "确认复制并分析" }));
+    await user.click(screen.getByRole("button", { name: "复制并分析" }));
     await waitFor(() => expect(service.confirmImport).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(service.startAnalysis).toHaveBeenCalledWith(songId),
@@ -157,7 +157,7 @@ describe("FR-001..008 Library import and recovery UI", () => {
 
     await user.click(screen.getByRole("button", { name: "删除" }));
     const confirmation = await screen.findByRole("alertdialog");
-    expect(confirmation).toHaveTextContent("original、analyses");
+    expect(confirmation).toHaveTextContent("原始音频 · 分析结果");
     expect(confirmation).toHaveTextContent("不可恢复");
     await user.click(screen.getByRole("button", { name: "永久删除" }));
     await waitFor(() => expect(service.deleteSong).toHaveBeenCalledOnce());

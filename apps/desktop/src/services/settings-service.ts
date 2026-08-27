@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   parseAppSettings,
   type AppSettings,
+  type LanguagePreference,
   type LatencyCalibration,
   type MotionPreference,
   type ThemePreference,
@@ -25,6 +26,7 @@ export interface AppSettingsPatch {
   volume?: number;
   themePreference?: ThemePreference;
   motionPreference?: MotionPreference;
+  languagePreference?: LanguagePreference;
   modelCacheSelection?: string[];
   latencyCalibrations?: LatencyCalibration[];
 }

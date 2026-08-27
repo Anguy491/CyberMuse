@@ -49,6 +49,7 @@ use crate::song_store::{
     recover_interrupted_song_states,
 };
 use crate::storage::{read_versioned_json, resolve_relative, write_versioned_json};
+use crate::storage_overview::{StorageOverview, StorageOverviewError, collect_storage_overview};
 use crate::tool_manager::{ToolError, validate_bundled_ffmpeg};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -251,6 +252,18 @@ impl From<SettingsStoreError> for ApiError {
 
 impl From<DiagnosticError> for ApiError {
     fn from(value: DiagnosticError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
+impl From<StorageOverviewError> for ApiError {
+    fn from(value: StorageOverviewError) -> Self {
         Self {
             code: value.code.to_owned(),
             message_key: value.message_key.to_owned(),
@@ -901,6 +914,30 @@ pub fn clear_app_settings(
         }),
         Err(error) => CommandResult::failure(error),
     }
+}
+
+#[tauri::command]
+pub async fn get_storage_overview(
+    request: VersionedRequest,
+    state: State<'_, RuntimeState>,
+) -> Result<CommandResult<StorageOverview>, ApiError> {
+    if request.api_version != 1 {
+        return Ok(CommandResult::unsupported());
+    }
+    let app_root = state.app_root.clone();
+    Ok(
+        match tauri::async_runtime::spawn_blocking(move || collect_storage_overview(&app_root))
+            .await
+        {
+            Ok(Ok(overview)) => CommandResult::success(overview),
+            Ok(Err(error)) => CommandResult::failure(error),
+            Err(_) => CommandResult::failure(ApiError::new(
+                "STORAGE_OVERVIEW_UNAVAILABLE",
+                "storage.error.overviewUnavailable",
+                true,
+            )),
+        },
+    )
 }
 
 #[tauri::command]

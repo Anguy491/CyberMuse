@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { AudioSettingsPage } from "./pages/AudioSettingsPage";
 import { LibraryPage } from "./pages/LibraryPage";
-import { ModelAssetsPage } from "./pages/ModelAssetsPage";
 import { PracticePage } from "./pages/PracticePage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { SettingsPage, type SettingsSectionId } from "./pages/SettingsPage";
 import type {
   PracticeSession,
   SessionLoopRegion,
@@ -19,13 +18,17 @@ import {
   type SettingsServicePort,
 } from "./services/settings-service";
 import {
+  PreferencesProvider,
+  usePreferences,
+} from "./preferences/PreferencesProvider";
+import {
   SongService,
   type PracticeAssets,
   type SongServicePort,
   type SongSummary,
 } from "./services/song-service";
 
-type PageId = "library" | "practice" | "review" | "models" | "audio";
+type PageId = "library" | "practice" | "review" | "settings";
 
 interface PracticeSelection {
   song: SongSummary;
@@ -54,37 +57,41 @@ export function App({
   sessionService = defaultSessionService,
   settingsService = defaultSettingsService,
 }: AppProps) {
+  return (
+    <PreferencesProvider service={settingsService}>
+      <AppContent
+        songService={songService}
+        sessionService={sessionService}
+        settingsService={settingsService}
+      />
+    </PreferencesProvider>
+  );
+}
+
+function AppContent({
+  songService,
+  sessionService,
+  settingsService,
+}: Required<AppProps>) {
+  const { t } = usePreferences();
   const [page, setPage] = useState<PageId>("library");
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSectionId>("input-output");
   const [practice, setPractice] = useState<PracticeSelection | null>(null);
   const [review, setReview] = useState<ReviewSelection | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    void settingsService
-      .load()
-      .then(({ settings }) => {
-        if (!active) return;
-        document.documentElement.dataset.theme = settings.themePreference;
-        document.documentElement.dataset.motion = settings.motionPreference;
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [settingsService]);
   const navigation =
     page === "practice" && practice !== null
-      ? [{ id: "practice" as const, label: "练习" }]
+      ? [{ id: "practice" as const, label: t("nav.practice") }]
       : [
-          { id: "library" as const, label: "歌曲库" },
+          { id: "library" as const, label: t("nav.library") },
           ...(practice === null
             ? []
-            : [{ id: "practice" as const, label: "练习" }]),
+            : [{ id: "practice" as const, label: t("nav.practice") }]),
           ...(review === null
             ? []
-            : [{ id: "review" as const, label: "复盘" }]),
-          { id: "models" as const, label: "模型" },
-          { id: "audio" as const, label: "音频设置" },
+            : [{ id: "review" as const, label: t("nav.review") }]),
+          { id: "settings" as const, label: t("nav.settings") },
         ];
 
   const practiceRegion = async (region: SessionLoopRegion) => {
@@ -97,17 +104,13 @@ export function App({
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
-        跳到主要内容
+        {t("app.skip")}
       </a>
       <header className="app-header">
-        <a
-          className="wordmark"
-          href="#main-content"
-          aria-label="CyberMuse 首页"
-        >
+        <a className="wordmark" href="#main-content" aria-label={t("app.home")}>
           CYBER<span>MUSE</span>
         </a>
-        <nav aria-label="主导航">
+        <nav aria-label={t("app.mainNav")}>
           {navigation.map((item) => (
             <button
               aria-current={page === item.id ? "page" : undefined}
@@ -120,16 +123,19 @@ export function App({
             </button>
           ))}
         </nav>
-        <div className="global-state" aria-label="全局状态">
-          <span className="status-shape" aria-hidden="true" />
-          本地模式
-        </div>
       </header>
 
       {page === "library" ? (
         <LibraryPage
           service={songService}
-          onOpenModels={() => setPage("models")}
+          onOpenModels={() => {
+            setSettingsSection("models");
+            setPage("settings");
+          }}
+          onOpenStorage={() => {
+            setSettingsSection("storage");
+            setPage("settings");
+          }}
           onOpenPractice={(song, assets) => {
             setPractice({ song, assets, initialLoop: null });
             setPage("practice");
@@ -167,11 +173,12 @@ export function App({
           onPracticeRegion={(region) => void practiceRegion(region)}
         />
       ) : null}
-      {page === "models" ? (
-        <ModelAssetsPage settingsService={settingsService} />
-      ) : null}
-      {page === "audio" ? (
-        <AudioSettingsPage settingsService={settingsService} />
+      {page === "settings" ? (
+        <SettingsPage
+          section={settingsSection}
+          onSectionChange={setSettingsSection}
+          onManageSongs={() => setPage("library")}
+        />
       ) : null}
     </div>
   );

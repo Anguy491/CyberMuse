@@ -60,6 +60,7 @@ function settings(): AppSettings {
     volume: 0.75,
     themePreference: "system",
     motionPreference: "system",
+    languagePreference: "system",
     modelCacheSelection: ["swiftf0@0.1.2"],
     latencyCalibrations: [
       {
@@ -84,6 +85,15 @@ describe("TC-CON-001 M6 persistent contracts", () => {
     expect(
       parseAppSettings({ ...settings(), futureField: true }).revision,
     ).toBe(2);
+  });
+
+  it("normalizes a legacy v1 settings document without language", () => {
+    const legacy = settings() as Record<string, unknown>;
+    delete legacy.languagePreference;
+    expect(parseAppSettings(legacy).languagePreference).toBe("system");
+    expect(() =>
+      parseAppSettings({ ...settings(), languagePreference: "fr-FR" }),
+    ).toThrow(ContractError);
   });
 
   it("rejects unknown schema major and invalid observations", () => {

@@ -2,6 +2,7 @@ import { ContractError, SCHEMA_VERSION } from "./song";
 
 export type ThemePreference = "system" | "dark" | "light";
 export type MotionPreference = "system" | "reduce" | "full";
+export type LanguagePreference = "system" | "zh-CN" | "en-US";
 
 export interface LatencyCalibration {
   calibrationId: string;
@@ -22,6 +23,7 @@ export interface AppSettings extends Record<string, unknown> {
   volume: number;
   themePreference: ThemePreference;
   motionPreference: MotionPreference;
+  languagePreference: LanguagePreference;
   modelCacheSelection: string[];
   latencyCalibrations: LatencyCalibration[];
 }
@@ -82,6 +84,7 @@ export function parseAppSettings(value: unknown): AppSettings {
     );
   }
   const calibrations = value.latencyCalibrations;
+  const languagePreference = value.languagePreference ?? "system";
   const pairs = Array.isArray(calibrations)
     ? calibrations.map((item) =>
         isRecord(item)
@@ -102,6 +105,7 @@ export function parseAppSettings(value: unknown): AppSettings {
     value.volume <= 1 &&
     ["system", "dark", "light"].includes(String(value.themePreference)) &&
     ["system", "reduce", "full"].includes(String(value.motionPreference)) &&
+    ["system", "zh-CN", "en-US"].includes(String(languagePreference)) &&
     Array.isArray(value.modelCacheSelection) &&
     value.modelCacheSelection.length <= 32 &&
     value.modelCacheSelection.every(
@@ -117,5 +121,5 @@ export function parseAppSettings(value: unknown): AppSettings {
   if (!valid) {
     throw new ContractError("SCHEMA_INVALID", "AppSettings fields are invalid");
   }
-  return { ...value } as AppSettings;
+  return { ...value, languagePreference } as AppSettings;
 }

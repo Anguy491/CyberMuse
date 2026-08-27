@@ -57,6 +57,7 @@ function fakeSettingsService(): SettingsServicePort & {
     volume: 0.65,
     themePreference: "system",
     motionPreference: "system",
+    languagePreference: "system",
     modelCacheSelection: [],
     latencyCalibrations: [],
   };
@@ -84,8 +85,8 @@ describe("FR-019 model assets", () => {
     );
 
     expect(await screen.findByText("Spleeter 2 stems")).toBeVisible();
-    expect(screen.getByText("人声与伴奏分离")).toBeVisible();
-    expect(screen.getByText(/69\.7 MiB/)).toBeVisible();
+    expect(screen.getByText("分离人声与伴奏")).toBeVisible();
+    expect(screen.getByText(/69\.7 MB/)).toBeVisible();
     expect(screen.getByRole("link", { name: "MIT" })).toHaveAttribute(
       "href",
       spleeter.licenseUrl,
@@ -165,7 +166,7 @@ describe("FR-019 model assets", () => {
       <ModelAssetsPage service={service} settingsService={settingsService} />,
     );
 
-    expect(await screen.findByText(/缓存选择/)).toBeVisible();
+    expect(await screen.findByText("Spleeter 2 stems")).toBeVisible();
     await waitFor(() =>
       expect(settingsService.update).toHaveBeenCalledWith(
         { modelCacheSelection: ["spleeter-2stems@1.4.0"] },
