@@ -133,8 +133,6 @@ for (const name of [
 for (const [name, version] of [
   ["numpy", "2.5.2"],
   ["onnxruntime", "1.29.0"],
-  ["spleeter", "2.4.2"],
-  ["tensorflow-intel", "2.12.1"],
   ["mypy", "1.17.1"],
   ["pyinstaller", "6.15.0"],
   ["pytest", "8.4.2"],
@@ -181,10 +179,7 @@ for distribution in metadata.distributions():
 print(json.dumps(items))
 `;
 
-for (const pythonPath of [
-  "analyzer/.venv/Scripts/python.exe",
-  "analyzer/engines/spleeter/.venv/Scripts/python.exe",
-]) {
+for (const pythonPath of ["analyzer/.venv/Scripts/python.exe"]) {
   if (!existsSync(pythonPath)) {
     fail(`missing frozen Python environment ${pythonPath}`);
   }

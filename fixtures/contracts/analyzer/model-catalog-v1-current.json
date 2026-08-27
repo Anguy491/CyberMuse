@@ -3,17 +3,17 @@
   "models": [
     {
       "schemaVersion": 1,
-      "modelId": "spleeter-2stems",
-      "version": "1.4.0",
-      "displayName": "Spleeter 2 stems",
+      "modelId": "demucs-htdemucs",
+      "version": "spectral-v1.0.0",
+      "displayName": "HTDemucs (OpenKara spectral)",
       "purpose": "人声与伴奏分离",
-      "engine": "tensorflow-cpu",
-      "sourceUrl": "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz",
+      "engine": "onnxruntime-cpu-spectral",
+      "sourceUrl": "https://github.com/thedavidweng/openkara-models/releases/download/model-spectral-v1.0.0/htdemucs.spectral.onnx",
       "licenseExpression": "MIT",
-      "licenseUrl": "https://github.com/deezer/spleeter/blob/master/LICENSE",
-      "sizeBytes": 73109797,
-      "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
-      "artifactName": "2stems.tar.gz",
+      "licenseUrl": "https://github.com/thedavidweng/openkara-models/releases/download/infra-2026-08-12-001/LICENSE",
+      "sizeBytes": 209469333,
+      "sha256": "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
+      "artifactName": "htdemucs.spectral.onnx",
       "supportedHardware": ["cpu-x86_64"]
     },
     {

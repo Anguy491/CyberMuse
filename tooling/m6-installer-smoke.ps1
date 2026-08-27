@@ -84,7 +84,6 @@ function Assert-InstalledPayload {
         'model-manifest.json',
         'runtime-manifest.json',
         'analyzer\cybermuse-analyzer.exe',
-        'spleeter-engine\cybermuse-spleeter-engine.exe',
         'ffmpeg\ffmpeg.exe',
         'ffmpeg\ffprobe.exe',
         'uninstall.exe'

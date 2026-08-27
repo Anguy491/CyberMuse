@@ -181,7 +181,7 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
   "inputPath": "D:\\...\\original.flac",
   "stagingPath": "D:\\...\\tmp\\jobs\\4ab0c16f",
   "expectedDurationMs": 234123,
-  "pipelineVersion": "m4-production-v1",
+  "pipelineVersion": "m6-demucs-v1",
   "roots": {
     "songRoot": "D:\\...\\data\\songs\\64-char-lowercase-sha256",
     "stagingRoot": "D:\\...\\tmp\\jobs",
@@ -190,11 +190,11 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
   },
   "models": [
     {
-      "modelId": "spleeter-2stems",
-      "version": "1.4.0",
-      "engine": "tensorflow-cpu",
-      "path": "D:\\...\\models\\spleeter-2stems\\1.4.0\\2stems.tar.gz",
-      "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+      "modelId": "demucs-htdemucs",
+      "version": "spectral-v1.0.0",
+      "engine": "onnxruntime-cpu-spectral",
+      "path": "D:\\...\\models\\demucs-htdemucs\\spectral-v1.0.0\\htdemucs.spectral.onnx",
+      "sha256": "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
       "licenseExpression": "MIT"
     },
     {
@@ -208,8 +208,7 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
   ],
   "tools": [
     {"toolId":"ffmpeg","version":"n9.0.1-6-g9d4ca21220","path":"D:\\...\\resources\\ffmpeg\\ffmpeg.exe","sha256":"f4326d7a480fb9e81a34440e775a70ebcf263a0c5fbc45678ffc594a9a7eccf3"},
-    {"toolId":"ffprobe","version":"n9.0.1-6-g9d4ca21220","path":"D:\\...\\resources\\ffmpeg\\ffprobe.exe","sha256":"1c9b4e13cdc83bf7a4e2f40a69716a62eddc6810a7a6abaacbc568ffaf77c8e9"},
-    {"toolId":"spleeter-engine","version":"0.1.0","path":"D:\\...\\resources\\spleeter-engine\\cybermuse-spleeter-engine.exe","sha256":"679b1827d939642bd662f78f4a16b950c5a9b0c0d112769059940dcbeb306e1d"}
+    {"toolId":"ffprobe","version":"n9.0.1-6-g9d4ca21220","path":"D:\\...\\resources\\ffmpeg\\ffprobe.exe","sha256":"1c9b4e13cdc83bf7a4e2f40a69716a62eddc6810a7a6abaacbc568ffaf77c8e9"}
   ],
   "config": {
     "sampleRateHz": 48000,
@@ -221,9 +220,9 @@ cybermuse-analyzer.exe analyze --request <absolute-request-json>
 }
 ```
 
-Analyzer 及其 FFmpeg/Spleeter 子进程都必须以 `shell=false` 和受限 `PATH` 启动。嵌套工具的所有可写环境目录（profile/app data/ProgramData/temp、XDG、Keras、Matplotlib、Python bytecode 与 TF Hub cache，共 14 个显式变量）映射到当前 `stagingPath/work/process-state`；只保留 Windows `SYSTEMROOT`、`WINDIR` 与实际 `SYSTEMDRIVE`。pipeline 成功、失败或取消后删除整个 `work`，安装目录、真实用户 profile 和系统 ProgramData 不得出现 analyzer 生成状态。该环境边界不是 payload 字段，不改变 schema major，但属于 TC-BUILD-001/TC-PRIV-001 的跨进程契约。
+Analyzer 及其 FFmpeg 子进程都必须以 `shell=false` 和受限 `PATH` 启动。嵌套工具的所有可写环境目录（profile/app data/ProgramData/temp、XDG、Matplotlib、Python bytecode 等显式变量）映射到当前 `stagingPath/work/process-state`；只保留 Windows `SYSTEMROOT`、`WINDIR` 与实际 `SYSTEMDRIVE`。pipeline 成功、失败或取消后删除整个 `work`，安装目录、真实用户 profile 和系统 ProgramData 不得出现 analyzer 生成状态。该环境边界不是 payload 字段，不改变 schema major，但属于 TC-BUILD-001/TC-PRIV-001 的跨进程契约。
 
-Rust canonicalize 并验证所有路径位于批准根目录，校验 song/model/tool 内容哈希和 exact allowlist；Python 再做防御性验证。Spleeter engine 的 exact SHA-256 由构建生成的 `runtime-manifest.json` 在 Cargo 编译期嵌入，避免把 PyInstaller 非确定性 PE 哈希当作源代码常量。请求文件权限仅限当前用户，最大 1 MiB、最大 JSON 深度 32，拒绝 NaN/Infinity、reparse point 和根目录逃逸。
+Rust canonicalize 并验证所有路径位于批准根目录，校验 song/model/tool 内容哈希和 exact allowlist；Python 再做防御性验证。Analyzer 与 FFmpeg 的 exact SHA-256 由构建生成的 `runtime-manifest.json` 在 Cargo 编译期嵌入。请求文件权限仅限当前用户，最大 1 MiB、最大 JSON 深度 32，拒绝 NaN/Infinity、reparse point 和根目录逃逸。
 
 ### stdout NDJSON
 

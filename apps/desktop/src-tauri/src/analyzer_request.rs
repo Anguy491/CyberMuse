@@ -10,7 +10,6 @@ use crate::analysis_store::{
     AnalysisStoreError, ExpectedModel, ValidationExpectation, analysis_id_for,
     canonical_json_sha256,
 };
-use crate::runtime_manifest::bundled_sha256;
 use crate::storage::resolve_relative;
 
 const REQUEST_LIMIT_BYTES: u64 = 1024 * 1024;
@@ -173,7 +172,7 @@ pub fn validate_request(request: &AnalyzerRequest) -> Result<(), AnalysisStoreEr
             return Err(request_error("model_hash"));
         }
     }
-    if model_ids != BTreeSet::from(["spleeter-2stems", "swiftf0"])
+    if model_ids != BTreeSet::from(["demucs-htdemucs", "swiftf0"])
         || !approved_models(&request.models)
     {
         return Err(request_error("model_approval"));
@@ -192,9 +191,7 @@ pub fn validate_request(request: &AnalyzerRequest) -> Result<(), AnalysisStoreEr
             return Err(request_error("tool_hash"));
         }
     }
-    if tool_ids != BTreeSet::from(["ffmpeg", "ffprobe", "spleeter-engine"])
-        || !approved_tools(&request.tools)
-    {
+    if tool_ids != BTreeSet::from(["ffmpeg", "ffprobe"]) || !approved_tools(&request.tools) {
         return Err(request_error("tool_approval"));
     }
     if analysis_id(request)? != request.requested_analysis_id {
@@ -264,11 +261,11 @@ pub fn validation_expectation(
 
 fn approved_models(models: &[ModelInput]) -> bool {
     models.iter().all(|model| match model.model_id.as_str() {
-        "spleeter-2stems" => {
-            model.version == "1.4.0"
-                && model.engine == "tensorflow-cpu"
+        "demucs-htdemucs" => {
+            model.version == "spectral-v1.0.0"
+                && model.engine == "onnxruntime-cpu-spectral"
                 && model.sha256
-                    == "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692"
+                    == "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02"
                 && model.license_expression == "MIT"
         }
         "swiftf0" => {
@@ -291,11 +288,6 @@ fn approved_tools(tools: &[ToolInput]) -> bool {
         "ffprobe" => {
             tool.version == "n9.0.1-6-g9d4ca21220"
                 && tool.sha256 == "1c9b4e13cdc83bf7a4e2f40a69716a62eddc6810a7a6abaacbc568ffaf77c8e9"
-        }
-        "spleeter-engine" => {
-            tool.version == "0.1.0"
-                && bundled_sha256("spleeter-engine/cybermuse-spleeter-engine.exe")
-                    .is_some_and(|approved| approved == tool.sha256)
         }
         _ => false,
     })
@@ -415,11 +407,11 @@ mod tests {
             schema_version: 1,
             job_id: "4ab0c16f-1234-4abc-8def-1234567890ab".to_owned(),
             song_id: "7878b2eb81f57e43e613599e1a19e692a54fb368cfe7b8bc124b24febd245f6a".to_owned(),
-            requested_analysis_id: "14165a8dcea69ceb1e5eb96f97273dc8".to_owned(),
+            requested_analysis_id: "29537af5d863a178370a8abe4fa12ee5".to_owned(),
             input_path: PathBuf::new(),
             staging_path: PathBuf::new(),
             expected_duration_ms: 6000,
-            pipeline_version: "m4-production-v1".to_owned(),
+            pipeline_version: "m6-demucs-v1".to_owned(),
             roots: ApprovedRoots {
                 song_root: PathBuf::new(),
                 staging_root: PathBuf::new(),
@@ -428,11 +420,11 @@ mod tests {
             },
             models: vec![
                 ModelInput {
-                    model_id: "spleeter-2stems".to_owned(),
-                    version: "1.4.0".to_owned(),
-                    engine: "tensorflow-cpu".to_owned(),
+                    model_id: "demucs-htdemucs".to_owned(),
+                    version: "spectral-v1.0.0".to_owned(),
+                    engine: "onnxruntime-cpu-spectral".to_owned(),
                     path: PathBuf::new(),
-                    sha256: "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692"
+                    sha256: "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02"
                         .to_owned(),
                     license_expression: "MIT".to_owned(),
                 },

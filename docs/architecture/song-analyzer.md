@@ -5,7 +5,7 @@
 | 状态 | Baseline |
 | 版本 | 0.1.0 |
 | 责任域 | Python analyzer 与模型 |
-| 上游依据 | FR-002 至 FR-006、FR-019、NFR-008/009/016、ADR-002/005 |
+| 上游依据 | FR-002 至 FR-006、FR-019、NFR-008/009/016、ADR-002/005/020/021 |
 | 关联文件 | `api-contracts.md`、`data-model.md`、Analyzer `AGENTS.md` |
 
 ## 目标与边界
@@ -37,7 +37,9 @@ manifest 最后写入。Rust 验证 JSON、路径、哈希、时长和必需产�
 
 ### 3. `separate`
 
-使用 `Spleeter 2.4.2`、`2stems 1.4.0` MIT 权重和 `TensorFlow Intel 2.12.1` CPU engine 生成 vocals/instrumental。为限制峰值内存，歌曲按 30 秒核心区和两侧最多 12 秒上下文切块，每块使用独立 engine，重叠处只保留核心样本；输出统一为 48 kHz、stereo、PCM24。Analyzer 只把已批准的本地权重路径交给独立 `cybermuse-spleeter-engine.exe`，engine 不具备下载入口。
+使用 OpenKara 发布的 `HTDemucs spectral-core v1.0.0` ONNX artifact 和主 analyzer 内的 `ONNX Runtime 1.29.0` CPU engine 生成 vocals/instrumental。输入先转为 44.1 kHz stereo；每个 343,980-frame（7.8 秒）窗口执行 periodic Hann、4096-point STFT、1024 hop 与固定 spectral tensor contract。模型按 `drums/bass/other/vocals` 输出四 stem；伴奏在 spectral/time 输出域合并前三项，人声取第四项，再通过 50% overlap 的 sqrt-Hann/squared-weight overlap-add 拼接。输出统一转为 48 kHz、stereo、PCM24。
+
+加载前必须同时验证 exact model ID/version/engine、209,469,333 bytes、SHA-256，以及 ONNX 输入/输出名称、维度和 `openkara.spectral_contract=openkara.spectral-contract/v1` metadata。Analyzer 不含模型下载或动态发现。分离后先计算两 stem 的 PCM RMS、相关系数和最佳比例残差；可听且逐 PCM 相同，或相关系数绝对值至少 0.9995 且比例残差不高于 0.01 时，以 `ANALYZER_OUTPUT_SEMANTIC_INVALID` 拒绝，不能写 manifest 或命中缓存。
 
 ### 4. `pitch`
 
@@ -55,19 +57,36 @@ manifest 最后写入。Rust 验证 JSON、路径、哈希、时长和必需产�
 
 先写临时文件并 flush，再生成哈希与 manifest；将 `analysis.json.tmp` 原子替换为 `analysis.json`。stdout 发 `completed` 后不得继续修改产物。
 
-## M4 模型与工具决定
+## 当前模型与工具决定
 
 | 层级 | 选定项 | artifact | 许可 | 状态与理由 |
 |---|---|---|---|---|
-| 分离 wrapper/engine | `spleeter 2.4.2` + `tensorflow-intel 2.12.1` | Python locks 固定 | MIT / Apache-2.0 | `approved`；真实质量、CPU 分块、Windows 打包和断网路径通过 |
-| 分离权重 | `spleeter-2stems@1.4.0` | 73,109,797 bytes；SHA-256 `f3a90b…bd692` | MIT | `approved`；显式用户同意后由 Rust 下载 |
+| 分离 wrapper/engine | 内置 spectral-contract adapter + `onnxruntime 1.29.0` | CPython 3.12 Windows wheel 固定 | CyberMuse / MIT | `approved`；无需第二个 TensorFlow sidecar |
+| 分离权重 | `demucs-htdemucs@spectral-v1.0.0` | 209,469,333 bytes；SHA-256 `c33954…3d02` | MIT | `approved`；OpenKara model release 的 LICENSE/NOTICE 与 source-weight lineage 已固定，显式用户同意后由 Rust 下载 |
 | F0 engine | `onnxruntime 1.29.0` | CPython 3.12 Windows wheel 固定 | MIT | `approved`；CPU-only |
 | F0 权重 | `swiftf0@0.1.2` wheel | 379,040 bytes；SHA-256 `212715…e717` | MIT | `approved`；wheel 内 ONNX 模型独立登记 |
 | 解码 | BtbN FFmpeg `n9.0.1-6-g9d4ca21220` shared | archive SHA-256 `f551da…91267` | LGPL-2.1-or-later | `approved-special-review`；无 GPL/nonfree flags，独立进程调用 |
-| 拒绝候选 | Meta Demucs v4 / `htdemucs` 官方权重 | 未进入产品或测试路径 | scientific/research-only | `rejected`；代码仓库 MIT 不覆盖受限权重 |
-| 拒绝候选 | `python-audio-separator` runtime wrapper | 未进入产品或测试路径 | wrapper MIT | `rejected`；动态模型发现/下载扩大网络与复现边界 |
+| 被替代生产基线 | Spleeter 2.4.2 / 2stems 1.4.0 / TensorFlow Intel 2.12.1 | 不再打包或写入新请求 | MIT / Apache-2.0 | `superseded`；保留历史实现和 M4 证据，不作为 M6 生产路径 |
+| 生产拒绝/本地候选 | `python-audio-separator` runtime wrapper | 未进入产品路径 | wrapper MIT | `production-rejected`；只有去除动态模型发现/下载、锁定运行时和 exact 权重后才可进入隔离评估 |
 
-精确 URL、完整 SHA-256、传递许可证、替代方案和 notice 义务位于 `docs/quality/dependencies.json`；决定依据见 ADR-013。
+精确 URL、完整 SHA-256、传递许可证、替代方案和 notice 义务位于 `docs/quality/dependencies.json`；当前决定依据见 ADR-021，ADR-013 的 Spleeter 选择已被替代。
+
+## 后续候选模型 bake-off
+
+ADR-020 仍允许在不改动生产 model manager、AnalyzerRequest 或 manifest 的前提下，对更广的预训练模型做隔离本地评估。模型名称不构成批准；BS-RoFormer、Mel-Band RoFormer、SCNet、其他 Demucs checkpoint 及 mixture-robust F0 都必须绑定 exact checkpoint、权重许可、运行时许可、来源和 SHA-256。评估质量在性能之前，但只有通过 CPU-only 基线或获得新的需求/ADR 批准后才能晋升产品。
+
+所有合格候选先在 6 首代表性子集做单次筛选，每一模型类别最多保留 3 个 finalist，且必须包含当前生产基线。Finalist 真实歌曲集固定为 20 首本地私有完整输入，其中至少 6–8 首有合法获得的独立 vocals/instrumental stems。每个 exact finalist 每首重复三次，保存匿名化的单曲指标、P10/最差值、失败原因和人工语义矩阵，不保存歌名、音频、stems 或完整路径。两 stem 字节或解码 PCM 相同、两者同时是原混音的比例缩放、或人声参考轨在人声段缺失而在伴奏段持续出现，都是硬失败，不得进入缓存。
+
+## 输入音源质量分层
+
+container 中的 codec/码率字段只说明最后一次编码，不能证明原始 master 或早期转码质量。测试输入分为：
+
+- A 级：艺术家/厂牌或正规下载商店提供的 DRM-free FLAC/ALAC/WAV/AIFF，或其他合法获得的 CD-quality/lossless 普通文件；可进入模型黄金集。CyberMuse v0.1 产品导入仍只支持 MP3/WAV/FLAC；ALAC/AIFF 只能由隔离评估 harness 使用，或以有记录、无额外有损编码的方式解码为 WAV/FLAC 后导入。
+- B 级：正规商店直接提供的 DRM-free 256 kbps AAC 或 320 kbps MP3；可进入用户兼容/鲁棒性验收，不替代 A 级真值。AAC 在 v0.1 中必须解码为 WAV/FLAC，不得再编码为 MP3 造成额外有损世代。
+- C 级：视频网站转换、来源不明、有硬频带截止或多次有损转码迹象的文件；仅用于诊断与鲁棒性集，不能用来选出或否定模型。
+- 不可导入：Spotify/Apple Music 等订阅服务的应用内离线缓存，以及任何需要提取、解密或规避 DRM 才能变成普通文件的内容。
+
+所有真实歌曲只留在本机私有、Git 忽略的测试目录；用户必须合法获得输入，报告只保存匿名质量等级与指标。
 
 ## 质量与资源预算
 

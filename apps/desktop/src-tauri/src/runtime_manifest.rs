@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn embedded_manifest_has_unique_pinned_sidecars() {
         assert!(bundled_sha256("analyzer/cybermuse-analyzer.exe").is_some());
-        assert!(bundled_sha256("spleeter-engine/cybermuse-spleeter-engine.exe").is_some());
+        assert!(bundled_sha256("ffmpeg/ffmpeg.exe").is_some());
         assert!(bundled_sha256("missing.exe").is_none());
     }
 }

@@ -96,6 +96,15 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 
 夹具优先程序生成。任何真实音乐片段必须短小、来源可证明、允许仓库分发，并在 `fixtures/README.md` 记录许可证；否则只用于本地人工测试且不提交。
 
+### 真实歌曲与模型 bake-off
+
+- `TC-AN-005` 验证分析产物语义：生产 pipeline 在 F0/manifest 前拒绝字节/PCM 相同或彼此近似固定比例缩放的可听 stems；真实歌曲 harness 另检两 stem RMS、stem correlation、`mix-(vocals+instrumental)` 重构残差和参考 F0 覆盖。20 首人工矩阵继续检查人声段缺少参考 F0、伴奏段持续 voiced 与异常能量分配。语义失败不得写入 active cache，并必须保留旧有有效分析。
+- `TC-MOD-002` 依 ADR-020 对 exact 预训练权重做隔离 bake-off：检查出处/版本/字节数/SHA-256/权重与运行时许可，断网运行，不进入生产 model manager、installer、Git、SBOM 或外部分发。ADR-021 已单独批准一个 exact HTDemucs spectral-core artifact；该例外不使其他同名 checkpoint 自动进入生产。
+- 质量集为 20 首本地私有完整真实歌曲，其中至少 6–8 首有合法获得的 vocals/instrumental 真值 stems；曲目覆盖现代 pop/EDM、摇滚/乐队、稀疏伴奏、男/女不同音区、气声/假声/rap、和声/二重唱、强混响/音高修正与清唱/纯伴奏边界。
+- 所有合格候选先在 6 首代表性子集做单次筛选；每一模型类别最多保留 3 个 finalist，并必须包含当前生产基线。每个 exact finalist 对 20 首完整输入各重复三次，报告单曲、P10/最差值、失败率、SI-SDRi/泄漏、参考 F0 voicing/八度/连续性和人工语义矩阵；任一硬语义失败不得被平均分抵消。
+- 黄金集优先正规购买/授权的 DRM-free lossless/CD-quality 普通文件；正规商店 DRM-free AAC/MP3 进入兼容层；视频网站转换或多次有损转码文件只进入鲁棒性层。产品输入仍遵守 FR-001 的 MP3/WAV/FLAC；其他 DRM-free 格式如需用于产品路径，只能有记录地解码为 WAV/FLAC，不增加新的有损编码。订阅流媒体应用内缓存不是可导入 fixture。
+- 报告只保存匿名曲目 ID、输入质量等级和指标；歌名、音频、stems、权重与完整用户路径不提交。
+
 ## 算法容限
 
 - 单音 F0：有效稳定区 median absolute error ≤ 15 cents，gross octave error = 0。

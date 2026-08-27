@@ -19,7 +19,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-root", required=True, type=Path)
     parser.add_argument("--ffmpeg", required=True, type=Path)
     parser.add_argument("--ffprobe", required=True, type=Path)
-    parser.add_argument("--spleeter-engine", required=True, type=Path)
     parser.add_argument("--duration-seconds", type=int, default=6)
     return parser
 
@@ -48,8 +47,7 @@ def main() -> int:
     model_root = args.model_root.resolve(strict=True)
     ffmpeg = args.ffmpeg.resolve(strict=True)
     ffprobe = args.ffprobe.resolve(strict=True)
-    spleeter_engine = args.spleeter_engine.resolve(strict=True)
-    tool_root = Path(os.path.commonpath([ffmpeg, ffprobe, spleeter_engine]))
+    tool_root = Path(os.path.commonpath([ffmpeg, ffprobe]))
 
     smoke_root = artifact_root / "smoke"
     song_root = smoke_root / "Unicode 与 spaces" / ("long-path-" + "x" * 96)
@@ -70,7 +68,7 @@ def main() -> int:
         "inputPath": str(input_path),
         "stagingPath": str(staging_path),
         "expectedDurationMs": args.duration_seconds * 1000,
-        "pipelineVersion": "m4-production-v1",
+        "pipelineVersion": "m6-demucs-v1",
         "roots": {
             "songRoot": str(smoke_root),
             "stagingRoot": str(staging_root),
@@ -79,11 +77,13 @@ def main() -> int:
         },
         "models": [
             {
-                "modelId": "spleeter-2stems",
-                "version": "1.4.0",
-                "engine": "tensorflow-cpu",
-                "path": str(model_root / "spleeter-2stems" / "1.4.0" / "2stems.tar.gz"),
-                "sha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+                "modelId": "demucs-htdemucs",
+                "version": "spectral-v1.0.0",
+                "engine": "onnxruntime-cpu-spectral",
+                "path": str(
+                    model_root / "demucs-htdemucs" / "spectral-v1.0.0" / "htdemucs.spectral.onnx"
+                ),
+                "sha256": "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
                 "licenseExpression": "MIT",
             },
             {
@@ -107,12 +107,6 @@ def main() -> int:
                 "version": "n9.0.1-6-g9d4ca21220",
                 "path": str(ffprobe),
                 "sha256": sha256_file(ffprobe),
-            },
-            {
-                "toolId": "spleeter-engine",
-                "version": "0.1.0",
-                "path": str(spleeter_engine),
-                "sha256": sha256_file(spleeter_engine),
             },
         ],
         "config": {

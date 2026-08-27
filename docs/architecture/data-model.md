@@ -116,9 +116,9 @@ interface AnalysisManifest {
 ```ts
 interface ModelAssetCatalogEntry {
   schemaVersion: 1;
-  modelId: "spleeter-2stems" | "swiftf0";
+  modelId: "demucs-htdemucs" | "swiftf0";
   version: string;
-  engine: "tensorflow-cpu" | "onnxruntime-cpu";
+  engine: "onnxruntime-cpu-spectral" | "onnxruntime-cpu";
   sourceUrl: string;
   licenseExpression: "MIT";
   licenseUrl: string;
@@ -151,7 +151,7 @@ interface AnalyzerRequest {
   inputPath: string;
   stagingPath: string;
   expectedDurationMs: number;
-  pipelineVersion: "m4-production-v1";
+  pipelineVersion: "m6-demucs-v1";
   roots: {
     songRoot: string;
     stagingRoot: string;
@@ -160,7 +160,7 @@ interface AnalyzerRequest {
   };
   models: Array<ModelFingerprint & { path: string }>;
   tools: Array<{
-    toolId: "ffmpeg" | "ffprobe" | "spleeter-engine";
+    toolId: "ffmpeg" | "ffprobe";
     version: string;
     path: string;
     sha256: string;
@@ -175,9 +175,9 @@ interface AnalyzerRequest {
 }
 ```
 
-`AnalyzerRequest` 是一次性 staging 文件而非正式用户数据，但仍按 schema v1、1 MiB 上限、绝对路径和四个批准根校验。模型集合必须恰为两个 approved 模型，工具集合必须恰为三项受信 runtime；路径、普通文件类型、reparse point、大小和 SHA-256 均需验证。
+`AnalyzerRequest` 是一次性 staging 文件而非正式用户数据，但仍按 schema v1、1 MiB 上限、绝对路径和四个批准根校验。模型集合必须恰为两个 approved 模型，工具集合必须恰为 FFmpeg/ffprobe 两项受信 runtime；路径、普通文件类型、reparse point、大小和 SHA-256 均需验证。
 
-`stagingPath/work/process-state` 是 analyzer 内部的瞬时可写状态根，不是新增 JSON 字段或正式数据。FFmpeg、Spleeter/TensorFlow、Keras 及其他嵌套工具看到的 profile、app data、ProgramData、temp 和 cache/config 环境目录都必须位于该根；pipeline 的 `finally` 删除整个 `work`。任何安装目录下的 `~`、字面 `%SystemDrive%`、Keras 配置或工具缓存都视为 NFR-010/013/015 失败。
+`stagingPath/work/process-state` 是 analyzer 内部的瞬时可写状态根，不是新增 JSON 字段或正式数据。FFmpeg 及其他嵌套工具看到的 profile、app data、ProgramData、temp 和 cache/config 环境目录都必须位于该根；pipeline 的 `finally` 删除整个 `work`。任何安装目录下的 `~`、字面 `%SystemDrive%` 或工具缓存都视为 NFR-010/013/015 失败。
 
 ```ts
 type AnalyzerStage =

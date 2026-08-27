@@ -8,19 +8,17 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Protocol
 
+from .cancellation import AnalysisCancelled
 from .contracts import STAGE_WEIGHTS, STAGES, AnalyzerRequest
 from .errors import AnalyzerFailure, invalid_request
 from .hashing import canonical_json_sha256, sha256_file
 from .io_utils import atomic_write_json, flush_existing_file
 from .media import ProbeResult, inspect_pcm_wav
 from .postprocess import PitchFrame, RawPitchFrame, postprocess_frames
+from .semantic_validation import validate_stem_semantics
 from .subprocesses import CancellationState
 
 ProgressCallback = Callable[[str, float, float], None]
-
-
-class AnalysisCancelled(Exception):
-    pass
 
 
 class AnalysisBackend(Protocol):
@@ -304,6 +302,7 @@ def run_pipeline(
         completed_weight += STAGE_WEIGHTS["separate"]
 
         _check_control(cancel)
+        validate_stem_semantics(vocals_path, instrumental_path)
         raw_frames = backend.pitch(
             request,
             cancel,

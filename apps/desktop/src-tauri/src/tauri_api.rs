@@ -31,7 +31,6 @@ use crate::model_manager::{
     ModelError, ModelInstallProgress, ModelStatus, install_model_controlled, model_catalog,
     model_statuses, remove_model as remove_model_asset,
 };
-use crate::runtime_manifest::bundled_sha256;
 use crate::session_store::{
     PracticeSession, SessionReview, SessionStoreError, SessionSummary,
     delete_session as delete_session_data, get_session_review as get_session_review_data,
@@ -1347,7 +1346,7 @@ fn load_practice_assets(
         analysis_id: analysis_id.clone(),
         song_id: song_id.to_owned(),
         duration_ms: song.duration_ms,
-        pipeline_version: "m4-production-v1".to_owned(),
+        pipeline_version: "m6-demucs-v1".to_owned(),
         models: expected_models,
     };
     let analysis_root = state
@@ -1478,14 +1477,6 @@ fn prepare_analysis_request(
         .collect::<Vec<_>>();
 
     let ffmpeg = validate_bundled_ffmpeg(&state.resource_root.join("ffmpeg"))?;
-    let spleeter_engine = state
-        .resource_root
-        .join("spleeter-engine")
-        .join("cybermuse-spleeter-engine.exe");
-    let spleeter_engine_sha256 = bundled_sha256("spleeter-engine/cybermuse-spleeter-engine.exe")
-        .ok_or_else(|| {
-            ApiError::new("TOOL_INTEGRITY_FAILED", "tool.error.integrityFailed", false)
-        })?;
     let tools = vec![
         ToolInput {
             tool_id: "ffmpeg".to_owned(),
@@ -1498,12 +1489,6 @@ fn prepare_analysis_request(
             version: ffmpeg.version,
             path: ffmpeg.ffprobe_path,
             sha256: ffmpeg.ffprobe_sha256,
-        },
-        ToolInput {
-            tool_id: "spleeter-engine".to_owned(),
-            version: "0.1.0".to_owned(),
-            path: spleeter_engine,
-            sha256: spleeter_engine_sha256,
         },
     ];
 
@@ -1525,7 +1510,7 @@ fn prepare_analysis_request(
         input_path,
         staging_path: staging_path.clone(),
         expected_duration_ms: duration_ms,
-        pipeline_version: "m4-production-v1".to_owned(),
+        pipeline_version: "m6-demucs-v1".to_owned(),
         roots: ApprovedRoots {
             song_root,
             staging_root,

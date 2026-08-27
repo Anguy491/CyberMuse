@@ -143,7 +143,7 @@ pnpm test:m4:network
 pnpm test:m4:supply
 ```
 
-`analyzer:check` 在两个冻结 `uv` 环境运行 Ruff format/check、mypy 和 pytest；`build:analyzer` 产生 Python analyzer、隔离的 Spleeter engine、LGPL shared FFmpeg 与 build-time runtime manifest。契约和 network 检查使用构建后的 binary，不把“Python 模块可运行”当作打包成功。质量套件使用程序生成音频，性能套件在 CPU-only 路径完成 30 秒 warm-up、5 次冷启动和 3/5/10 分钟各 3 次实测。
+`analyzer:check` 在冻结的主 analyzer `uv` 环境运行 Ruff format/check、mypy 和 pytest；`build:analyzer` 产生包含 HTDemucs/SwiftF0 adapters 的单一 Python analyzer、LGPL shared FFmpeg 与 build-time runtime manifest，不再构建 Spleeter/TensorFlow sidecar。契约和 network 检查使用构建后的 binary，不把“Python 模块可运行”当作打包成功。质量套件使用程序生成音频，性能套件必须在当前 Demucs CPU-only 路径完成 30 秒 warm-up、5 次冷启动和 3/5/10 分钟各 3 次实测。
 
 打包 analyzer 直接探针：
 
@@ -292,7 +292,7 @@ powershell -NoLogo -NoProfile -ExecutionPolicy Bypass `
   -EvidencePath .\m6-clean-windows-evidence.json
 ```
 
-脚本先逐文件验证 package SHA-256 和 installer release manifest，再执行 Defender package scan、NSIS 首装/同版本重装、1,066-file payload/sensitive text/supply assets 检查、installed scan、最小 PATH 启动、100 ms app process-tree 网络捕获、诊断 redaction、真实 6 秒 Spleeter/SwiftF0 分析、artifact hash、卸载和用户数据保留。报告不保存 endpoint address、完整路径、设备标识或音频。
+脚本先逐文件验证 package SHA-256 和 installer release manifest，再执行 Defender package scan、NSIS 首装/同版本重装、payload/sensitive text/supply assets 检查、installed scan、最小 PATH 启动、100 ms app process-tree 网络捕获、诊断 redaction、真实 HTDemucs/SwiftF0 分析、artifact hash、卸载和用户数据保留。payload 数量与大小必须从当前 runtime manifest 推导，不得沿用旧 Spleeter 构建的 1,066-file 数字。报告不保存 endpoint address、完整路径、设备标识或音频。
 
 `prepare-m6-clean-windows.ps1 -AllowDirtyDiagnostic` 与 verifier 的 `-DiagnosticHost`/`-SkipDefender` 只用于演练；任何一个 diagnostic 条件都会使 `gateEligible=false` 或 `cleanHostGateSatisfied=false`。脚本不改变网络适配器状态，也不删除用户 profile。Analyzer 嵌套工具的可写环境必须全部位于 `staging/work/process-state`；若卸载后出现 `~`、字面 `%SystemDrive%`、Keras/cache 或其他 payload 残留，验证失败。
 

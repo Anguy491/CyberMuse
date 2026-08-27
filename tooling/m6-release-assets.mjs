@@ -348,6 +348,43 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`,
 );
+addNotice(
+  "OpenKara HTDemucs spectral-core@spectral-v1.0.0",
+  "reviewed:thedavidweng/openkara-models/infra-2026-08-12-001/LICENSE+NOTICE",
+  `OpenKara Models — release 2026-08-12-001
+Copyright (c) 2026 Davy
+
+Third-party model weights are derived from Demucs by Alexandre Défossez
+(https://github.com/adefossez/demucs), released under the MIT License.
+
+Producer:
+  repo:      thedavidweng/openkara-models
+  commit:    98a1aeb245894337f48b67a907951d2770e22405
+  workflow:  ort-publish.yml
+  run_id:    31670494161
+
+MIT License
+
+Copyright (c) 2026 Davy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`,
+);
 
 const packageIndex = packageList
   .map(
@@ -396,7 +433,10 @@ const modelManifest = {
   models: inventory.directDependencies
     .filter((item) => item.ecosystem === "model")
     .map((item) => ({
-      modelId: item.name === "Spleeter 2stems" ? "spleeter-2stems" : "swiftf0",
+      modelId:
+        item.name === "OpenKara HTDemucs spectral-core"
+          ? "demucs-htdemucs"
+          : "swiftf0",
       version: item.version,
       sourceUrl: item.artifactUrl,
       sha256: item.artifactSha256,

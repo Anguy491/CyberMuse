@@ -34,20 +34,6 @@ finally {
     Pop-Location
 }
 
-$engineRoot = Join-Path $analyzerRoot "engines\spleeter"
-$engineDist = Join-Path $artifactRoot "spleeter-engine-dist"
-$engineWork = Join-Path $artifactRoot "spleeter-engine-build"
-Push-Location $engineRoot
-try {
-    & $uv sync --frozen --all-groups
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $uv run pyinstaller --noconfirm --clean --distpath $engineDist --workpath $engineWork "cybermuse-spleeter-engine.spec"
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
-finally {
-    Pop-Location
-}
-
 $resourceRoot = [System.IO.Path]::GetFullPath((Join-Path $artifactRoot "tauri-resources"))
 if (-not $resourceRoot.StartsWith($artifactRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing to replace a resource directory outside artifacts/m4"
@@ -58,15 +44,10 @@ if (Test-Path -LiteralPath $resourceRoot) {
 New-Item -ItemType Directory -Path $resourceRoot | Out-Null
 
 $analyzerSource = Join-Path $analyzerDist "cybermuse-analyzer"
-$engineSource = Join-Path $engineDist "cybermuse-spleeter-engine"
 if (-not (Test-Path -LiteralPath (Join-Path $analyzerSource "cybermuse-analyzer.exe") -PathType Leaf)) {
     throw "Packaged analyzer executable is missing"
 }
-if (-not (Test-Path -LiteralPath (Join-Path $engineSource "cybermuse-spleeter-engine.exe") -PathType Leaf)) {
-    throw "Packaged Spleeter engine executable is missing"
-}
 Copy-Item -LiteralPath $analyzerSource -Destination (Join-Path $resourceRoot "analyzer") -Recurse
-Copy-Item -LiteralPath $engineSource -Destination (Join-Path $resourceRoot "spleeter-engine") -Recurse
 
 $ffmpegInstall = Join-Path $env:LOCALAPPDATA "CyberMuse\tools\ffmpeg-lgpl-shared\n9.0.1-6-g9d4ca21220\payload\ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-shared-9.0"
 $ffmpegBin = Join-Path $ffmpegInstall "bin"
@@ -95,7 +76,6 @@ $manifest = [ordered]@{
     schemaVersion = 1
     generatedAt = [DateTimeOffset]::UtcNow.ToString("o")
     analyzerVersion = "0.1.0"
-    spleeterEngineVersion = "0.1.0"
     ffmpegVersion = "n9.0.1-6-g9d4ca21220"
     files = @($manifestFiles)
 }

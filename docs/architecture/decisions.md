@@ -219,6 +219,35 @@
 - 被替代条目：细化 ADR-007/017 的 UI 与设置范围，不改变本地优先、诊断 capability 或删除契约。
 - 相关需求/风险：FR-020/022/023、NFR-002/010/013/015/017/019/020、RISK-013/017/019。
 
+## ADR-020 — 个人本地模型候选与生产批准分层
+
+- 状态：Accepted
+- 日期：2026-08-27
+- 背景：M6 真实歌曲复验发现一次已缓存分析中 `vocals.wav` 与 `instrumental.wav` 逐字节相同，两者都近似按固定比例缩放的原混音；现有格式/时长/哈希验证和单一合成质量夹具仍将其接受。用户的 v0.1 目标是本机个人使用，希望先比较更强的预训练模型，但不应因此混淆“可在本地评估”与“可由应用下载或分发”。
+- 选项：继续只评估宽松许可且已满足 CPU 预算的候选；对个人使用完全取消许可/供应链门禁；建立隔离的 `local-evaluation` 与 `production-approved` 双通道。
+- 决定：采用第三项。`local-evaluation` 允许具体许可明确授予个人、非商业或研究性本地推理的 exact 权重进入隔离 bake-off，也允许 GPU-only、超出当前包体/性能预算的模型先接受正确性评估。候选权重由用户显式获取，仅放在仓库外或 Git 忽略的本地评估目录；绑定出处、版本、字节数、SHA-256、权重许可和运行时许可，断网推理，优先 ONNX/`safetensors` 等非可执行权重形式。它们不得进入应用模型目录、`dependencies.json` 的 approved 集合、installer、SBOM 发布集、Git 或任何外部分发。无许可、来源/权重 lineage 不明、禁止机器分析，或需要规避 DRM/安全措施的项目继续 rejected；GPL/AGPL/SSPL 代码仍不进入 CyberMuse 的实现或打包路径。
+- 决定（质量门禁）：候选先用覆盖主要类别的 6 首子集做单次筛选，每一模型类别最多保留 3 个 finalist（必须包含当前生产基线）。Finalist bake-off 使用 20 首本地私有真实歌曲，其中至少 6–8 首有合法取得的独立 vocals/instrumental stems；覆盖现代 pop/EDM、摇滚/乐队、稀疏伴奏、男/女不同音区、气声/假声/rap、和声/二重唱、强混响/音高修正与清唱/纯伴奏边界。同一 exact finalist 对每个完整输入重复三次；任一次发生 stem 字节/PCM 相同、两 stem 同时近似原混音的比例缩放、人声段参考 F0 大面积缺失或非人声段持续跟踪伴奏，均判为产品失败，不得用平均分掩盖。
+- 决定（输入分层）：模型质量黄金集只使用正规购买/授权、可以普通文件形式读取的 lossless/CD-quality 音源；正规商店的 DRM-free 256 kbps AAC/320 kbps MP3 可用于兼容验收；视频网站转换、多次有损转码或仅由 container 标注声称高码率的文件只进入鲁棒性/诊断集，不能证明或否定模型质量。订阅流媒体的离线缓存不作为可导入测试资产。
+- 理由：它在不降低生产供应链门禁的前提下，允许 BS-RoFormer、Mel-Band RoFormer、SCNet、Demucs 系与 mixture-robust F0 等更广泛的 exact checkpoint 按本机个人范围比较；同时把“算法有论文/代码开源”与“这份权重可分发”分开。真实曲库、单曲最差值与语义不变式优先于合成夹具平均分和单次速度。
+- 影响：当前 Spleeter/SwiftF0 仍是唯一 `production-approved` 组合，本决定不自动批准任何新模型或修改 manifest/API/schema。任一候选要晋升为生产模型，必须另立替代 ADR，具备可分发的明确权重/运行时许可，通过上述真实歌曲门禁、ADR-014 的性能/取消/断网验证与 clean-host 验证，并同步 `dependencies.json`/SBOM/notices。如果只有 GPU-only 或非商业权重能达到质量门禁，必须先由用户批准替代 NFR/发布范围，不得静默降级 CPU 基线或分发权利。
+- 被替代条目：细化 ADR-007/013 的候选评估边界，扩展 ADR-014 的质量门禁；不替代当前生产模型选择和生产宽松许可要求。
+- 相关需求/风险：FR-005/006/019、NFR-008/013/014/016/021、RISK-003/004/005/006/007/011/012/020/021。
+
+## ADR-021 — 以 OpenKara spectral contract 的 HTDemucs 替代 Spleeter
+
+- 状态：Accepted
+- 日期：2026-08-27
+- 背景：用户导入的真实歌曲曾得到逐 PCM 相同的 vocals/instrumental，缓存与格式校验仍将其接受，参考 F0 随之在人声段缺失并在伴奏段出现。用户明确要求学习 OpenKara 的音频处理方法、使用 Demucs，并以 `Ceremony` 与 `Moth To A Flame` 两首本地歌曲作为初步正确性验收。OpenKara 当前生产实现并非直接运行 Python Demucs，而是使用固定 spectral-core ONNX contract。
+- 选项：继续修补 Spleeter 2stems；引入 Python Demucs/PyTorch sidecar；独立实现 OpenKara 已公开的 spectral tensor contract，并只加载 exact MIT ONNX artifact。
+- 决定：采用第三项。生产 catalog 将分离模型替换为 `demucs-htdemucs@spectral-v1.0.0`，artifact `htdemucs.spectral.onnx` 固定为 209,469,333 bytes、SHA-256 `c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02`、MIT。来源固定为 OpenKara model release `model-spectral-v1.0.0`；其 LICENSE/NOTICE 声明模型派生自 Alexandre Défossez 的 Demucs，source checkpoint 为 Demucs 4.1.0 的 `955717e8-8726e21a.th`，release producer commit 为 `98a1aeb245894337f48b67a907951d2770e22405`，本次仓库审查 commit 为 `f3f54c7f1a4ed9637881739ab59eaa3ff6ecfe66`。OpenKara 应用源码（Apache-2.0，审查 commit `de0e753de3b70231733e6633a19240c6847a7e76`）只作行为与 contract 研究，CyberMuse 未复制其实现。
+- 决定（DSP contract）：44.1 kHz stereo、343,980-frame 窗口、50% overlap、periodic Hann、NFFT 4096、hop 1024、外侧 reflect pad 1536、2048 bins/336 frames。ONNX 必须精确匹配 `spectral [1,2,2,2048,336]`、`mix [1,2,343980]`、`spectral_out [1,4,2,2,2048,336]`、`time_out [1,4,2,343980]` 和 `openkara.spectral-contract/v1` metadata。输出顺序固定 `drums/bass/other/vocals`；前三项在 spectral/time 域合并为伴奏，第四项为人声，以 sqrt-Hann/squared-weight overlap-add 拼接并输出 48 kHz stereo PCM24。
+- 决定（语义门禁）：分离完成后、F0 与 manifest 之前，流式检查两 stem。非静音 stem 若 PCM 相同，或绝对相关系数 ≥0.9995 且最佳比例残差 ≤0.01，必须以 `ANALYZER_OUTPUT_SEMANTIC_INVALID` 失败并删除最终产物；旧 collapsed cache 不能再次成为有效分析。真实歌曲验证额外要求两 stem RMS 均 ≥0.0001、绝对相关系数 <0.995、`mix-(vocals+instrumental)` 相对 RMS <0.25、参考有声帧占比在 2%–95%。
+- 验证：`Ceremony` 的 stem correlation 0.102311、重构残差比 0.034043、voiced ratio 0.364956；`Moth To A Flame` 分别为 0.066979、0.022034、0.829060。两首均得到不同且可听的 stems、三项带 SHA-256 artifact 和非空参考轨，初步两歌验收通过。证据为 Git 忽略的 `artifacts/m6/demucs-real-songs/verification-report.json`；真实音频不进入 Git。
+- 理由：该路径保留 Demucs 的混合时域/频域输出与长窗上下文，同时复用已批准的 CPU ONNX Runtime，移除约 1 GB 的 TensorFlow/Python 3.11 第二 sidecar。精确 ONNX interface、metadata、hash 和语义不变式比按模型名称或文件格式盲目信任更可验证。
+- 影响：`pipelineVersion` 变为 `m6-demucs-v1`；AnalyzerRequest 的模型集合改为 Demucs + SwiftF0，工具集合改为 FFmpeg + ffprobe；Spleeter/TensorFlow 不再构建、打包或进入新请求，历史代码与 M4 evidence 暂留作可追溯参考。模型增加到约 199.8 MiB，但应用 runtime 显著减小。两首真实歌曲只满足用户指定的初步验收，不替代 ADR-020 的 20 首 finalist、3/5/10 分钟性能、取消/断网、clean-host/Defender 和人工试听门禁；M6 不因本 ADR 自动通过。
+- 被替代条目：替代 ADR-013 的生产分离模型、双 Python sidecar 与 Spleeter 工具契约；替代 ADR-020 中“当前 Spleeter/SwiftF0 是唯一 production-approved 组合”和对 Demucs 的笼统候选表述，不改变 exact artifact 审查与更大 bake-off 要求。
+- 相关需求/风险：FR-005/006/019、NFR-008/013/014/016/021、RISK-003/004/005/006/007/011/012/020/021。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

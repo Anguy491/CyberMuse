@@ -36,7 +36,6 @@
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
     "resources": {
       "../../../artifacts/m4/tauri-resources/analyzer/": "analyzer",
-      "../../../artifacts/m4/tauri-resources/spleeter-engine/": "spleeter-engine",
       "../../../artifacts/m4/tauri-resources/ffmpeg/": "ffmpeg",
       "../../../artifacts/m4/tauri-resources/runtime-manifest.json": "runtime-manifest.json",
       "../../../artifacts/m6/THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",

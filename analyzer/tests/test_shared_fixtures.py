@@ -53,7 +53,7 @@ def test_shared_model_and_tauri_payload_fixtures() -> None:
     catalog = fixture("model-catalog-v1-current.json")
     assert catalog["schemaVersion"] == 1
     assert {model["modelId"] for model in catalog["models"]} == {
-        "spleeter-2stems",
+        "demucs-htdemucs",
         "swiftf0",
     }
     manifest = fixture("model-manifest-v1-current.json")

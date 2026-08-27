@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from cybermuse_analyzer.cancellation import AnalysisCancelled
 from cybermuse_analyzer.contracts import STAGES, AnalyzerRequest
 from cybermuse_analyzer.errors import AnalyzerFailure
 from cybermuse_analyzer.media import ProbeResult, inspect_pcm_wav, write_pcm24_wav
-from cybermuse_analyzer.pipeline import AnalysisCancelled, run_pipeline
+from cybermuse_analyzer.pipeline import run_pipeline
 from cybermuse_analyzer.postprocess import RawPitchFrame
 from cybermuse_analyzer.subprocesses import CancellationState
 
@@ -76,6 +77,36 @@ class FixtureBackend:
         del request, cancel, vocals_path
         progress(0.5)
         return [RawPitchFrame(time_ms, 220.0, 0.99, True) for time_ms in range(0, 100, 20)]
+
+
+class CollapsedStemBackend(FixtureBackend):
+    pitch_called = False
+
+    def separate(
+        self,
+        request: AnalyzerRequest,
+        cancel: CancellationState,
+        normalized_path: Path,
+        vocals_path: Path,
+        instrumental_path: Path,
+        progress: Callable[[float], None],
+    ) -> None:
+        del request, cancel, normalized_path
+        samples = [0.2 if index % 2 else -0.2 for index in range(4_800)]
+        write_pcm24_wav(vocals_path, [samples, samples], 48_000)
+        write_pcm24_wav(instrumental_path, [samples, samples], 48_000)
+        progress(1.0)
+
+    def pitch(
+        self,
+        request: AnalyzerRequest,
+        cancel: CancellationState,
+        vocals_path: Path,
+        progress: Callable[[float], None],
+    ) -> list[RawPitchFrame]:
+        del request, cancel, vocals_path, progress
+        self.pitch_called = True
+        return []
 
 
 @pytest.mark.contract
@@ -161,6 +192,17 @@ def test_rejects_mismatched_fingerprint(analyzer_request: AnalyzerRequest) -> No
             Control(),
             lambda *_: None,
         )
+
+
+def test_collapsed_stems_fail_before_pitch_or_manifest(analyzer_request: AnalyzerRequest) -> None:
+    backend = CollapsedStemBackend()
+    with pytest.raises(AnalyzerFailure) as captured:
+        run_pipeline(analyzer_request, backend, Control(), lambda *_: None)
+
+    assert captured.value.code == "ANALYZER_OUTPUT_SEMANTIC_INVALID"
+    assert not backend.pitch_called
+    for name in ("vocals.wav", "instrumental.wav", "reference-track.json", "analysis.json"):
+        assert not (analyzer_request.staging_path / name).exists()
 
 
 def test_inspects_ffmpeg_pcm24_wave_format_extensible(tmp_path: Path) -> None:

@@ -167,7 +167,7 @@
   "models.status.invalid": "需要重新安装",
   "models.status.missing": "未安装",
   "models.purpose": "用途",
-  "models.purpose.spleeter-2stems": "分离人声与伴奏",
+  "models.purpose.demucs-htdemucs": "分离人声与伴奏",
   "models.purpose.swiftf0": "估计连续歌声音高",
   "models.purpose.default": "本地歌曲分析",
   "models.versionSize": "版本 / 大小",

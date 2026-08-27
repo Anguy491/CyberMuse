@@ -22,18 +22,3 @@ try {
 finally {
     Pop-Location
 }
-
-Push-Location (Join-Path $repoRoot "analyzer\engines\spleeter")
-try {
-    & $uv sync --frozen --all-groups
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $uv run ruff format --check .
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $uv run ruff check .
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $uv run pytest
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
-finally {
-    Pop-Location
-}

@@ -66,8 +66,8 @@ if (-not (Test-Path -LiteralPath $installer -PathType Leaf) -or
 $modelRoot = Join-Path $env:LOCALAPPDATA "CyberMuse\models"
 $models = @(
     [ordered]@{
-        relativePath = "spleeter-2stems/1.4.0/2stems.tar.gz"
-        sha256 = "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692"
+        relativePath = "demucs-htdemucs/spectral-v1.0.0/htdemucs.spectral.onnx"
+        sha256 = "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02"
     },
     [ordered]@{
         relativePath = "swiftf0/0.1.2/swift_f0-0.1.2-py3-none-any.whl"

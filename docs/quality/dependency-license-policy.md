@@ -5,12 +5,12 @@
 | 状态 | Active |
 | 版本 | 0.1.0 |
 | 责任域 | 供应链合规与交付 |
-| 上游依据 | 商业友好约束、ADR-007、NFR-016 |
+| 上游依据 | 商业友好约束、个人本地范围、ADR-007/020、NFR-016 |
 | 关联文件 | `song-analyzer.md`、`risk-register.md`、`definition-of-done.md` |
 
 ## 目标
 
-保留 CyberMuse 闭源或商业发布的可能，同时确保代码、二进制、音频 codec、模型权重、测试资产和安装包中的 notice 都有可证明的使用与分发权。本文是工程门禁，不构成法律意见；存在歧义时停止采用并寻求专业审查。
+保留 CyberMuse 闭源或商业发布的可能，同时确保代码、二进制、音频 codec、模型权重、测试资产和安装包中的 notice 都有可证明的使用与分发权。ADR-020 把“个人本地候选评估”与“生产批准/可分发”分层：前者可在严格隔离下评估明确允许个人、非商业或研究性推理的权重，后者仍保持宽松、可分发的要求。本文是工程门禁，不构成法律意见；存在歧义时停止采用并寻求专业审查。
 
 ## 分类
 
@@ -43,6 +43,19 @@
 
 禁止项可用于阅读论文或观察公开行为，但不得复制代码、链接 binary、打包权重或把受限测试资产提交仓库。
 
+### 个人本地候选评估
+
+`local-evaluation` 不是依赖批准或产品功能。只有同时满足以下条件的 exact 候选才可在用户本机进入私有 bake-off：
+
+- 权重许可和运行时许可明确覆盖拟执行的个人/非商业/研究性本地推理；“公开下载”、无 license 文本或只有代码 LICENSE 不足够。
+- 记录发布者、原始 artifact URL、版本/标签、字节数、SHA-256、license URL、运行时与候选结论；未完成记录前不执行。
+- 候选由用户显式获取到仓库外或 Git 忽略目录，不经 CyberMuse 生产 model manager，不加入 lock、installer、SBOM、notice 发布集或 `dependencies.json` 的 approved 集合。
+- 评估运行时断网、固定随机种子/参数并保存匿名指标；不保存或提交歌曲、stems、权重或完整用户路径。
+- 优先 ONNX/`safetensors` 等非可执行权重形式；来源不明的 pickle/自定义代码权重视为代码执行风险并 rejected。
+- 不得把 `local-evaluation` 结论表述为可分发、可商用或 production-approved；不得向朋友、内测者或 CI 主机复制受限 artifact。
+
+无许可/来源不明、禁止机器分析、要求规避 DRM/安全措施或权重 lineage 无法证明的项目，在两个通道中都为 rejected。GPL/AGPL/SSPL 实现继续只能研究公开行为，不进入仓库、本地 harness 或打包路径。
+
 ## 审批记录
 
 采用生产依赖前，在依赖清单记录：
@@ -67,7 +80,7 @@ M1 机器可读清单位于 [`dependencies.json`](dependencies.json)；本文保
 
 - Python 包许可证与模型权重许可证分开记录。
 - 每个权重有唯一 model ID、version、SHA-256、字节大小、来源 URL、license URL 和作者 notice。
-- 只有 `approved` 模型可被应用下载或 analyzer 加载。
+- 只有 `production-approved`（`dependencies.json` 现有机器状态仍记为 `approved`）模型可被应用下载或正式 analyzer 加载；`local-evaluation` 只能由隔离评估 harness 读取。
 - 用户下载前展示用途、大小、来源和许可证；删除后不静默重下。
 - 模型服务方条款与开源许可证冲突或不清晰时，状态为 rejected。
 - 微调、转换 ONNX 或量化不会自动消除原权重义务；派生产物保留 lineage。
@@ -88,9 +101,9 @@ M1 首批 UI 字体候选为：
 
 M1 已决定使用 Segoe UI、Cascadia Mono、Consolas 和通用字体族的系统 fallback，不打包或请求远程字体/图标。`CAND-UI-001..003` 继续保持 `spike-only`，本里程碑未下载、批准或分发其 artifact；该选择降低供应链与断网启动风险，不改变未来重新审批条件。
 
-M4 生产组合已通过精确 artifact 审查：Spleeter `2stems` v1.4 权重和 SwiftF0 `0.1.2` wheel 均为 MIT；Spleeter/TensorFlow CPU 与 SwiftF0/ONNX Runtime 分别隔离在打包 sidecar 中；FFmpeg 使用 BtbN `n9.0.1-6-g9d4ca21220` win64 LGPL shared 构建。下载 URL、字节数、SHA-256、直接/传递许可证、例外和替代方案只以 [`dependencies.json`](dependencies.json) 的固定记录为准，本文不建立浮动批准。
+ADR-021 的 M6 生产组合已通过精确 artifact 审查：OpenKara `HTDemucs spectral-core v1.0.0` ONNX 和 SwiftF0 `0.1.2` wheel 均为 MIT；两者共用主 analyzer 中的 ONNX Runtime CPU，旧 Spleeter/TensorFlow sidecar 不再构建或打包；FFmpeg 使用 BtbN `n9.0.1-6-g9d4ca21220` win64 LGPL shared 构建。下载 URL、字节数、SHA-256、直接/传递许可证、model release LICENSE/NOTICE、lineage、例外和替代方案只以 [`dependencies.json`](dependencies.json) 的固定记录为准，本文不建立浮动批准。
 
-`python-audio-separator` 因运行时动态模型行为未采用；Meta Demucs v4/`htdemucs` 官方权重因研究用途限制未采用。其代码仓库许可证不能替代具体权重许可证，未来若重新评估必须作为新 artifact 完整复审，不能继承 M4 批准。
+`python-audio-separator` 因运行时动态模型行为未进入生产。过去对“Demucs 权重”的笼统拒绝不能替代逐 artifact 审查：本次只批准 OpenKara release 中 SHA-256 为 `c3395410…3d02` 的 spectral-core ONNX，因为其独立 MIT LICENSE、NOTICE、来源 checkpoint 与转换 commit 已固定；这不自动批准 Meta 官方仓库或其他同名 checkpoint。其他候选只有在 exact 权重许可明确覆盖目标使用/分发范围、wrapper/运行时符合本政策，且动态网络/模型发现被移除后，才可进入 `local-evaluation` 或另立 ADR 晋升生产。
 
 ## FFmpeg
 

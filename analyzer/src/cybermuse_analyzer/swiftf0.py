@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import onnxruntime as ort  # type: ignore[import-untyped]
 
+from .cancellation import AnalysisCancelled
 from .contracts import AnalyzerRequest
 from .errors import AnalyzerFailure, invalid_request
 from .postprocess import RawPitchFrame
@@ -28,8 +29,6 @@ def _check_cancel(cancel: CancellationState) -> None:
     if cancel.protocol_error:
         raise invalid_request("control_job_mismatch")
     if cancel.cancelled:
-        from .pipeline import AnalysisCancelled
-
         raise AnalysisCancelled
 
 

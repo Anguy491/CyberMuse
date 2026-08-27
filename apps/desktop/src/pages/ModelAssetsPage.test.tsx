@@ -11,24 +11,25 @@ import type {
 import type { SettingsServicePort } from "../services/settings-service";
 import { ModelAssetsPage } from "./ModelAssetsPage";
 
-const spleeter: ModelStatus = {
+const demucs: ModelStatus = {
   schemaVersion: 1,
-  modelId: "spleeter-2stems",
-  version: "1.4.0",
-  displayName: "Spleeter 2 stems",
+  modelId: "demucs-htdemucs",
+  version: "spectral-v1.0.0",
+  displayName: "HTDemucs (OpenKara spectral)",
   purpose: "人声与伴奏分离",
   sourceUrl:
-    "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz",
+    "https://github.com/thedavidweng/openkara-models/releases/download/model-spectral-v1.0.0/htdemucs.spectral.onnx",
   licenseExpression: "MIT",
-  licenseUrl: "https://github.com/deezer/spleeter/blob/master/LICENSE",
-  sizeBytes: 73_109_797,
-  sha256: "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+  licenseUrl:
+    "https://github.com/thedavidweng/openkara-models/releases/download/infra-2026-08-12-001/LICENSE",
+  sizeBytes: 209_469_333,
+  sha256: "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
   installed: false,
   valid: false,
 };
 
 class FakeModelService implements ModelServicePort {
-  readonly getStatuses = vi.fn(async () => [spleeter]);
+  readonly getStatuses = vi.fn(async () => [demucs]);
   readonly install = vi.fn(async () => "4ab0c16f-1234-4abc-8def-1234567890ab");
   readonly cancel = vi.fn(async () => undefined);
   readonly remove = vi.fn(async () => undefined);
@@ -84,12 +85,14 @@ describe("FR-019 model assets", () => {
       />,
     );
 
-    expect(await screen.findByText("Spleeter 2 stems")).toBeVisible();
+    expect(
+      await screen.findByText("HTDemucs (OpenKara spectral)"),
+    ).toBeVisible();
     expect(screen.getByText("分离人声与伴奏")).toBeVisible();
-    expect(screen.getByText(/69\.7 MB/)).toBeVisible();
+    expect(screen.getByText(/199\.8 MB/)).toBeVisible();
     expect(screen.getByRole("link", { name: "MIT" })).toHaveAttribute(
       "href",
-      spleeter.licenseUrl,
+      demucs.licenseUrl,
     );
     expect(service.install).not.toHaveBeenCalled();
 
@@ -99,7 +102,7 @@ describe("FR-019 model assets", () => {
       screen.getByRole("checkbox", { name: /同意下载此精确版本/ }),
     );
     await user.click(install);
-    expect(service.install).toHaveBeenCalledWith(spleeter);
+    expect(service.install).toHaveBeenCalledWith(demucs);
   });
 
   it("shows byte progress and exposes a keyboard-operable cancel action", async () => {
@@ -111,7 +114,7 @@ describe("FR-019 model assets", () => {
         settingsService={fakeSettingsService()}
       />,
     );
-    await screen.findByText("Spleeter 2 stems");
+    await screen.findByText("HTDemucs (OpenKara spectral)");
     await user.click(
       screen.getByRole("checkbox", { name: /同意下载此精确版本/ }),
     );
@@ -122,9 +125,9 @@ describe("FR-019 model assets", () => {
       payload: {
         apiVersion: 1,
         jobId: "4ab0c16f-1234-4abc-8def-1234567890ab",
-        modelId: spleeter.modelId,
+        modelId: demucs.modelId,
         downloadedBytes: 10_000_000,
-        totalBytes: spleeter.sizeBytes,
+        totalBytes: demucs.sizeBytes,
         status: "downloading",
       },
     });
@@ -142,7 +145,7 @@ describe("FR-019 model assets", () => {
     const user = userEvent.setup();
     const service = new FakeModelService();
     service.getStatuses.mockResolvedValue([
-      { ...spleeter, installed: true, valid: true },
+      { ...demucs, installed: true, valid: true },
     ]);
     const settingsService = fakeSettingsService();
     render(
@@ -159,17 +162,19 @@ describe("FR-019 model assets", () => {
   it("persists the exact installed model cache selection", async () => {
     const service = new FakeModelService();
     service.getStatuses.mockResolvedValue([
-      { ...spleeter, installed: true, valid: true },
+      { ...demucs, installed: true, valid: true },
     ]);
     const settingsService = fakeSettingsService();
     render(
       <ModelAssetsPage service={service} settingsService={settingsService} />,
     );
 
-    expect(await screen.findByText("Spleeter 2 stems")).toBeVisible();
+    expect(
+      await screen.findByText("HTDemucs (OpenKara spectral)"),
+    ).toBeVisible();
     await waitFor(() =>
       expect(settingsService.update).toHaveBeenCalledWith(
-        { modelCacheSelection: ["spleeter-2stems@1.4.0"] },
+        { modelCacheSelection: ["demucs-htdemucs@spectral-v1.0.0"] },
         0,
       ),
     );

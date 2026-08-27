@@ -3,13 +3,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $artifactRoot = Join-Path $repoRoot "artifacts\m4"
 $analyzer = Join-Path $artifactRoot "analyzer-dist\cybermuse-analyzer\cybermuse-analyzer.exe"
-$spleeter = Join-Path $artifactRoot "spleeter-engine-dist\cybermuse-spleeter-engine\cybermuse-spleeter-engine.exe"
 $ffmpeg = Join-Path $artifactRoot "smoke-tools\ffmpeg-bin\ffmpeg.exe"
 $ffprobe = Join-Path $artifactRoot "smoke-tools\ffmpeg-bin\ffprobe.exe"
 $modelRoot = Join-Path $env:LOCALAPPDATA "CyberMuse\models"
 $uv = Join-Path $env:USERPROFILE ".cache\cybermuse-tools\uv-0.12.5\uv.exe"
 $cargo = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
-foreach ($path in @($analyzer, $spleeter, $ffmpeg, $ffprobe, $uv, $cargo)) {
+foreach ($path in @($analyzer, $ffmpeg, $ffprobe, $uv, $cargo)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required M4 network input is missing" }
 }
 if (-not (Test-Path -LiteralPath $modelRoot -PathType Container)) { throw "Required M4 model root is missing" }
@@ -18,7 +17,7 @@ Push-Location (Join-Path $repoRoot "analyzer")
 try {
     $requestOutput = & $uv run python scripts/create_m4_smoke_request.py `
         --artifact-root $artifactRoot --model-root $modelRoot `
-        --ffmpeg $ffmpeg --ffprobe $ffprobe --spleeter-engine $spleeter
+        --ffmpeg $ffmpeg --ffprobe $ffprobe
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $smokeRequest = $requestOutput | Select-Object -Last 1
 }

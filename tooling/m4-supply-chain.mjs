@@ -96,6 +96,8 @@ for (const file of manifest.files) {
 }
 
 for (const forbiddenRoot of [
+  "spleeter",
+  "tensorflow",
   "scipy",
   "jax",
   "jaxlib",
@@ -103,7 +105,7 @@ for (const forbiddenRoot of [
   "httpx",
   "cryptography",
 ]) {
-  const prefix = `spleeter-engine/_internal/${forbiddenRoot}`.toLowerCase();
+  const prefix = `analyzer/_internal/${forbiddenRoot}`.toLowerCase();
   if (
     [...runtimeFiles.keys()].some((path) =>
       path.toLowerCase().startsWith(prefix),
@@ -152,10 +154,15 @@ if (!localAppData) {
 const modelRoot = join(localAppData, "CyberMuse", "models");
 const approvedArtifacts = [
   await assertArtifact(
-    "model:spleeter-2stems@1.4.0",
-    join(modelRoot, "spleeter-2stems", "1.4.0", "2stems.tar.gz"),
-    73_109_797,
-    "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
+    "model:demucs-htdemucs@spectral-v1.0.0",
+    join(
+      modelRoot,
+      "demucs-htdemucs",
+      "spectral-v1.0.0",
+      "htdemucs.spectral.onnx",
+    ),
+    209_469_333,
+    "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
   ),
   await assertArtifact(
     "model:swiftf0@0.1.2",
@@ -215,9 +222,6 @@ const report = {
     manifestFiles: runtimeFiles.size,
     manifestPayloadBytes: runtimeBytes,
     analyzer: runtimeFiles.get("analyzer/cybermuse-analyzer.exe"),
-    spleeterEngine: runtimeFiles.get(
-      "spleeter-engine/cybermuse-spleeter-engine.exe",
-    ),
     ffmpegConfiguration: configuration,
     vcRuntimeVersion: "14.51.36247.0",
     excludedFromDistribution: [
@@ -227,17 +231,23 @@ const report = {
       "norbert",
       "httpx",
       "cryptography",
+      "spleeter",
+      "tensorflow",
     ],
   },
   approvedArtifacts,
   modelLicenses: [
-    { modelId: "spleeter-2stems", version: "1.4.0", license: "MIT" },
+    {
+      modelId: "demucs-htdemucs",
+      version: "spectral-v1.0.0",
+      license: "MIT",
+    },
     { modelId: "swiftf0", version: "0.1.2", license: "MIT" },
   ],
   rejectedCandidates: [
     {
-      candidate: "Meta Demucs v4 / htdemucs official weights",
-      reason: "official weight terms restrict use to scientific research",
+      candidate: "Spleeter 2stems / TensorFlow sidecar",
+      reason: "superseded by ADR-021 after a collapsed real-song cache case",
     },
     {
       candidate: "python-audio-separator runtime wrapper",

@@ -4,14 +4,14 @@
   "songId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "inputSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "createdAt": "2026-08-25T01:02:03Z",
-  "pipelineVersion": "0.1.0",
+  "pipelineVersion": "m6-demucs-v1",
   "configFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "durationMs": 60,
   "models": [
     {
-      "modelId": "spleeter-2stems",
-      "version": "1.4.0",
-      "engine": "tensorflow-cpu",
+      "modelId": "demucs-htdemucs",
+      "version": "spectral-v1.0.0",
+      "engine": "onnxruntime-cpu-spectral",
       "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "licenseExpression": "MIT"
     },

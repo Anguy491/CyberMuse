@@ -7,11 +7,12 @@ import traceback
 from pathlib import Path
 
 from .backend import OfflineBackend
+from .cancellation import AnalysisCancelled
 from .contracts import parse_request
 from .errors import AnalyzerFailure
 from .json_limits import load_request_json
 from .path_safety import validate_request_paths
-from .pipeline import AnalysisCancelled, run_pipeline
+from .pipeline import run_pipeline
 from .protocol import CancellationMonitor, ProtocolStateError, ProtocolWriter
 from .version import ANALYZER_VERSION, PROTOCOL_MAJOR, SCHEMA_VERSION
 

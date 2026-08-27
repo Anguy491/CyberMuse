@@ -167,7 +167,7 @@
   "models.status.invalid": "Reinstall required",
   "models.status.missing": "Not installed",
   "models.purpose": "Purpose",
-  "models.purpose.spleeter-2stems": "Separate vocals and accompaniment",
+  "models.purpose.demucs-htdemucs": "Separate vocals and accompaniment",
   "models.purpose.swiftf0": "Estimate continuous singing pitch",
   "models.purpose.default": "Local song analysis",
   "models.versionSize": "Version / size",

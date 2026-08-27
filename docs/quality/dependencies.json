@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "milestone": "M6",
-  "reviewDate": "2026-08-26",
+  "reviewDate": "2026-08-27",
   "reviewer": "Codex repository dependency review",
   "policy": "dependency-license-policy.md",
   "reviewDefaults": {
@@ -432,7 +432,7 @@
       "version": "2.5.2",
       "scope": "production",
       "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
-      "purpose": "Bounded PCM arrays and reference-track post-processing in the main analyzer",
+      "purpose": "Bounded PCM/STFT arrays, Demucs overlap-add and reference-track post-processing in the main analyzer",
       "owningModule": "analyzer",
       "sourceRepository": "https://github.com/numpy/numpy",
       "artifactUrl": "https://files.pythonhosted.org/packages/7f/b9/87fea2769fe1c47c1b5b01d8310772c9d1a85d485de7cf386ef7a3332b02/numpy-2.5.2-cp312-cp312-win_amd64.whl",
@@ -445,38 +445,12 @@
       "version": "1.29.0",
       "scope": "production",
       "license": "MIT",
-      "purpose": "CPU-only SwiftF0 ONNX inference",
+      "purpose": "CPU-only HTDemucs spectral-core and SwiftF0 ONNX inference",
       "owningModule": "analyzer",
       "sourceRepository": "https://github.com/microsoft/onnxruntime",
       "artifactUrl": "https://files.pythonhosted.org/packages/b4/80/5b28f1f1111210fc4a336ddbc6950f468ebf9a6a265420568f4f43fa33ce/onnxruntime-1.29.0-cp312-cp312-win_amd64.whl",
       "distributionForm": "Bundled CPU runtime in the analyzer sidecar; wheel SHA-256 4acf2b4948b7ede87221ca6332344b8facdc8059d6ac751a7d367d04532b02dd",
-      "alternativesConsidered": "TensorFlow for both stages increases coupling and bundle size; a custom ONNX evaluator is outside scope."
-    },
-    {
-      "ecosystem": "python",
-      "name": "spleeter",
-      "version": "2.4.2",
-      "scope": "production",
-      "license": "MIT",
-      "purpose": "Two-stem TensorFlow graph and preprocessing used by the isolated separation engine",
-      "owningModule": "analyzer/engines/spleeter",
-      "sourceRepository": "https://github.com/deezer/spleeter",
-      "artifactUrl": "https://files.pythonhosted.org/packages/04/ff/6a9c2348de86b8a0e2ce8e72d3235d91f05a6dbc1a2eb809b51749023b7d/spleeter-2.4.2-py3-none-any.whl",
-      "distributionForm": "Only modules reached by the two-stem engine are bundled; wheel SHA-256 11b6aad050f89752e3752e08d8f69c69b699929157424e47c00e3e4db21073f9",
-      "alternativesConsidered": "Meta Demucs weights are research-only; python-audio-separator adds dynamic model discovery/download behavior."
-    },
-    {
-      "ecosystem": "python",
-      "name": "tensorflow-intel",
-      "version": "2.12.1",
-      "scope": "production",
-      "license": "Apache-2.0",
-      "purpose": "Windows x64 CPU execution for the approved Spleeter graph",
-      "owningModule": "analyzer/engines/spleeter",
-      "sourceRepository": "https://github.com/tensorflow/tensorflow",
-      "artifactUrl": "https://files.pythonhosted.org/packages/d4/60/1ca023f19c8c22e283f5fd3fd209dbe11c8fb7a5078fc4ff247738eab74d/tensorflow_intel-2.12.1-cp311-cp311-win_amd64.whl",
-      "distributionForm": "Bundled in the isolated Spleeter sidecar; wheel SHA-256 f9fdbdaf075db41c7fafd9f61bb296112b81bf93e47718907b4321f09c911a92",
-      "alternativesConsidered": "Current TensorFlow drops native Windows GPU support and newer Spleeter combinations were incompatible; CPU 2.12.1 is exact and proven by the benchmark."
+      "alternativesConsidered": "TensorFlow/Spleeter increased coupling and bundle size; a custom ONNX evaluator is outside scope."
     },
     {
       "ecosystem": "python",
@@ -582,15 +556,15 @@
     {
       "ecosystem": "runtime",
       "name": "CPython",
-      "version": "3.12.14 and 3.11.13",
+      "version": "3.12.14",
       "scope": "production",
       "license": "PSF-2.0",
-      "purpose": "Embedded runtimes for the main analyzer and legacy-compatible Spleeter engine",
+      "purpose": "Embedded runtime for the main analyzer",
       "owningModule": "analyzer",
       "sourceRepository": "https://github.com/python/cpython",
       "artifactUrl": "https://github.com/astral-sh/python-build-standalone",
       "distributionForm": "Selected runtime files bundled by PyInstaller",
-      "alternativesConsidered": "A single Python version cannot satisfy both current ONNX Runtime and the tested TensorFlow/Spleeter Windows combination."
+      "alternativesConsidered": "A system Python prerequisite fails clean-machine delivery; the retired Spleeter/TensorFlow Python 3.11 runtime is no longer packaged."
     },
     {
       "ecosystem": "binary",
@@ -610,19 +584,21 @@
     },
     {
       "ecosystem": "model",
-      "name": "Spleeter 2stems",
-      "version": "1.4.0",
+      "name": "OpenKara HTDemucs spectral-core",
+      "version": "spectral-v1.0.0",
       "scope": "production",
       "license": "MIT",
-      "purpose": "CPU two-stem vocal and instrumental separation",
+      "purpose": "CPU four-source Demucs inference composed into vocal and accompaniment stems",
       "owningModule": "analyzer",
-      "sourceRepository": "https://github.com/deezer/spleeter",
-      "artifactUrl": "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz",
+      "sourceRepository": "https://github.com/thedavidweng/openkara-models",
+      "artifactUrl": "https://github.com/thedavidweng/openkara-models/releases/download/model-spectral-v1.0.0/htdemucs.spectral.onnx",
       "distributionForm": "Explicitly user-downloaded model asset; never committed or silently redownloaded",
-      "alternativesConsidered": "Meta Demucs/htdemucs official weights are scientific/research-only; no-weight DSP approaches missed the separation quality target.",
-      "artifactSha256": "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692",
-      "sizeBytes": 73109797,
-      "licenseUrl": "https://github.com/deezer/spleeter/blob/master/LICENSE",
+      "alternativesConsidered": "Spleeter 2stems produced a collapsed real-song cache case. Other Demucs/RoFormer checkpoints remain local-evaluation candidates until exact weight licensing and runtime contracts are reviewed.",
+      "artifactSha256": "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02",
+      "sizeBytes": 209469333,
+      "licenseUrl": "https://github.com/thedavidweng/openkara-models/releases/download/infra-2026-08-12-001/LICENSE",
+      "requiredNotices": "Retain the OpenKara model release MIT LICENSE and NOTICE attribution to Demucs by Alexandre Défossez; lineage is release producer commit 98a1aeb245894337f48b67a907951d2770e22405 and HTDemucs source checkpoint 955717e8-8726e21a.th.",
+      "securityAndMaintenance": "Exact ONNX tensor names, shapes and openkara.spectral-contract/v1 metadata are validated before inference; no executable code or dynamic model discovery is loaded from the artifact.",
       "decision": "approved"
     },
     {

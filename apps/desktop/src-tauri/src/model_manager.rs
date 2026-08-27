@@ -167,18 +167,16 @@ fn specs() -> Vec<ModelSpec> {
         ModelSpec {
             entry: ModelCatalogEntry {
                 schema_version: 1,
-                model_id: "spleeter-2stems".to_owned(),
-                version: "1.4.0".to_owned(),
-                engine: "tensorflow-cpu".to_owned(),
-                source_url:
-                    "https://github.com/deezer/spleeter/releases/download/v1.4.0/2stems.tar.gz"
-                        .to_owned(),
+                model_id: "demucs-htdemucs".to_owned(),
+                version: "spectral-v1.0.0".to_owned(),
+                engine: "onnxruntime-cpu-spectral".to_owned(),
+                source_url: "https://github.com/thedavidweng/openkara-models/releases/download/model-spectral-v1.0.0/htdemucs.spectral.onnx".to_owned(),
                 license_expression: "MIT".to_owned(),
-                license_url: "https://github.com/deezer/spleeter/blob/master/LICENSE".to_owned(),
-                size_bytes: 73_109_797,
-                sha256: "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692"
+                license_url: "https://github.com/thedavidweng/openkara-models/releases/download/infra-2026-08-12-001/LICENSE".to_owned(),
+                size_bytes: 209_469_333,
+                sha256: "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02"
                     .to_owned(),
-                artifact_name: "2stems.tar.gz".to_owned(),
+                artifact_name: "htdemucs.spectral.onnx".to_owned(),
                 supported_hardware: vec!["cpu-x86_64".to_owned()],
             },
             allowed_hosts: vec![
@@ -582,7 +580,7 @@ pub fn model_statuses(model_root: &Path) -> Vec<ModelStatus> {
                 (false, false)
             };
             let (display_name, purpose) = match spec.entry.model_id.as_str() {
-                "spleeter-2stems" => ("Spleeter 2 stems", "人声与伴奏分离"),
+                "demucs-htdemucs" => ("HTDemucs (OpenKara spectral)", "人声与伴奏分离"),
                 "swiftf0" => ("SwiftF0", "连续歌声音高估计"),
                 _ => ("Approved model", "本地歌曲分析"),
             };
@@ -786,7 +784,7 @@ mod tests {
     fn catalog_contains_only_the_two_user_approved_models() {
         let entries = model_catalog();
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].model_id, "spleeter-2stems");
+        assert_eq!(entries[0].model_id, "demucs-htdemucs");
         assert_eq!(entries[1].model_id, "swiftf0");
     }
 

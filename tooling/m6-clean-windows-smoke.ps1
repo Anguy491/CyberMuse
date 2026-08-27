@@ -73,7 +73,6 @@ function Assert-InstalledPayload([string]$InstallRoot, [string]$Package) {
         "model-manifest.json",
         "runtime-manifest.json",
         "analyzer\cybermuse-analyzer.exe",
-        "spleeter-engine\cybermuse-spleeter-engine.exe",
         "ffmpeg\ffmpeg.exe",
         "ffmpeg\ffprobe.exe",
         "uninstall.exe"
@@ -326,29 +325,27 @@ try {
     [System.IO.Directory]::CreateDirectory($staging) | Out-Null
     $input = Join-Path $package "smoke-input.wav"
     $analyzer = Join-Path $installRoot "analyzer\cybermuse-analyzer.exe"
-    $spleeterEngine = Join-Path $installRoot "spleeter-engine\cybermuse-spleeter-engine.exe"
     $ffmpeg = Join-Path $installRoot "ffmpeg\ffmpeg.exe"
     $ffprobe = Join-Path $installRoot "ffmpeg\ffprobe.exe"
-    $spleeterModel = Join-Path $package "models\spleeter-2stems\1.4.0\2stems.tar.gz"
+    $demucsModel = Join-Path $package "models\demucs-htdemucs\spectral-v1.0.0\htdemucs.spectral.onnx"
     $swiftModel = Join-Path $package "models\swiftf0\0.1.2\swift_f0-0.1.2-py3-none-any.whl"
     $request = [ordered]@{
         schemaVersion = 1
         jobId = $jobId
         songId = Get-FileSha256 $input
-        requestedAnalysisId = "14165a8dcea69ceb1e5eb96f97273dc8"
+        requestedAnalysisId = "29537af5d863a178370a8abe4fa12ee5"
         inputPath = $input
         stagingPath = $staging
         expectedDurationMs = 6000
-        pipelineVersion = "m4-production-v1"
+        pipelineVersion = "m6-demucs-v1"
         roots = [ordered]@{ songRoot = $package; stagingRoot = $analysisRoot; modelRoot = (Join-Path $package "models"); toolRoot = $installRoot }
         models = @(
-            [ordered]@{ modelId = "spleeter-2stems"; version = "1.4.0"; engine = "tensorflow-cpu"; path = $spleeterModel; sha256 = "f3a90b39dd2874269e8b05a48a86745df897b848c61f3958efc80a39152bd692"; licenseExpression = "MIT" },
+            [ordered]@{ modelId = "demucs-htdemucs"; version = "spectral-v1.0.0"; engine = "onnxruntime-cpu-spectral"; path = $demucsModel; sha256 = "c3395410b1319976683bc874d97461655a9ea6089bbb0f3bd163d3829db13d02"; licenseExpression = "MIT" },
             [ordered]@{ modelId = "swiftf0"; version = "0.1.2"; engine = "onnxruntime-cpu"; path = $swiftModel; sha256 = "212715116025a490be70db0afda8fb27b1eadf267a3b18ed8df4866c1574e717"; licenseExpression = "MIT" }
         )
         tools = @(
             [ordered]@{ toolId = "ffmpeg"; version = "n9.0.1-6-g9d4ca21220"; path = $ffmpeg; sha256 = Get-FileSha256 $ffmpeg },
-            [ordered]@{ toolId = "ffprobe"; version = "n9.0.1-6-g9d4ca21220"; path = $ffprobe; sha256 = Get-FileSha256 $ffprobe },
-            [ordered]@{ toolId = "spleeter-engine"; version = "0.1.0"; path = $spleeterEngine; sha256 = Get-FileSha256 $spleeterEngine }
+            [ordered]@{ toolId = "ffprobe"; version = "n9.0.1-6-g9d4ca21220"; path = $ffprobe; sha256 = Get-FileSha256 $ffprobe }
         )
         config = [ordered]@{ sampleRateHz = 48000; pitchMinHz = 65.0; pitchMaxHz = 1046.5; confidenceThreshold = 0.45; maxInterpolatedGapMs = 50 }
     }

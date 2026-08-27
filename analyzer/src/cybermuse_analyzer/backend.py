@@ -4,9 +4,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .contracts import AnalyzerRequest
+from .demucs import separate_demucs
 from .media import ProbeResult, normalize, probe
 from .postprocess import RawPitchFrame
-from .separation import separate_spleeter
 from .subprocesses import CancellationState
 from .swiftf0 import detect_pitch
 
@@ -31,7 +31,7 @@ class OfflineBackend:
         instrumental_path: Path,
         progress: Callable[[float], None],
     ) -> None:
-        separate_spleeter(
+        separate_demucs(
             request,
             cancel,
             normalized_path,

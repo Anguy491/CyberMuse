@@ -247,7 +247,7 @@ function ModelAssetsContent({
                   <dt>{t("models.purpose")}</dt>
                   <dd>
                     {t(
-                      model.modelId === "spleeter-2stems" ||
+                      model.modelId === "demucs-htdemucs" ||
                         model.modelId === "swiftf0"
                         ? `models.purpose.${model.modelId}`
                         : "models.purpose.default",
