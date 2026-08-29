@@ -10,6 +10,8 @@ import {
   type AnalyzerJob,
   type DeletePreparation,
   type ImportCandidate,
+  type LyricsCandidate,
+  type LyricsRemovalPreparation,
   type PracticeAssets,
   type SongServicePort,
   type SongSummary,
@@ -49,6 +51,16 @@ export function LibraryPage({
     reclaimedBytes: number | null;
   } | null>(null);
   const [deletion, setDeletion] = useState<DeletePreparation | null>(null);
+  const [lyricsCandidate, setLyricsCandidate] = useState<{
+    songId: string;
+    songTitle: string;
+    candidate: LyricsCandidate;
+  } | null>(null);
+  const [lyricsDeletion, setLyricsDeletion] = useState<{
+    songId: string;
+    songTitle: string;
+    preparation: LyricsRemovalPreparation;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -233,6 +245,93 @@ export function LibraryPage({
     }
   }
 
+  async function chooseLyrics(song: SongSummary): Promise<void> {
+    setOperation(`lyrics-select:${song.songId}`);
+    setError(null);
+    setNotice(null);
+    try {
+      const selected = await service.selectLyrics(song.songId);
+      if (selected !== null) {
+        setLyricsCandidate({
+          songId: song.songId,
+          songTitle: song.displayName,
+          candidate: selected,
+        });
+      }
+    } catch (caught) {
+      setError(appError(caught));
+    } finally {
+      setOperation(null);
+    }
+  }
+
+  async function confirmLyrics(): Promise<void> {
+    if (lyricsCandidate === null) return;
+    setOperation(`lyrics-import:${lyricsCandidate.songId}`);
+    setError(null);
+    try {
+      const result = await service.confirmLyrics(
+        lyricsCandidate.songId,
+        lyricsCandidate.candidate.token,
+      );
+      setLyricsCandidate(null);
+      setNotice({
+        key: result.deduplicated
+          ? "library.notice.lyricsUnchanged"
+          : result.replaced
+            ? "library.notice.lyricsReplaced"
+            : "library.notice.lyricsAdded",
+        reclaimedBytes: null,
+      });
+      await refresh();
+    } catch (caught) {
+      setError(appError(caught));
+    } finally {
+      setOperation(null);
+    }
+  }
+
+  async function prepareRemoveLyrics(song: SongSummary): Promise<void> {
+    setOperation(`lyrics-remove-plan:${song.songId}`);
+    setError(null);
+    try {
+      const preparation = await service.prepareRemoveLyrics(song.songId);
+      setLyricsDeletion({
+        songId: song.songId,
+        songTitle: song.displayName,
+        preparation,
+      });
+    } catch (caught) {
+      setError(appError(caught));
+    } finally {
+      setOperation(null);
+    }
+  }
+
+  async function confirmRemoveLyrics(): Promise<void> {
+    if (lyricsDeletion === null) return;
+    setOperation(`lyrics-remove:${lyricsDeletion.songId}`);
+    setError(null);
+    try {
+      await service.removeLyrics(
+        lyricsDeletion.songId,
+        lyricsDeletion.preparation.confirmationToken,
+      );
+      setLyricsDeletion(null);
+      setNotice({
+        key: "library.notice.lyricsRemoved",
+        reclaimedBytes: null,
+      });
+      await refresh();
+    } catch (caught) {
+      setLyricsDeletion(null);
+      setError(appError(caught));
+      await refresh();
+    } finally {
+      setOperation(null);
+    }
+  }
+
   async function prepareDelete(songId: string): Promise<void> {
     setOperation(`delete-plan:${songId}`);
     setError(null);
@@ -394,6 +493,115 @@ export function LibraryPage({
           </div>
         )}
 
+        {lyricsCandidate === null ? null : (
+          <div
+            className="import-confirmation lyrics-confirmation"
+            role="dialog"
+            aria-labelledby="lyrics-import-heading"
+          >
+            <div>
+              <h2 id="lyrics-import-heading">
+                {t("library.lyrics.confirmTitle", {
+                  song: lyricsCandidate.songTitle,
+                })}
+              </h2>
+              <p>{t("library.lyrics.confirmDetail")}</p>
+            </div>
+            <dl>
+              <div>
+                <dt>{t("library.lyrics.encoding")}</dt>
+                <dd>{lyricsCandidate.candidate.sourceEncoding}</dd>
+              </div>
+              <div>
+                <dt>{t("library.lyrics.cueCount")}</dt>
+                <dd>{lyricsCandidate.candidate.cueGroupCount}</dd>
+              </div>
+              <div>
+                <dt>{t("library.lyrics.range")}</dt>
+                <dd>
+                  {formatDuration(
+                    lyricsCandidate.candidate.firstEffectiveTimeMs,
+                  )}
+                  {" — "}
+                  {formatDuration(
+                    lyricsCandidate.candidate.lastEffectiveTimeMs,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("library.lyrics.metadata")}</dt>
+                <dd>
+                  {[
+                    lyricsCandidate.candidate.metadata.title,
+                    lyricsCandidate.candidate.metadata.artist,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || t("library.lyrics.metadataMissing")}
+                </dd>
+              </div>
+            </dl>
+            <blockquote className="lyrics-confirmation__sample">
+              {lyricsCandidate.candidate.sampleLines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </blockquote>
+            {lyricsCandidate.candidate.warnings.length === 0 ? null : (
+              <p className="lyrics-confirmation__warning">
+                {t("library.lyrics.warning")}
+              </p>
+            )}
+            <div className="primary-actions">
+              <Button
+                variant="primary"
+                disabled={operation !== null}
+                onClick={() => void confirmLyrics()}
+              >
+                {lyricsCandidate.candidate.replacing
+                  ? t("library.lyrics.replaceConfirm")
+                  : t("library.lyrics.addConfirm")}
+              </Button>
+              <Button
+                variant="quiet"
+                disabled={operation !== null}
+                onClick={() => setLyricsCandidate(null)}
+              >
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {lyricsDeletion === null ? null : (
+          <div
+            className="delete-confirmation"
+            role="alertdialog"
+            aria-labelledby="lyrics-delete-heading"
+          >
+            <h2 id="lyrics-delete-heading">
+              {t("library.lyrics.removeTitle", {
+                song: lyricsDeletion.songTitle,
+              })}
+            </h2>
+            <p>{t("library.lyrics.removeDetail")}</p>
+            <div className="primary-actions">
+              <Button
+                variant="danger"
+                disabled={operation !== null}
+                onClick={() => void confirmRemoveLyrics()}
+              >
+                {t("library.lyrics.removeConfirm")}
+              </Button>
+              <Button
+                variant="quiet"
+                disabled={operation !== null}
+                onClick={() => setLyricsDeletion(null)}
+              >
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {error === null ? null : (
           <div className="page-error">
             <PageState
@@ -407,6 +615,11 @@ export function LibraryPage({
                   "DELETE_PARTIAL",
                   "ASSET_INVALID",
                   "STORE_UNAVAILABLE",
+                  "LYRICS_ENCODING_UNSUPPORTED",
+                  "LYRICS_INVALID",
+                  "LYRICS_LIMIT_EXCEEDED",
+                  "LYRICS_MISMATCH",
+                  "LYRICS_DAMAGED",
                 ].includes(error.code)
                   ? `library.error.${error.code}`
                   : "library.error.default",
@@ -474,7 +687,8 @@ export function LibraryPage({
                     <h3>{song.displayName}</h3>
                     <span>
                       {formatDuration(song.durationMs)} ·{" "}
-                      {formatBytes(song.localSizeBytes)}
+                      {formatBytes(song.localSizeBytes)} ·{" "}
+                      {t(`library.lyrics.status.${song.lyricsStatus}`)}
                     </span>
                   </div>
                   <dl className="song-row__metadata">
@@ -568,6 +782,25 @@ export function LibraryPage({
                         {t("library.cancelAnalysis")}
                       </Button>
                     ) : null}
+                    <Button
+                      disabled={operation !== null}
+                      onClick={() => void chooseLyrics(song)}
+                    >
+                      {operation === `lyrics-select:${song.songId}`
+                        ? t("library.lyrics.reading")
+                        : song.lyricsStatus === "none"
+                          ? t("library.lyrics.add")
+                          : t("library.lyrics.replace")}
+                    </Button>
+                    {song.lyricsStatus === "none" ? null : (
+                      <Button
+                        variant="danger"
+                        disabled={operation !== null}
+                        onClick={() => void prepareRemoveLyrics(song)}
+                      >
+                        {t("library.lyrics.remove")}
+                      </Button>
+                    )}
                     <Button
                       variant="danger"
                       disabled={

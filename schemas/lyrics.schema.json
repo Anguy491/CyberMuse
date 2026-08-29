@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermuse.local/schemas/lyrics.schema.json",
+  "title": "CyberMuse Lyrics Document",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "revision",
+    "lyricId",
+    "songId",
+    "parserVersion",
+    "importedAt",
+    "sourceEncoding",
+    "sourceSha256",
+    "sourceText",
+    "sourceOffsetMs",
+    "userOffsetMs",
+    "metadata",
+    "cues"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "lyricId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "songId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "parserVersion": { "const": "lrc-line-v1" },
+    "importedAt": { "type": "string", "format": "date-time" },
+    "sourceEncoding": { "enum": ["utf-8", "utf-16le", "utf-16be"] },
+    "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceText": { "type": "string", "maxLength": 1048576 },
+    "sourceOffsetMs": {
+      "type": "integer",
+      "minimum": -30000,
+      "maximum": 30000
+    },
+    "userOffsetMs": { "type": "integer", "minimum": -30000, "maximum": 30000 },
+    "metadata": {
+      "type": "object",
+      "required": ["title", "artist", "album", "author", "creator"],
+      "properties": {
+        "title": { "type": ["string", "null"], "maxLength": 1000 },
+        "artist": { "type": ["string", "null"], "maxLength": 1000 },
+        "album": { "type": ["string", "null"], "maxLength": 1000 },
+        "author": { "type": ["string", "null"], "maxLength": 1000 },
+        "creator": { "type": ["string", "null"], "maxLength": 1000 }
+      },
+      "additionalProperties": true
+    },
+    "cues": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": {
+        "type": "object",
+        "required": ["timestampMs", "lines"],
+        "properties": {
+          "timestampMs": { "type": "integer", "minimum": 0 },
+          "lines": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "type": "string", "maxLength": 1000 }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

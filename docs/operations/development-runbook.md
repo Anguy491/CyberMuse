@@ -126,9 +126,34 @@ Start-Process -FilePath .\target\release\cybermuse-desktop.exe
 2. 播放、暂停、将滑杆跳到 6 秒并回到开头；确认计时、参考轨和 NOW 同步，暂停后 `SOURCES 0 ACTIVE`。
 3. 设置合法 A/B，启用 loop，运行至少 10 次；确认 LOOP/take ID 递增、同时最多一个活动 source，停止后资源归零。非法、倒序或短于 1 秒的区间必须显示可操作错误。
 4. 只有操作人员理解用途后才选择“开始录唱”。确认麦克风与播放共享时钟、无声显示“未检测到稳定音高”、离页释放资源；操作人员拒绝权限时仍可预览 fixture，并看到恢复动作。自动化不得代替用户批准或拒绝 Windows 隐私请求。
-5. 在可取得的 light/dark、100%/150% 缩放和键盘路径检查 NOW 38%、文字方向、参考虚线/当前实线/最近点线、legend、焦点与 44 px 操作目标；缺失环境必须写 `not available`，不得写通过。
+5. 在可取得的 light/dark、100%/150% 缩放和键盘路径检查 NOW 20%、文字方向、参考虚线/当前实线/最近点线、legend、焦点与 44 px 操作目标；缺失环境必须写 `not available`，不得写通过。
 
 M3 session 固定只存在当前 Practice 页面内存，容量为 180,000 个有效样本。不得从手册步骤推导或创建 session 保存、歌曲导入、真实歌曲分析、延迟校准持久化或 Tauri session IPC。
+
+## M8：Pitch Lane v2 与专业模式
+
+从仓库根运行自动矩阵；不得删除或覆盖既有 evidence 输出：
+
+```powershell
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm test:contracts
+pnpm test:m8:performance
+pnpm test:m8:quality
+
+Set-Location .\apps\desktop\src-tauri
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+Set-Location ..\..\..
+```
+
+自动结果必须至少覆盖 TC-PLV2-001..004、TC-SES-002 与 TC-A11Y-002。`test:m8:performance` 以 1,000 px、60 分钟数据记录 lane model P50/P95/P99 和输出数量，P95 必须 ≤4 ms；`test:m8:quality` 对确定性正弦、谐波、5.5 Hz/±35 cents 颤音和 C3→C4 滑音逐项执行 median ≤5/P95 ≤20 cents 门槛。任一脚本非零退出都必须记录实际分项，不能只重跑或放宽阈值。Schema 另用 TypeScript/Rust 契约 fixture 验证 1.1 写读、1.0 兼容、非法模式、1.1 缺绝对误差和局部损坏 Review。
+
+发布构建人工矩阵确认“练习数据”右侧 switch 默认显示“专业模式 开”，Tab/Space 可切换且不暂停播放/录唱；关闭时整八度偏差折叠，重新开启恢复；无参考段显示未评分，专业模式越界显示顶/底 marker。保存 dark/light、灰度、forced-colors、1024×720、150% 和歌词双列的脱敏截图。至少一首真实歌曲完成曲线/反馈/指标一致性人工验收。
+
+TC-PIT-002 的 Demucs + SwiftF0 真值 stems 与校准硬件回环必须使用合法私有资产，报告只写匿名 ID 和聚合指标。缺任一层就保持 ADR-023 Proposed 和 M8 gate 开放，不得用合成测试代替。
 
 ## M4：Analyzer 环境约定
 
@@ -252,6 +277,20 @@ Windows WebView2 将 `cybermuse://localhost/<token>` 自定义协议映射为 `h
 实时延迟以 Worklet 样本到 Worker/UI 可用观察的单调时间测量；设备 round-trip 延迟属于校准报告，二者不得混为一个指标。
 
 ## 发布流程
+
+### M7 私有 LRC 验收
+
+真实歌词必须留在仓库之外。专项 Rust 测试只通过进程环境变量读取文件，不保存路径、正文或副本到 Git：
+
+```powershell
+Set-Location D:\projects\cyberMuse\apps\desktop\src-tauri
+$env:CYBERMUSE_TEST_LRC_PATH = '<private-lrc-path>'
+cargo test --workspace lyrics_store::tests::tc_lyr_004_parses_user_supplied_moth_to_a_flame_lrc -- --ignored
+Remove-Item Env:CYBERMUSE_TEST_LRC_PATH
+Set-Location ..\..\..
+```
+
+随后运行 `pnpm check`、Rust `fmt/clippy/test` 和 `pnpm tauri build`。在生成的 release executable 中从 Library 添加或确认歌词，打开同一 ready 歌曲：点击至少一个 cue 验证 seek，高亮必须随伴奏跨越至少两个 cue，并确认手动滚动可暂停自动跟随、返回当前歌词可恢复；需要校准时使用可撤销的全局 offset。不得在证据中保存歌词正文、完整路径、歌曲音频或截图。
 
 ### M6 本机构建与非分发烟测
 

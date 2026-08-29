@@ -109,3 +109,11 @@ v0.1 只允许用户触发的模型下载和显式更新检查；首次联网前
 ### NFR-021 — 可复现构建
 
 相同提交、锁文件、工具链版本和模型清单应生成内容等价的应用行为；构建手册不得依赖未记录的全局包。验证：干净 Windows 环境按 runbook 完成构建。
+
+### NFR-022 — 歌词同步与隔离
+
+歌词 cue 必须直接由现有 `AudioContext` 播放位置派生，不创建独立播放计时器，不把歌词处理放入 AudioWorklet/Worker，也不按动画帧调用 Tauri IPC。受控时钟下 cue 切换在目标时间后的 P95 不超过 50 ms，连续 10 分钟无独立漂移；歌词解析、滚动或损坏不得改变实时音频、评分或现有 NFR-003/005/007/012 预算。验证：确定性时钟、seek/loop/offset UI 测试和 Windows release soak。
+
+### NFR-023 — 音高通道精度、性能与可访问性
+
+Pitch Lane 的 NOW、参考中心线和 ±25/50 cents 边界坐标误差必须小于 0.5 px；在 1,000 px 宽、60 分钟有界样本集上，预索引后的 lane model P95 不超过 4 ms，输出规模与像素宽度成正比，并维持 30–60 FPS。模式切换不得增加 NFR-003 延迟或 AudioWorklet/Worker 负载。精度证据分三层：合成正弦、谐波、颤音和滑音的中位误差 ≤5 cents、P95 ≤20 cents；Demucs + SwiftF0 对合法真值 vocal stems 的 RPA50 ≥85%、中位误差 ≤30 cents、八度错误率 ≤5%；Windows 校准后硬件回环中位误差 ≤15 cents、P95 ≤35 cents。专业模式 switch、越界和未评分状态必须同时以文字、形状/线型及位置表达，并通过键盘、dark/light、灰度、forced-colors、1024×720 和 150% 缩放验证。

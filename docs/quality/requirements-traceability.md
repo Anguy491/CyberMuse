@@ -32,13 +32,17 @@
 | FR-014 | Audio A-B Loop；LoopRegion；ADR-012 | TC-LOOP-001 验证/10 次边界/take | M3 | `packages/audio/src/playback-timeline.test.ts`、`packages/scoring/src/scoring.test.ts`、`artifacts/m3/practice-performance.json` 摘要；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | FR-015 | Audio latency calibration；AppSettings calibration | TC-LAT-001 有效/多峰/设备变化/手动 | M6 | `latency-calibration.ts`/worklet 有界包络与三脉冲一致性、信号不足、多峰自动测试；input/output/default-group fingerprint、sample rate 完全匹配才在 Practice 应用，非默认输出经 `setSinkId`；Rust 校验 measured 0..2000/manual -250..500；实机回环仍是 [M6 evidence](../delivery/evidence/m6-review-and-release.md) 的开放硬件项 |
 | FR-016 | Data metric definitions；ADR-012 | TC-SCO-002 accuracy/bias/MAD/coverage | M3 | `packages/scoring/src/scoring.test.ts`、`artifacts/m3/scoring-quality.json` 摘要；[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
-| FR-017 | PracticeSession；Storage atomic；ADR-017 | TC-SES-001 保存/重启/失败/引用 | M6 | `session_store.rs` 原子保存、幂等、引用、重启、删除和歌曲索引 Rust tests；Practice finalization、保存重试、关闭拦截和导航防绕过 UI tests；发布 E2E 见 [M6 evidence](../delivery/evidence/m6-review-and-release.md) 开放项 |
+| FR-017 | PracticeSession；Storage atomic；ADR-017 | TC-SES-001 保存/重启/失败/引用/最近有效 take 恢复 | M6/M7 | `session_store.rs` 原子保存、幂等、引用、重启、删除和歌曲索引 Rust tests；Practice finalization、部分历史 take 恢复、空预览不遮蔽、自然结束、居中空会话决定、保存重试、关闭拦截和导航防绕过 UI/domain tests；发布 E2E 见 [M6 evidence](../delivery/evidence/m6-review-and-release.md) 开放项 |
 | FR-018 | UX Review；Signal UI Review hierarchy/Metric；SessionMetrics | TC-REV-001 摘要/损坏范围/重练区间 | M6 | `session_store.rs` 局部损坏 salvage；`review-model.test.ts` 和 `ReviewPage.test.tsx` 覆盖摘要、不可用范围、错误区间与预填 A-B loop；发布 E2E 见 [M6 evidence](../delivery/evidence/m6-review-and-release.md) 开放项 |
 | FR-019 | Storage model；License policy；ADR-020/021 | TC-MOD-001 生产同意/下载/hash/离线/删除；TC-MOD-002 本地候选隔离 | M4/M6 | `model_manager.rs` 只接受 exact MIT HTDemucs spectral-core 与 SwiftF0；本机已由正常 consented downloader 完成大小/hash/原子安装，其他候选仍隔离；20 首 bake-off 与新 release 供应链证据待完成；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | FR-020 | AppSettings API；UX Settings；ADR-017 | TC-SET-001 保存/修订冲突/设备失效 | M6 | `settings_store.rs` 默认/恢复/修订冲突/校准，`app-settings.schema.json`；Audio Settings 并发 revision 队列、真实 input/output 恢复、默认设备 group 变化可见回退、显示偏好/音量，Practice 恢复实际设备后再应用校准，Model Assets exact cache 同步 UI tests；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | FR-021 | Storage logs；native diagnostic capability；ADR-017 | TC-DIA-001 预览/redaction/取消 | M6 | `diagnostics.rs` preview、14 天/200 项、clear、禁字段扫描和原子 JSON tests；开发主机隐私 smoke 禁字段 0；原生保存发布 E2E 仍开放；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | FR-022 | UX Settings；AppSettings language；ADR-019 | TC-I18N-001 词汇包/切换/恢复/全页面扫描 | M6 | `i18n.test.ts`、`PreferencesProvider.test.tsx`、设置中心页面测试与发布显示矩阵；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | FR-023 | StorageOverview；Settings Storage；ADR-019 | TC-STO-003 固定根/Unicode/reparse/无路径泄露 | M6 | `storage_overview.rs`、`StorageSettings.test.tsx`、`storage-overview.schema.json`；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
+| FR-024 | Lyrics store/API；Library 管理流；ADR-022 | TC-LYR-001 选择/预览/添加/替换/移除 | M7 | `lyrics_store.rs`、Lyrics schema、Library UI tests 与 [M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
+| FR-025 | LyricsDocument；Rust LRC parser；ADR-022 | TC-LYR-002 编码/标签/offset/原子恢复 | M7 | Rust parser/store tests、跨语言 contract fixtures 与 [M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
+| FR-026 | UX Practice Lyrics；Playback clock；ADR-004/022 | TC-LYR-003 播放/seek/loop/导航/视口布局 | M7 | Practice page/model tests覆盖歌词列占用页头以下剩余视口和底部控制可见性；Windows Moth To A Flame smoke 与 [M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
+| FR-027 | Scoring mode；Pitch Lane index/model；Practice/Review；ADR-023 | TC-PLV2-001..004、TC-SES-002、TC-A11Y-002 | M8 | scoring/controller/lane/page/Rust/schema tests 与 [M8 evidence](../delivery/evidence/m8-pitch-lane-v2.md)；发布视觉和真实歌曲人工证据开放 |
 
 ## 非功能需求映射
 
@@ -63,13 +67,15 @@
 | NFR-017 | Accessible feedback；Signal UI dual-theme contrast/focus/motion/font fallback | TC-A11Y-001 dark/light/键盘/灰度/forced-colors/焦点/reduced-motion/断网字体回退 | M1/M3/M6 | `apps/desktop/src/signal-ui.test.ts`、`apps/desktop/src/pages/PracticePage.test.tsx`、`apps/desktop/src/pages/AudioSettingsPage.test.tsx`；[M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md) |
 | NFR-018 | Actionable errors；Signal UI Error Panel | TC-UXERR-001 message/action/no trace | M5 | Library/Practice structured error tests 与真实失败后重试；[M5 evidence](../delivery/evidence/m5-import-to-practice.md) |
 | NFR-019 | Contract versions | TC-CON-001 old/current/unknown/extra | M1/M4/M5/M6 | analyzer fixtures 被三语言门禁读取；Song/Tauri/PracticeSession/AppSettings 当前/额外字段/未知 major contract tests；[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md)、[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
-| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M6 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md)、[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md)、[M6 in-progress evidence](../delivery/evidence/m6-review-and-release.md)；用户只批准到 M5，M6 gate 未批准 |
-| NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M4/M6 | `pnpm build:m6` 开发主机通过；10-file hash transfer package 与 standalone gate 已完成 diagnostic 演练，因 dirty/online/dev tools/SkipDefender 明确 gate=false；独立 clean-host/Defender 仍阻止 M6；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
+| NFR-020 | Quality gate | TC-GATE-001 全门禁无跳过 | M1–M7 | [M1 evidence](../delivery/evidence/m1-foundation.md)、[M2 evidence](../delivery/evidence/m2-realtime-pitch-lab.md)、[M3 evidence](../delivery/evidence/m3-fixture-practice.md)、[M4 evidence](../delivery/evidence/m4-offline-analyzer.md)、[M5 evidence](../delivery/evidence/m5-import-to-practice.md)、[M6 evidence](../delivery/evidence/m6-review-and-release.md)；用户于 2026-08-28 批准 M6 本机开发门禁并保留发布缺口 |
+| NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M4/M6 | `pnpm build:m6` 开发主机通过；10-file hash transfer package 与 standalone gate 已完成 diagnostic 演练，因 dirty/online/dev tools/SkipDefender 明确 gate=false；用户批准进入 M7 但独立 clean-host/Defender 继续阻止外部分发；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
+| NFR-022 | ADR-004/022；Lyrics cue lookup | TC-LYR-004 50 ms/10 分钟/无逐帧 IPC | M7 | 受控时钟与 Practice 性能/soak、Windows real-song smoke；[M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
+| NFR-023 | ADR-023；Pitch Lane index/LOD；三层音高真值 | TC-PERF-005 4 ms P95/30–60 FPS；TC-PIT-002 三层精度 | M8 | 自动坐标/降采样/性能与合成证据；合法 vocal-stem、校准硬件回环和发布显示矩阵见 [M8 evidence](../delivery/evidence/m8-pitch-lane-v2.md) 开放项 |
 
 ## M0 一致性证据
 
-- 所有 FR-001..FR-023 在本表出现一次。
-- 所有 NFR-001..NFR-021 在本表出现一次。
+- 所有 FR-001..FR-027 在本表出现一次。
+- 所有 NFR-001..NFR-023 在本表出现一次。
 - Must 需求均有设计、测试和里程碑。
 - 测试 ID 在 Test Strategy 的层级或 Milestone Specs 中有执行位置。
 - 实现证据在相应里程碑完成后替换“Required evidence”的类别描述为实际相对路径；不得删除历史需求行。
@@ -91,7 +97,7 @@
 ## M3 实现证据
 
 - FR-009 使用同一个 `AudioContext.currentTime` 派生播放位置，play/pause/seek/loop/suspend 全部显式 re-anchor；10 分钟受控时钟最大漂移 0 ms。
-- FR-012/013 使用固定 38% NOW、参考虚线、当前实线、最近 take 灰色点线、文字方向与无声中性状态；评分二分匹配、signed cents、120 ms 平滑和 5 cents 滞回已有黄金测试。
+- FR-012/013 使用固定 20% NOW、参考虚线、当前实线、最近 take 灰色点线、文字方向与无声中性状态；评分二分匹配、signed cents、120 ms 平滑和 5 cents 滞回已有黄金测试。M8 的目标通道、乐句刻度、包络/overflow 和模式切换由 FR-027/ADR-023 扩展，不回写 M3 历史证据。
 - FR-014/016 的半开 A-B 区间、500 ms 预备区、300 ms 间隔、独立 take、分项指标和 take 边界 local-median reset 已通过；10 次自动循环边界 P95 16.667 ms，Windows 发布包实跑 12 次循环后活动 source 归零。
 - NFR-005 的报告记录有效 UI 46.9 FPS、500 ms 等级往返 0；NFR-017 的结构、文字替代、线型、键盘等价按钮、forced-colors/reduced-motion 和系统字体 fallback 由页面/样式测试覆盖，Windows light 主题发布窗口完成匿名视觉 smoke。
 - M3 只新增本地程序生成 fixture、纯评分包和页面内有界 session，没有新增外部生产依赖、Tauri IPC、持久化 JSON 或跨语言契约；`data-model.md` 与 `api-contracts.md` 无需修订。完整命令、指标与人工边界见 [M3 Fixture-based Practice Evidence](../delivery/evidence/m3-fixture-practice.md)。

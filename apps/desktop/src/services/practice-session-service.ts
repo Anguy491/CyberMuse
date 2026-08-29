@@ -51,6 +51,8 @@ function parseSummary(value: unknown): PracticeSessionSummary {
     !Number.isSafeInteger(value.durationMs) ||
     !("takeCount" in value) ||
     !Number.isSafeInteger(value.takeCount) ||
+    !("pitchEvaluationMode" in value) ||
+    !["absolute", "octaveFolded"].includes(String(value.pitchEvaluationMode)) ||
     !("metrics" in value) ||
     typeof value.metrics !== "object" ||
     value.metrics === null ||

@@ -1,6 +1,10 @@
 import { ContractError, SCHEMA_VERSION } from "./song";
 
-export const SCORING_VERSION = "1.0.0" as const;
+export const LEGACY_SCORING_VERSION = "1.0.0" as const;
+export const SCORING_VERSION = "1.1.0" as const;
+export type ScoringVersion =
+  typeof LEGACY_SCORING_VERSION | typeof SCORING_VERSION;
+export type PitchEvaluationMode = "absolute" | "octaveFolded";
 
 export interface SessionMetrics {
   pitchAccuracy: number | null;
@@ -15,6 +19,7 @@ export interface SessionPitchSample {
   timeMs: number;
   userMidi: number;
   referenceMidi: number;
+  absoluteSignedCents: number;
   signedCents: number;
   confidence: number;
   voiced: true;
@@ -36,7 +41,8 @@ export interface PracticeTake {
 
 export interface PracticeSession extends Record<string, unknown> {
   schemaVersion: typeof SCHEMA_VERSION;
-  scoringVersion: typeof SCORING_VERSION;
+  scoringVersion: ScoringVersion;
+  pitchEvaluationMode: PitchEvaluationMode;
   sessionId: string;
   songId: string;
   analysisId: string;
@@ -57,6 +63,7 @@ export interface PracticeSessionSummary {
   endedAt: string;
   durationMs: number;
   takeCount: number;
+  pitchEvaluationMode: PitchEvaluationMode;
   metrics: SessionMetrics;
 }
 
@@ -125,12 +132,20 @@ function isMetrics(value: unknown): value is SessionMetrics {
   );
 }
 
-function isSample(value: unknown): value is SessionPitchSample {
+function isPitchEvaluationMode(value: unknown): value is PitchEvaluationMode {
+  return value === "absolute" || value === "octaveFolded";
+}
+
+function isSample(value: unknown, scoringVersion: ScoringVersion): boolean {
   return (
     isRecord(value) &&
     isIntegerBetween(value.timeMs, 0, 3_600_000) &&
     isFiniteNumber(value.userMidi) &&
     isFiniteNumber(value.referenceMidi) &&
+    (scoringVersion === LEGACY_SCORING_VERSION
+      ? value.absoluteSignedCents === undefined ||
+        isFiniteNumber(value.absoluteSignedCents)
+      : isFiniteNumber(value.absoluteSignedCents)) &&
     isFiniteNumber(value.signedCents) &&
     isFiniteNumber(value.confidence) &&
     value.confidence >= 0 &&
@@ -149,7 +164,7 @@ function isLoopRegion(value: unknown): value is SessionLoopRegion | null {
   );
 }
 
-function isTake(value: unknown): value is PracticeTake {
+function isTake(value: unknown, scoringVersion: ScoringVersion): boolean {
   return (
     isRecord(value) &&
     typeof value.takeId === "string" &&
@@ -159,7 +174,7 @@ function isTake(value: unknown): value is PracticeTake {
     isIntegerBetween(value.endedAtSongTimeMs, 0, 3_600_000) &&
     Number(value.endedAtSongTimeMs) >= Number(value.startedAtSongTimeMs) &&
     Array.isArray(value.observations) &&
-    value.observations.every(isSample) &&
+    value.observations.every((sample) => isSample(sample, scoringVersion)) &&
     isMetrics(value.metrics)
   );
 }
@@ -178,6 +193,20 @@ export function parsePracticeSession(value: unknown): PracticeSession {
     );
   }
 
+  const scoringVersion = value.scoringVersion;
+  if (
+    scoringVersion !== LEGACY_SCORING_VERSION &&
+    scoringVersion !== SCORING_VERSION
+  ) {
+    throw new ContractError(
+      "SCHEMA_VERSION_UNSUPPORTED",
+      `Unsupported scoring version: ${String(scoringVersion)}`,
+    );
+  }
+  const pitchEvaluationMode =
+    scoringVersion === LEGACY_SCORING_VERSION
+      ? "absolute"
+      : value.pitchEvaluationMode;
   const startedAt = value.startedAt;
   const endedAt = value.endedAt;
   const takes = value.takes;
@@ -192,7 +221,7 @@ export function parsePracticeSession(value: unknown): PracticeSession {
       )
     : Number.POSITIVE_INFINITY;
   const valid =
-    value.scoringVersion === SCORING_VERSION &&
+    isPitchEvaluationMode(pitchEvaluationMode) &&
     typeof value.sessionId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
       value.sessionId,
@@ -218,7 +247,7 @@ export function parsePracticeSession(value: unknown): PracticeSession {
         value.outputDeviceFingerprint !== null) ||
       (value.latencySource === "none" && value.appliedLatencyMs === 0)) &&
     Array.isArray(takes) &&
-    takes.every(isTake) &&
+    takes.every((take) => isTake(take, scoringVersion)) &&
     totalSamples <= 180_000 &&
     isMetrics(value.metrics);
 
@@ -228,5 +257,17 @@ export function parsePracticeSession(value: unknown): PracticeSession {
       "PracticeSession fields are invalid",
     );
   }
-  return { ...value } as PracticeSession;
+  return {
+    ...value,
+    pitchEvaluationMode,
+    takes: (takes as Array<Record<string, unknown>>).map((take) => ({
+      ...take,
+      observations: (take.observations as Array<Record<string, unknown>>).map(
+        (sample) => ({
+          ...sample,
+          absoluteSignedCents: sample.absoluteSignedCents ?? sample.signedCents,
+        }),
+      ),
+    })),
+  } as PracticeSession;
 }

@@ -88,6 +88,28 @@
 - 输出：v0.1 release candidate、installer、性能/隐私/许可/测试证据包和已知限制。
 - 必跑验证：TC-LAT-001、TC-SES-001、TC-REV-001、TC-SET-001、TC-I18N-001、TC-STO-003、TC-DIA-001/002、TC-PLAT-001、TC-SOAK-001/002、TC-PRIV-001、TC-BUILD-001、TC-GATE-001；依 ADR-020 增加 TC-AN-005 分析语义拒绝与 TC-MOD-002 本地候选 bake-off。
 - 退出：全部 Must 需求和 NFR 通过，相同/collapsed stems 不得进入 active cache，当前或替代生产模型通过 20 首本地私有真实歌曲语义矩阵（至少 6–8 首带真值 stems），无 High/Critical 开放风险，干净 Win11 构建/安装成功；用户决定是否发布。
+- 门禁记录（2026-08-28）：用户明确批准 M6 门禁并授权开始歌词实现。该批准作为进入本机 v0.2 开发的人工门禁；用户同时接受 M6 evidence 中仍准确列出的 clean-host/Defender、30 分钟真实硬件 soak、完整模型 bake-off、硬件校准与显示矩阵缺口继续保留为风险。它不把缺失证据改写为通过，不授权对外分发、签名或把当前构建称为跨机器 release candidate。
+
+## M7 — User-supplied LRC Lyrics
+
+- 责任域：desktop、storage、Practice UX、版本化歌词契约。
+- 允许：用户选择本地 LRC、Rust 解析与原子存储、Library 添加/替换/移除、全局 offset、Practice 右侧逐行同步与点击导航。
+- 禁止：TXT/自动转录/强制对齐、逐词评价、逐行编辑器、联网歌词搜索、歌词上传、Python/analyzer pipeline 变更。
+- 输入：用户批准的 M6 本机开发门禁；FR-024..026、NFR-022、ADR-022；已解析可练习的 `Moth To A Flame` 与用户提供 LRC。
+- 输出：版本化 `LyricsDocument`、五个歌词 Tauri command、Library 管理流、Practice 双列歌词区和中英文本地化。
+- 必跑验证：TC-LYR-001..004、`pnpm check`、Rust fmt/clippy/test、Practice 性能/soak、Tauri release build、断网与诊断隐私扫描。
+- 退出：自动矩阵通过；用户提供的 `Moth To A Flame` LRC 在真实打包应用中能随播放、seek、loop 和偏移正确跟随；用户确认。
+- 门禁记录（2026-08-28）：用户预先定义“该歌词能正确跟随播放则视为通过”。本次 release executable 已确认 cue seek、高亮切换和自动滚动随 `0:15 → 0:23 → 0:29` 播放位置推进，用户定义的 M7 功能验收条件成立；loop/offset/损坏隔离由自动矩阵覆盖。该结论不关闭 M6 的 clean-host、硬件、显示矩阵或外部分发缺口。
+
+## M8 — Pitch Lane v2 and Professional Mode
+
+- 责任域：desktop Practice/Review、scoring、session contracts、Pitch Lane 性能与精度 QA。
+- 允许：SVG 目标通道、预索引/像素桶降采样、乐句稳定纵轴、专业/八度折叠评分切换、`PracticeSession` scoring 1.1 兼容读写、当前模式历史 take 临时比较和 Review 模式标识。
+- 禁止：新增生产依赖、修改实时 F0/AudioWorklet/Worker 链路、把模式写入 `AppSettings`、改写既有 1.0 session、复制 GPL 实现、把无参考帧纳入评分。
+- 输入：M7 人工门禁；用户于 2026-08-29 批准的 M8 实施计划；FR-027、NFR-023、Proposed ADR-023。
+- 输出：Pitch Lane v2、可访问的专业模式 switch、可逆 session 重算、`PracticeSession` 1.1 TypeScript/Rust/JSON Schema 契约及 M8 自动/人工证据。
+- 必跑验证：TC-PLV2-001..004、TC-SES-002、TC-A11Y-002、TC-PERF-005、TC-PIT-002；`pnpm check`、Rust fmt/clippy/test、Schema/contract compatibility、Tauri release build 和 Windows 人工矩阵。
+- 退出：自动矩阵、1,000 px/60 分钟性能、三层音高精度证据、发布构建视觉截图和至少一首真实歌曲人工验收全部通过；无阻塞风险；用户确认。实现完成或单元测试通过都不等同于 M8 门禁通过。
 
 ## 变更和阻塞
 

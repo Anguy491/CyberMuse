@@ -5,7 +5,7 @@
 | 状态 | Baseline |
 | 版本 | 0.1.0 |
 | 责任域 | TypeScript ↔ Rust ↔ Python 契约 |
-| 上游依据 | `data-model.md`、`architecture.md`、FR-003 至 FR-023 |
+| 上游依据 | `data-model.md`、`architecture.md`、FR-003 至 FR-027 |
 | 关联文件 | `song-analyzer.md`、`requirements-traceability.md` |
 
 ## 版本与通用 envelope
@@ -57,6 +57,11 @@ interface AppError {
 | `prepare_diagnostic_bundle` | `{apiVersion, context?}` | `{consentToken, preview}` | `DIAGNOSTIC_CONTEXT_INVALID`、`DIAGNOSTIC_REDACTION_FAILED` |
 | `save_diagnostic_bundle` | `{apiVersion, consentToken}` | `{saved, fileName, sizeBytes}` | `CONSENT_REQUIRED`、`DIAGNOSTIC_REDACTION_FAILED` |
 | `clear_diagnostic_logs` | `{apiVersion}` | `{clearedEventCount}` | `DIAGNOSTIC_STORE_UNAVAILABLE` |
+| `select_lyrics_file` | `{apiVersion, songId}` | `{candidate: LyricsCandidate \| null}` | `LYRICS_ENCODING_UNSUPPORTED`、`LYRICS_INVALID`、`LYRICS_LIMIT_EXCEEDED` |
+| `confirm_lyrics_import` | `{apiVersion, songId, candidateToken}` | `{lyrics: LyricsView, deduplicated, replaced}` | `LYRICS_CONFIRMATION_INVALID`、`LYRICS_STORE_UNAVAILABLE` |
+| `update_lyrics_offset` | `{apiVersion, songId, lyricId, userOffsetMs, expectedRevision}` | `{lyrics: LyricsView}` | `LYRICS_CONFLICT`、`LYRICS_INVALID` |
+| `prepare_remove_lyrics` | `{apiVersion, songId}` | `{confirmationToken, lyricId}` | `LYRICS_NOT_FOUND` |
+| `remove_lyrics` | `{apiVersion, songId, confirmationToken}` | `{removed: true}` | `LYRICS_CONFIRMATION_INVALID`、`LYRICS_DELETE_PARTIAL` |
 
 ### Supporting shapes
 
@@ -69,13 +74,14 @@ interface SongSummary {
   importedAt: string;
   lastPracticeAt: string | null;
   localSizeBytes: number;
+  lyricsStatus: "none" | "ready" | "damaged";
 }
 
 interface DeletePlan {
   songId: string;
   displayName: string;
   localSizeBytes: number;
-  assetCategories: Array<"original" | "analyses" | "sessions">;
+  assetCategories: Array<"original" | "analyses" | "sessions" | "lyrics">;
 }
 
 interface PracticeAssets {
@@ -84,6 +90,34 @@ interface PracticeAssets {
   instrumentalResourceUrl: string; // opaque, read-only, current app session
   referenceTrack: ReferenceTrack;
   durationMs: number;
+  lyricsStatus: "none" | "ready" | "damaged";
+  lyrics: LyricsView | null;
+  lyricsError: AppError | null;
+}
+
+interface LyricsView {
+  schemaVersion: 1;
+  revision: number;
+  lyricId: string;
+  songId: string;
+  sourceEncoding: "utf-8" | "utf-16le" | "utf-16be";
+  sourceOffsetMs: number;
+  userOffsetMs: number;
+  metadata: LyricsDocument["metadata"];
+  cues: LyricsCue[];
+}
+
+interface LyricsCandidate {
+  token: string;
+  lyricId: string;
+  sourceEncoding: LyricsView["sourceEncoding"];
+  metadata: LyricsView["metadata"];
+  cueGroupCount: number;
+  firstEffectiveTimeMs: number;
+  lastEffectiveTimeMs: number;
+  sampleLines: string[]; // 最多 3 行，仅用于用户确认
+  warnings: string[];
+  replacing: boolean;
 }
 
 interface SessionSummary {
@@ -92,6 +126,7 @@ interface SessionSummary {
   analysisId: string;
   startedAt: string;
   durationMs: number;
+  pitchEvaluationMode: PitchEvaluationMode;
   metrics: SessionMetrics;
 }
 
@@ -104,9 +139,11 @@ interface SessionUnavailableRange {
 
 `select_import_file` 的系统对话框、FFmpeg 完整解码预检和绝对路径全部留在 Rust；页面只收到 basename、格式、时长、空间摘要和五分钟 `candidateToken`。`confirm_import` 不接受路径。删除使用独立、绑定 `songId`/操作且五分钟有效的确认 token。`instrumentalResourceUrl` 是最长六小时、删除时立即撤销的只读 opaque 能力 URL，不含完整路径且不写入持久化 JSON；协议单次响应最多 1,000 KiB 并支持 HTTP range。Windows WebView2 按 Wry 的协议映射使用 `http://cybermuse.localhost/<token>`，其他桌面平台使用 `cybermuse://localhost/<token>`；两者都是同一进程内拦截的本地自定义协议，不发往网络。
 
+歌词选择沿用原生路径 capability：Rust 在选择时读取并暂存最多 1 MiB，页面只收到预览和五分钟 token。确认提交单个版本化 `lyrics.json`；相同 SHA 为 deduplicated。替换与 offset 更新使用原子文件替换，失败保留最后有效文档；移除使用独立确认 token。`get_practice_assets` 只返回不含 `sourceText` 的 `LyricsView`；歌词损坏以 partial success 返回 `lyricsStatus=damaged` 与 `lyricsError`，音频/参考轨仍成功。
+
 `save_practice_session` 单次 payload 上限 16 MiB，session 上限 60 分钟。M3 性能测试若证明接近上限，采用分块 Rust session writer，并以 ADR 替代该 command；在此之前不得静默截断。
 
-M6 保持单次 `save_practice_session`：上限同时固定为 16 MiB、60 分钟和 180,000 个有效 observation。Rust 重验 session、歌曲和当前 analysis 引用；相同 session 内容可幂等重试，不同内容返回 `SESSION_INVALID`。`list_practice_sessions` 只返回摘要，完整 observation 仅由 `get_practice_session` 按需读取。读取 Review 时，Rust 保留合法 session/take 字段和已存整体指标，过滤单个损坏 observation 或 take observations，并以 `unavailableRanges` 明确标出；主结构、引用或整体指标无法验证时仍返回结构化错误，不伪造复盘。
+M8 继续使用单次 `save_practice_session`：上限同时固定为 16 MiB、60 分钟和 180,000 个有效 observation。新写入必须是 `scoringVersion=1.1.0`，显式提交 `pitchEvaluationMode=absolute|octaveFolded`，且每个 observation 同时提交不可变 `absoluteSignedCents` 和最终评分 `signedCents`。Rust 重验 version/mode/有限数值、session、歌曲和当前 analysis 引用；相同 session 内容可幂等重试，不同内容返回 `SESSION_INVALID`。读端接受旧 `1.0.0`，只在返回的内存对象中默认 `absolute` 并以旧 `signedCents` 补足绝对误差，不重写文件；未知 scoring version、1.1 缺模式/绝对误差或非法模式返回 `SESSION_INVALID`/`SCHEMA_UNSUPPORTED`。`list_practice_sessions` 的摘要携带 mode，完整 observation 仅由 `get_practice_session` 按需读取。读取 Review 时，Rust 保留合法 session/take 字段和已存整体指标，过滤单个损坏 observation 或 take observations，并以 `unavailableRanges` 明确标出；主结构、引用或整体指标无法验证时仍返回结构化错误，不伪造复盘。
 
 `AppSettings.latencyCalibrations[]` 以 input/output fingerprint 设备对唯一，并携带 `sampleRateHz`。自动测量只接受 `latencyMs=0..2000`、非空 0..1 confidence；手动补偿只接受 `latencyMs=-250..500`、`confidence=null`。Practice 不得在打开歌曲时预先信任已存校准：获得麦克风权限并恢复实际输入、解析实际输出、确认共享 AudioContext 采样率后，三者完全匹配才设置 session 的 `latencySource`；否则使用 `none/0` 并可见提示。非默认输出由 WebView2 `AudioContext.setSinkId` 路由，不支持时返回可恢复播放错误，不能静默播放到另一设备并沿用校准。
 
@@ -272,3 +309,4 @@ Rust 以 terminal message 为主要事实源，同时验证 exit code 一致；�
 - 同主版本可新增可选字段和新的 warning code；不得改变已有字段语义。
 - 新增 error code 时旧 UI 使用 `messageKey` 的通用回退。
 - 删除/重命名字段、改变单位或枚举语义需要主版本升级和迁移计划。
+- `PracticeSession.schemaVersion=1` 下的 scoring 兼容单独由 `scoringVersion` 管理：1.0 归一为绝对模式，1.1 要求 mode 与原始绝对误差；写端只写 1.1，读端不得猜测未知 scoring version。

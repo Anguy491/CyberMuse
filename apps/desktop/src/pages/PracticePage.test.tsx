@@ -1,8 +1,9 @@
 import { PRACTICE_FIXTURE_V1 } from "@cybermuse/audio";
 import type { AppSettings, PracticeSession } from "@cybermuse/contracts";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 
 import type {
   PracticeControllerPort,
@@ -11,7 +12,7 @@ import type {
 import type { PitchLaneData } from "../practice/pitch-lane-model";
 import type { PracticeSessionServicePort } from "../services/practice-session-service";
 import type { SettingsServicePort } from "../services/settings-service";
-import type { PracticeAssets } from "../services/song-service";
+import type { PracticeAssets, SongServicePort } from "../services/song-service";
 import {
   fingerprintAudioDevice,
   type AudioOutputDeviceServicePort,
@@ -67,31 +68,42 @@ const baseSnapshot: PracticeControllerSnapshot = {
   currentTakeMetrics: emptyMetrics,
   previousTakeMetrics: emptyMetrics,
   sessionMetrics: emptyMetrics,
+  pitchEvaluationMode: "absolute",
   laneVersion: 0,
   inputObservationCount: 0,
   error: null,
 };
 
 const lane: PitchLaneData = {
-  nowX: 380,
+  nowX: 200,
   reference: [
     [
-      { x: 380, y: 100 },
+      { x: 200, y: 100 },
       { x: 800, y: 80 },
     ],
   ],
+  targetCore: [],
+  targetGood: [],
   current: [
     [
       { x: 100, y: 120 },
-      { x: 380, y: 100 },
+      { x: 200, y: 100 },
     ],
   ],
+  currentUnscored: [],
+  currentEnvelope: [],
+  currentExtremes: [],
+  currentOverflow: [],
   previous: [
     [
       { x: 80, y: 130 },
-      { x: 370, y: 110 },
+      { x: 190, y: 110 },
     ],
   ],
+  previousEnvelope: [],
+  previousExtremes: [],
+  previousOverflow: [],
+  grid: [],
   minimumMidi: 55,
   maximumMidi: 72,
 };
@@ -108,6 +120,9 @@ const practiceAssets: PracticeAssets = {
     })),
   },
   durationMs: PRACTICE_FIXTURE_V1.referenceTrack.durationMs,
+  lyricsStatus: "none",
+  lyrics: null,
+  lyricsError: null,
 };
 
 class FakePracticeController implements PracticeControllerPort {
@@ -134,6 +149,12 @@ class FakePracticeController implements PracticeControllerPort {
   readonly clearLoop = vi.fn();
   readonly setVolume = vi.fn();
   readonly setSessionContext = vi.fn();
+  readonly setPitchEvaluationMode = vi.fn<
+    PracticeControllerPort["setPitchEvaluationMode"]
+  >((pitchEvaluationMode) => {
+    this.emit({ ...this.snapshot, pitchEvaluationMode });
+  });
+  readonly restorePreviousTake = vi.fn();
   readonly finalizeSession = vi.fn<() => PracticeSession | null>(() => null);
   readonly dispose = vi.fn(async () => undefined);
   private snapshot = baseSnapshot;
@@ -179,12 +200,15 @@ function renderPractice(
     windowCloseService?: WindowCloseServicePort;
     settingsService?: SettingsServicePort;
     outputDeviceService?: AudioOutputDeviceServicePort;
+    assets?: PracticeAssets;
+    songService?: Pick<SongServicePort, "updateLyricsOffset">;
   } = {},
 ) {
   return render(
     <PracticePage
       assets={practiceAssets}
       controllerFactory={() => controller}
+      sessionService={props.sessionService ?? fakeSessionService()}
       {...props}
       songTitle="测试歌曲"
     />,
@@ -219,6 +243,7 @@ function practiceSession(validFrameCount = 1): PracticeSession {
             timeMs: 1_000,
             userMidi: 69,
             referenceMidi: 69,
+            absoluteSignedCents: 0,
             signedCents: 0,
             confidence: 1,
             voiced: true as const,
@@ -226,7 +251,8 @@ function practiceSession(validFrameCount = 1): PracticeSession {
         ];
   return {
     schemaVersion: 1,
-    scoringVersion: "1.0.0",
+    scoringVersion: "1.1.0",
+    pitchEvaluationMode: "absolute",
     sessionId: "00000000-0000-4000-8000-000000000040",
     songId: practiceAssets.songId,
     analysisId: practiceAssets.analysisId,
@@ -328,6 +354,62 @@ describe("FR-009/012/014 Practice UI", () => {
     expect(controller.startInput).not.toHaveBeenCalled();
   });
 
+  it("restores the latest scored partial take for the current analysis", async () => {
+    const controller = new FakePracticeController();
+    const sessionService = fakeSessionService();
+    const session = practiceSession();
+    session.takes.push({
+      takeId: "take-0002",
+      loopRegion: null,
+      startedAtSongTimeMs: 2_000,
+      endedAtSongTimeMs: 2_500,
+      observations: [],
+      metrics: { ...emptyMetrics },
+    });
+    vi.mocked(sessionService.list).mockResolvedValue([
+      {
+        sessionId: session.sessionId,
+        songId: session.songId,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        durationMs: 2_500,
+        takeCount: session.takes.length,
+        pitchEvaluationMode: session.pitchEvaluationMode,
+        metrics: session.metrics,
+      },
+    ]);
+    vi.mocked(sessionService.get).mockResolvedValue({
+      session,
+      unavailableRanges: [],
+    });
+
+    renderPractice(controller, { sessionService });
+
+    await waitFor(() =>
+      expect(controller.restorePreviousTake).toHaveBeenCalledWith(
+        session.takes[0],
+        "absolute",
+      ),
+    );
+  });
+
+  it("deduplicates the Strict Mode development remount without disposing playback", async () => {
+    const controller = new FakePracticeController();
+    render(
+      <StrictMode>
+        <PracticePage
+          assets={practiceAssets}
+          controllerFactory={() => controller}
+          sessionService={fakeSessionService()}
+          songTitle="测试歌曲"
+        />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(controller.loadSong).toHaveBeenCalledOnce());
+    expect(controller.dispose).not.toHaveBeenCalled();
+  });
+
   it("applies calibration only after the actual input, output and sample rate match", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
@@ -407,6 +489,11 @@ describe("FR-009/012/014 Practice UI", () => {
 
     emit(controller, readySnapshot());
     await user.click(screen.getByRole("button", { name: "开始录唱" }));
+    expect(controller.startInput).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "麦克风输入未开启" }),
+    ).toHaveTextContent("可以先试听伴奏；只有选择开始录唱后才会请求权限。");
+    await user.click(screen.getByRole("button", { name: "继续开启麦克风" }));
     expect(controller.startInput).toHaveBeenCalledWith(inputFingerprint);
     expect(controller.setSessionContext).toHaveBeenLastCalledWith({
       inputDeviceFingerprint: inputFingerprint,
@@ -414,6 +501,30 @@ describe("FR-009/012/014 Practice UI", () => {
       appliedLatencyMs: 84,
       latencySource: "measured",
     });
+  });
+
+  it("shows microphone guidance only after explicit action and restores focus on escape", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    renderPractice(controller);
+    emit(controller, readySnapshot());
+
+    expect(screen.queryByText("麦克风输入未开启")).not.toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "开始录唱" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      screen.getByRole("dialog", { name: "麦克风输入未开启" }),
+    ).toBeVisible();
+    expect(controller.startInput).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "继续开启麦克风" }),
+    ).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("provides play, seek, reset and keyboard-equivalent A/B controls", async () => {
@@ -424,6 +535,25 @@ describe("FR-009/012/014 Practice UI", () => {
 
     await user.click(screen.getByRole("button", { name: "播放伴奏" }));
     await user.click(screen.getByRole("button", { name: "回到开头" }));
+    const startOver = screen.getByRole("button", { name: "回到开头" });
+    const startSinging = screen.getByRole("button", { name: "开始录唱" });
+    const loopToggle = screen.getByRole("button", { name: "展开循环配置" });
+    const metricsToggle = screen.getByRole("button", { name: "展开练习数据" });
+    const transport = startOver.closest(".transport-row");
+    if (!(transport instanceof HTMLElement))
+      throw new Error("transport row is missing");
+    expect(startOver.nextElementSibling).toBe(startSinging);
+    expect(screen.getByRole("button", { name: "播放伴奏" })).toHaveTextContent(
+      "",
+    );
+    expect(startOver).toHaveTextContent("");
+    expect(
+      within(transport).getByRole("button", { name: "展开循环配置" }),
+    ).toBe(loopToggle);
+    expect(
+      within(transport).getByRole("button", { name: "展开练习数据" }),
+    ).toBe(metricsToggle);
+    await user.click(loopToggle);
     await user.click(screen.getByRole("button", { name: "当前位置设为 A" }));
     await user.click(screen.getByRole("button", { name: "A +0.1s" }));
     await user.click(screen.getByRole("button", { name: "启用循环" }));
@@ -442,17 +572,99 @@ describe("FR-009/012/014 Practice UI", () => {
     ).toBeEnabled();
   });
 
-  it("keeps NOW at 38% with text summary and three grayscale line patterns", () => {
+  it("keeps loop and metrics collapsed and switches one inline panel at a time", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    renderPractice(controller);
+    emit(controller, readySnapshot());
+
+    const loopToggle = screen.getByRole("button", {
+      name: "展开循环配置",
+    });
+    const metricsToggle = screen.getByRole("button", {
+      name: "展开练习数据",
+    });
+    expect(loopToggle).toHaveAttribute("aria-expanded", "false");
+    expect(metricsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByRole("group", { name: "练习指标", hidden: true }),
+    ).not.toBeVisible();
+
+    loopToggle.focus();
+    await user.keyboard("{Enter}");
+    expect(loopToggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("spinbutton", { name: "A 点（秒）" }),
+    ).toBeVisible();
+
+    metricsToggle.focus();
+    await user.keyboard(" ");
+    expect(loopToggle).toHaveAttribute("aria-expanded", "false");
+    expect(metricsToggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.queryByRole("spinbutton", { name: "A 点（秒）" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "练习指标" })).toBeVisible();
+
+    await user.keyboard(" ");
+    expect(metricsToggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("places an accessible professional-mode switch after practice data", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    renderPractice(controller);
+    emit(controller, readySnapshot());
+
+    const metricsToggle = screen.getByRole("button", {
+      name: "展开练习数据",
+    });
+    const modeSwitch = screen.getByRole("switch", {
+      name: /专业模式 · 开/,
+    });
+    expect(modeSwitch).toBeChecked();
+    expect(metricsToggle.compareDocumentPosition(modeSwitch)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+    await user.click(modeSwitch);
+    expect(controller.setPitchEvaluationMode).toHaveBeenCalledWith(
+      "octaveFolded",
+    );
+    expect(modeSwitch).not.toBeChecked();
+    expect(screen.getByText("关")).toBeVisible();
+
+    modeSwitch.focus();
+    await user.keyboard(" ");
+    expect(controller.setPitchEvaluationMode).toHaveBeenLastCalledWith(
+      "absolute",
+    );
+    expect(modeSwitch).toBeChecked();
+  });
+
+  it("keeps NOW at 20% and discloses the line legend from the feedback row", async () => {
+    const user = userEvent.setup();
     const controller = new FakePracticeController();
     const { container } = renderPractice(controller);
     emit(controller, readySnapshot({ observationState: "unvoiced" }));
 
-    expect(
-      container.querySelector("[data-now-position='0.38']"),
-    ).not.toBeNull();
+    expect(container.querySelector("[data-now-position='0.2']")).not.toBeNull();
     expect(container.querySelectorAll("[data-pattern-break]")).toHaveLength(1);
-    expect(screen.getByText(/未检测到稳定音高/)).toBeVisible();
+    expect(
+      screen.getByRole("figure", { name: /未检测到稳定音高/ }),
+    ).toBeVisible();
+    expect(screen.queryByText(/未检测到稳定音高/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 Hz/)).not.toBeInTheDocument();
+    expect(screen.getByText("参考音高 · 虚线")).not.toBeVisible();
+    const legendToggle = screen.getByRole("button", { name: "打开线型图例" });
+    const feedbackRow = legendToggle.closest(".practice-feedback-row");
+    if (!(feedbackRow instanceof HTMLElement))
+      throw new Error("feedback row is missing");
+    expect(feedbackRow.firstElementChild).toContainElement(legendToggle);
+    expect(legendToggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(legendToggle);
+    expect(legendToggle).toHaveAttribute("aria-expanded", "true");
+    expect(legendToggle).toHaveAccessibleName("关闭线型图例");
     expect(screen.getByText("参考音高 · 虚线")).toBeVisible();
     expect(screen.getByText("当前录唱 · 实线")).toBeVisible();
     expect(screen.getByText("上次录唱 · 点线")).toBeVisible();
@@ -460,7 +672,93 @@ describe("FR-009/012/014 Practice UI", () => {
   });
 });
 
+describe("FR-026 synchronized lyrics", () => {
+  it("TC-LYR-003 follows playback, seeks by line, and persists calibration", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const lyricsAssets: PracticeAssets = {
+      ...practiceAssets,
+      lyricsStatus: "ready",
+      lyrics: {
+        schemaVersion: 1,
+        revision: 0,
+        lyricId: "c".repeat(64),
+        songId: practiceAssets.songId,
+        sourceEncoding: "utf-8",
+        sourceOffsetMs: 0,
+        userOffsetMs: 0,
+        metadata: {
+          title: "Test lyrics",
+          artist: "Singer",
+          album: null,
+          author: null,
+          creator: null,
+        },
+        cues: [
+          { timestampMs: 1_000, lines: ["First line"] },
+          { timestampMs: 2_000, lines: ["Second line", "Translation"] },
+        ],
+      },
+    };
+    const importedLyrics = lyricsAssets.lyrics;
+    if (importedLyrics === null) throw new Error("lyrics fixture missing");
+    const songService = {
+      updateLyricsOffset: vi.fn(async (_songId, _lyricId, offsetMs) => ({
+        ...importedLyrics,
+        revision: 1,
+        userOffsetMs: offsetMs,
+      })),
+    };
+    renderPractice(controller, { assets: lyricsAssets, songService });
+    const atSecondLine = readySnapshot();
+    atSecondLine.playback.positionMs = 2_050;
+    emit(controller, atSecondLine);
+
+    const active = await screen.findByRole("button", { name: /Second line/ });
+    expect(active).toHaveAttribute("aria-current", "true");
+    expect(
+      screen.getByRole("region", { name: "可滚动歌词列表" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /First line/ }));
+    expect(controller.seek).toHaveBeenCalledWith(1_000);
+
+    const settingsToggle = screen.getByRole("button", {
+      name: "展开歌词偏移设置",
+    });
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("button", { name: "+0.1s" }),
+    ).not.toBeInTheDocument();
+    await user.click(settingsToggle);
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByRole("button", { name: "+0.1s" }));
+    await waitFor(() =>
+      expect(songService.updateLyricsOffset).toHaveBeenCalledWith(
+        practiceAssets.songId,
+        "c".repeat(64),
+        100,
+        0,
+      ),
+    );
+  });
+});
+
 describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
+  it("shows a recording status even while the ready microphone is unvoiced", () => {
+    const controller = new FakePracticeController();
+    const { container } = renderPractice(controller);
+    emit(
+      controller,
+      readySnapshot({ micStatus: "ready", observationState: "unvoiced" }),
+    );
+
+    expect(screen.getByText("正在录唱")).toBeVisible();
+    expect(screen.queryByText("等待录唱")).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".practice-recording-status i"),
+    ).not.toBeNull();
+  });
+
   it("expresses direction through arrow, position semantics and text", () => {
     const controller = new FakePracticeController();
     renderPractice(controller);
@@ -474,7 +772,9 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
           userHz: 225.14,
           referenceHz: 220,
           userMidi: 57.4,
+          evaluatedUserMidi: 57.4,
           referenceMidi: 57,
+          absoluteSignedCents: 40,
           signedCents: 40,
           smoothedCents: 40,
           confidence: 1,
@@ -484,17 +784,28 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
       }),
     );
 
-    expect(screen.getByText("↑ 偏高")).toBeVisible();
-    expect(screen.getByText("目标 A3 / 当前 A3")).toBeVisible();
-    expect(screen.getByText(/偏高 40.0 cents，接近/)).toBeVisible();
+    const feedback = screen.getByLabelText("当前音高偏差");
+    expect(feedback).toHaveTextContent("↑ 偏高");
+    expect(feedback).toHaveTextContent("目标 A3 / 当前 A3");
+    expect(feedback).toHaveTextContent("+40.0 cents");
+    expect(
+      screen.getByRole("figure", { name: /偏高 40.0 cents，接近/ }),
+    ).toBeVisible();
   });
 
-  it("shows unavailable metrics as dashes and never invents a total score", () => {
+  it("shows unavailable metrics as dashes and never invents a total score", async () => {
+    const user = userEvent.setup();
     const controller = new FakePracticeController();
     renderPractice(controller);
     emit(controller, readySnapshot());
 
+    expect(screen.getByLabelText("练习指标")).not.toBeVisible();
+    expect(screen.getByText("参考音高 · 虚线")).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "展开练习数据" }));
     expect(screen.getByLabelText("练习指标")).toHaveTextContent("当前录唱");
+    expect(document.querySelectorAll(".practice-data-icon rect")).toHaveLength(
+      3,
+    );
     expect(screen.getAllByText("—").length).toBeGreaterThan(3);
     expect(screen.queryByText(/总分|TOTAL SCORE/)).not.toBeInTheDocument();
   });
@@ -519,12 +830,21 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     );
 
     expect(screen.getByRole("button", { name: "播放伴奏" })).toBeEnabled();
-    expect(screen.getByText("AUDIO_PERMISSION_DENIED")).toBeVisible();
+    expect(
+      screen.queryByText("AUDIO_PERMISSION_DENIED"),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "检查设备后重试" }));
+    expect(
+      screen.getByRole("dialog", { name: "麦克风权限被拒绝" }),
+    ).toBeVisible();
+    expect(screen.getByText("AUDIO_PERMISSION_DENIED")).toBeVisible();
+    expect(controller.startInput).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "重新请求麦克风" }));
     expect(controller.startInput).toHaveBeenCalledOnce();
   });
 
-  it("renders structured loop errors inline instead of color-only feedback", () => {
+  it("renders structured loop errors inline instead of color-only feedback", async () => {
+    const user = userEvent.setup();
     const controller = new FakePracticeController();
     renderPractice(controller);
     emit(
@@ -543,6 +863,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
       }),
     );
 
+    await user.click(screen.getByRole("button", { name: "展开循环配置" }));
     expect(screen.getByRole("alert")).toHaveTextContent("循环区间至少需要一秒");
     expect(screen.getByText("LOOP_TOO_SHORT")).toBeVisible();
   });
@@ -559,7 +880,12 @@ describe("TC-SES-001 Practice session save UI", () => {
     renderPractice(controller, { sessionService, onSessionSaved });
     emit(controller, readySnapshot());
 
-    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
+    const exitButton = screen.getByRole("button", { name: "退出练习" });
+    expect(exitButton.closest(".practice-page__header")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "结束练习并保存" }),
+    ).not.toBeInTheDocument();
+    await user.click(exitButton);
 
     expect(controller.pause).toHaveBeenCalledOnce();
     expect(sessionService.save).toHaveBeenCalledWith(session);
@@ -575,11 +901,31 @@ describe("TC-SES-001 Practice session save UI", () => {
     renderPractice(controller, { sessionService });
     emit(controller, readySnapshot());
 
-    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
-    expect(screen.getByText("没有可评分的观察")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "退出练习" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "没有可评分的观察",
+    });
+    expect(dialog).toBeVisible();
+    expect(dialog.closest(".practice-modal-backdrop")).not.toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "保留空会话" }),
+    ).toHaveFocus();
     expect(sessionService.save).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "保留空会话" }));
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "没有可评分的观察" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出练习" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "退出练习" }));
+    const reopenedDialog = screen.getByRole("dialog", {
+      name: "没有可评分的观察",
+    });
+
+    await user.click(
+      within(reopenedDialog).getByRole("button", { name: "保留空会话" }),
+    );
     expect(sessionService.save).toHaveBeenCalledWith(session);
   });
 
@@ -600,7 +946,7 @@ describe("TC-SES-001 Practice session save UI", () => {
     renderPractice(controller, { sessionService });
     emit(controller, readySnapshot());
 
-    await user.click(screen.getByRole("button", { name: "结束练习并保存" }));
+    await user.click(screen.getByRole("button", { name: "退出练习" }));
     expect(await screen.findByText("练习会话尚未保存")).toBeVisible();
     expect(screen.getByText("STORE_UNAVAILABLE")).toBeVisible();
 

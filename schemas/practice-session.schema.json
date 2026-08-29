@@ -20,7 +20,8 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "scoringVersion": { "const": "1.0.0" },
+    "scoringVersion": { "enum": ["1.0.0", "1.1.0"] },
+    "pitchEvaluationMode": { "enum": ["absolute", "octaveFolded"] },
     "sessionId": { "type": "string", "format": "uuid" },
     "songId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "analysisId": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
@@ -41,6 +42,26 @@
     "metrics": { "$ref": "#/$defs/metrics" }
   },
   "allOf": [
+    {
+      "if": { "properties": { "scoringVersion": { "const": "1.1.0" } } },
+      "then": {
+        "required": ["pitchEvaluationMode"],
+        "properties": {
+          "takes": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/take11" }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "scoringVersion": { "const": "1.0.0" } } },
+      "then": {
+        "properties": {
+          "pitchEvaluationMode": { "const": "absolute" }
+        }
+      }
+    },
     {
       "if": { "properties": { "latencySource": { "const": "measured" } } },
       "then": {
@@ -116,6 +137,7 @@
         "timeMs": { "type": "integer", "minimum": 0, "maximum": 3600000 },
         "userMidi": { "type": "number" },
         "referenceMidi": { "type": "number" },
+        "absoluteSignedCents": { "type": "number" },
         "signedCents": { "type": "number" },
         "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "voiced": { "const": true }
@@ -164,6 +186,26 @@
         "metrics": { "$ref": "#/$defs/metrics" }
       },
       "additionalProperties": true
+    },
+    "sample11": {
+      "allOf": [
+        { "$ref": "#/$defs/sample" },
+        { "required": ["absoluteSignedCents"] }
+      ]
+    },
+    "take11": {
+      "allOf": [
+        { "$ref": "#/$defs/take" },
+        {
+          "properties": {
+            "observations": {
+              "type": "array",
+              "maxItems": 180000,
+              "items": { "$ref": "#/$defs/sample11" }
+            }
+          }
+        }
+      ]
     }
   },
   "additionalProperties": true

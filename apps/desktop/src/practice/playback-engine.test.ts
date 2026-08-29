@@ -186,6 +186,9 @@ describe("TC-AUD-001 PlaybackEngine", () => {
         instrumentalResourceUrl:
           "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
         durationMs: 180_000,
+        lyricsStatus: "none",
+        lyrics: null,
+        lyricsError: null,
         referenceTrack: {
           schemaVersion: 1,
           durationMs: 180_000,
@@ -224,6 +227,9 @@ describe("TC-AUD-001 PlaybackEngine", () => {
         instrumentalResourceUrl:
           "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
         durationMs: 1_000,
+        lyricsStatus: "none",
+        lyrics: null,
+        lyricsError: null,
         referenceTrack: {
           schemaVersion: 1,
           durationMs: 1_000,
@@ -252,6 +258,9 @@ describe("TC-AUD-001 PlaybackEngine", () => {
         instrumentalResourceUrl:
           "http://cybermuse.localhost/00000000-0000-4000-8000-000000000001",
         durationMs: 180_000,
+        lyricsStatus: "none",
+        lyrics: null,
+        lyricsError: null,
         referenceTrack: {
           schemaVersion: 1,
           durationMs: 180_000,

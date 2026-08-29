@@ -18,7 +18,8 @@ function metrics(validFrameCount = 1) {
 function session(): PracticeSession {
   return {
     schemaVersion: 1,
-    scoringVersion: "1.0.0",
+    scoringVersion: "1.1.0",
+    pitchEvaluationMode: "absolute",
     sessionId: "00000000-0000-4000-8000-000000000001",
     songId: "a".repeat(64),
     analysisId: "b".repeat(32),
@@ -39,6 +40,7 @@ function session(): PracticeSession {
             timeMs: 1_500,
             userMidi: 69,
             referenceMidi: 69.02,
+            absoluteSignedCents: -2,
             signedCents: -2,
             confidence: 0.99,
             voiced: true,
@@ -94,6 +96,39 @@ describe("TC-CON-001 M6 persistent contracts", () => {
     expect(() =>
       parseAppSettings({ ...settings(), languagePreference: "fr-FR" }),
     ).toThrow(ContractError);
+  });
+
+  it("normalizes a legacy scoring 1.0 session as absolute", () => {
+    const current = session();
+    const legacy = {
+      ...current,
+      scoringVersion: "1.0.0",
+      pitchEvaluationMode: undefined,
+      takes: current.takes.map((take) => ({
+        ...take,
+        observations: take.observations.map((sample) => ({
+          ...sample,
+          absoluteSignedCents: undefined,
+        })),
+      })),
+    };
+    const parsed = parsePracticeSession(legacy);
+    expect(parsed.pitchEvaluationMode).toBe("absolute");
+    expect(parsed.takes[0]?.observations[0]?.absoluteSignedCents).toBe(-2);
+    expect(parsed.scoringVersion).toBe("1.0.0");
+  });
+
+  it("rejects invalid evaluation modes and missing 1.1 absolute cents", () => {
+    expect(() =>
+      parsePracticeSession({ ...session(), pitchEvaluationMode: "relative" }),
+    ).toThrow(ContractError);
+    const invalid = session() as unknown as Record<string, unknown>;
+    const takes = invalid.takes as Array<Record<string, unknown>>;
+    const observations = takes[0]?.observations as Array<
+      Record<string, unknown>
+    >;
+    delete observations[0]?.absoluteSignedCents;
+    expect(() => parsePracticeSession(invalid)).toThrow(ContractError);
   });
 
   it("rejects unknown schema major and invalid observations", () => {

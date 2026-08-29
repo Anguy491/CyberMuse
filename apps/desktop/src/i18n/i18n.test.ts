@@ -27,7 +27,7 @@ describe("TC-I18N-001 translation packs", () => {
       expect(value, key).not.toMatch(/[\p{Script=Han}]/u);
     }
     const allowedTerms =
-      /CyberMuse|Windows|WebView2|Demucs|SwiftF0|MIDI|dBFS|cents|SHA-256|PCM|F0|MP3|WAV|FLAC|ID|Hz|ms|A|B/g;
+      /CyberMuse|Windows|WebView2|Demucs|SwiftF0|MIDI|dBFS|cents|SHA-256|UTF-8|UTF-16|BOM|LRC|PCM|F0|MP3|WAV|FLAC|ID|Hz|ms|A|B/g;
     for (const [key, value] of Object.entries(chinese)) {
       const visibleCopy = value
         .replace(/\{[a-zA-Z0-9]+\}/g, "")

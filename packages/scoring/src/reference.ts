@@ -1,7 +1,34 @@
 import type { PitchObservation, ReferenceTrack } from "@cybermuse/audio";
 import { signedCents } from "@cybermuse/domain";
 
-import type { ReferenceMatch, ScoredPitchSample } from "./types";
+import type {
+  PitchEvaluationMode,
+  ReferenceMatch,
+  ScoredPitchSample,
+} from "./types";
+
+export function foldCentsToNearestOctave(cents: number): number {
+  if (!Number.isFinite(cents)) return cents;
+  const positiveRemainder = ((cents % 1_200) + 1_200) % 1_200;
+  if (positiveRemainder < 600) return positiveRemainder;
+  if (positiveRemainder > 600) return positiveRemainder - 1_200;
+  return Math.sign(cents) < 0 ? -600 : 600;
+}
+
+export function applyPitchEvaluationMode(
+  sample: ScoredPitchSample,
+  mode: PitchEvaluationMode,
+): ScoredPitchSample {
+  const signedCents =
+    mode === "octaveFolded"
+      ? foldCentsToNearestOctave(sample.absoluteSignedCents)
+      : sample.absoluteSignedCents;
+  return {
+    ...sample,
+    evaluatedUserMidi: sample.referenceMidi + signedCents / 100,
+    signedCents,
+  };
+}
 
 export function findNearestReferenceFrame(
   track: ReferenceTrack,
@@ -44,6 +71,7 @@ export function findNearestReferenceFrame(
 export function scorePitchObservation(
   track: ReferenceTrack,
   observation: PitchObservation,
+  mode: PitchEvaluationMode = "absolute",
 ): ScoredPitchSample | null {
   if (
     !observation.voiced ||
@@ -66,14 +94,19 @@ export function scorePitchObservation(
   if (cents === null) {
     return null;
   }
-  return {
-    timeMs: Math.max(0, Math.round(observation.alignedSongTimeMs)),
-    referenceTimeMs: frame.timeMs,
-    userHz: observation.hz,
-    referenceHz: frame.hz,
-    userMidi: observation.midi,
-    referenceMidi: frame.midi,
-    signedCents: cents,
-    confidence: observation.confidence,
-  };
+  return applyPitchEvaluationMode(
+    {
+      timeMs: Math.max(0, Math.round(observation.alignedSongTimeMs)),
+      referenceTimeMs: frame.timeMs,
+      userHz: observation.hz,
+      referenceHz: frame.hz,
+      userMidi: observation.midi,
+      evaluatedUserMidi: frame.midi + cents / 100,
+      referenceMidi: frame.midi,
+      absoluteSignedCents: cents,
+      signedCents: cents,
+      confidence: observation.confidence,
+    },
+    mode,
+  );
 }

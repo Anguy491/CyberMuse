@@ -107,9 +107,9 @@ success/warning 只用于系统完成度、设备或数据质量，不用于奖�
 ## 图标与图形语言
 
 - 图标采用 24 px 基准、1.5 px monoline stroke；允许 16/20 px 光学尺寸，但同一上下文必须一致。
-- 只使用轮廓图标；禁止 filled/multicolor 图标、emoji、mascot 和复制 Nothing Glyph。
+- 默认使用轮廓图标；标准 transport 的播放三角和需要提高小尺寸辨识度的数据柱可使用单色实心形状。禁止 multicolor 图标、emoji、mascot 和复制 Nothing Glyph。
 - M1 可在 Lucide、Phosphor thin 或自有最小 SVG 集中选择，但必须先按 Dependency Policy 完成精确版本、许可证、bundle 与一致性审查。
-- 单独出现的图标按钮必须有 accessible name 和稳定 tooltip；高频主操作同时显示文字。
+- 单独出现的图标按钮必须有 accessible name 和稳定 tooltip；高频主操作通常同时显示文字。Practice 的播放/暂停与回到开头采用行业通用 transport 图标，保留 accessible name、tooltip、44×44 px 目标和可见焦点。
 - 状态图标采用“形状 + 文字”：完成为 check，警告为三角/斜线，错误为叉号，处理中为编号阶段或分段进度。
 - CyberMuse 的识别图形是“音高轨 + NOW 信号线 + 时间刻度”，不是 Glyph 模仿。
 
@@ -182,6 +182,14 @@ success/warning 只用于系统完成度、设备或数据质量，不用于奖�
 - `tertiary`：容量、最近活动、hash/格式等按需技术信息和全局导航。
 - pattern break：当前歌曲行可跨越常规列表列线并用左侧 signal 刻度定位；不得以整行红底表示选中。
 
+### Practice Lyrics（M7）
+
+- 无歌词继续使用现有 1040 px 单列；有歌词时页面可扩展到 shell 的 1440 px，左列包含完整原 Practice，右列宽度使用 `clamp(300px, 36vw, 480px)`，以 1 px `color.border.visible` 分割。
+- 歌词列在支持的 1024×720 和 150% 缩放下不折叠到底部；优先保持歌词至少 300 px，允许 Pitch Lane/左侧控件收窄、metrics 单列和 heading/transport 换行。此项是用户批准的 v0.2 特例，替代 Flow 5 中“不得缩小 Pitch Lane”的 v0.1 视觉约束，但不得隐藏 Pitch Lane、图例入口或可访问摘要。
+- 歌词容器使用 sticky、有界纵向滚动和留白，不使用 card、gradient、shadow 或 blur；高度取 Practice 跨列页头以下的剩余视口，底部跟随状态或恢复按钮在初始视口内可见。滚动区隐藏视觉 scrollbar，但必须保留滚轮、触控、键盘滚动和可见 focus；当前 cue 以左侧 indicator、字重、位置与 `aria-current` 同时表达，相邻 cue 不得因低对比而低于正文可读门槛。
+- 自动滚动仅在 cue 变化时触发；reduced-motion 使用 instant。用户滚动后显示可键盘访问的“回到当前行”，点击/Enter/Space cue 的视觉和焦点顺序必须与 seek 一致。
+- 歌词 offset 默认收起，由标题栏 44×44 px 设置图标以内联区展开；入口提供双语 accessible name、`aria-expanded`/`aria-controls` 和非颜色展开状态，offset 保存错误留在该区内。
+
 ### Import / Analyzer
 
 - `primary`：当前编号阶段、真实百分比/已完成工作和取消状态构成一个任务焦点。
@@ -198,11 +206,13 @@ success/warning 只用于系统完成度、设备或数据质量，不用于奖�
 
 ### Practice
 
-- `primary`：Pitch Lane、NOW 处目标/当前关系与 signed cents 组成一个实时焦点，至少占主要内容区域的 60%；绘图区无卡片、纹理、阴影或装饰。
-- `secondary`：播放、麦克风、A-B Loop、区间动作和目标/当前解释；播放不会自动开启麦克风。
-- accessible legend 紧邻 Pitch Lane；设备或保存状态只在需要动作时就地显示。
-- pattern break：NOW 固定在可视宽度约 38%，用 2 px signal 线、`NOW` 标签和时间语义越过常规网格。
-- Reference Track 使用浅色轮廓/虚线，当前用户轨使用实线，最近 take 使用灰色点线；线型、粗细和 legend 在灰度下可区分。
+- `primary`：Pitch Lane、NOW 处目标/当前关系与 signed cents 组成一个实时焦点，至少占主要内容区域的 60%；“?”入口和等待/录唱状态位于同一紧凑行，目标/当前、方向和 cents 按状态出现。绘图区无卡片、纹理、阴影或装饰，主列使用内容高度，不因右侧歌词高度拉伸或产生空白。
+- `secondary`：transport 的视觉与键盘顺序为播放/暂停图标、回到开头图标、开始/重试录唱、A-B Loop、练习数据、专业模式 switch 和按需恢复动作；播放不会自动开启麦克风。A-B Loop 与三组练习指标默认收起为两个 44×44 px 图标入口，并以内联互斥 disclosure 展开；专业模式 switch 紧邻“练习数据”右侧，包含“专业模式”和可见“开/关”，页面进入时默认开且不写入设置。操作区、展开区与 seek 只保留一个间距节奏，不预留空面板高度。
+- 即时反馈行最左侧使用 44×44 px“?”入口展开紧邻反馈行的线型图例；默认收起时仍由 figure accessible name 提供当前摘要。麦克风进入 ready 后以绿色圆点和“正在录唱”双重编码状态，即使尚未收到稳定音高也不退回“等待录唱”。视觉页面不常驻图形说明、未检测状态栏或麦克风用途说明；开始/重试录唱先显示模态说明与错误详情，继续动作才调用既有权限流程。
+- 页面标题跨越 Practice 内容列，安全保存语义的“退出练习”位于右上角；下方 transport 不保留重复退出入口。空会话退出决定使用居中 modal，初始焦点落在保留动作，Tab/Shift+Tab 不离开对话框，“继续练习”与 Esc 提供不保存也不离开的安全取消路径。
+- pattern break：NOW 固定在可视宽度约 20%，用 2 px signal 线、`NOW` 标签和时间语义越过常规网格；轨迹时间窗与该比例共同计算，不允许只移动装饰线。
+- Reference Track 使用精确中心虚线及 ±25 cents 核心、±50 cents 可接受目标通道；当前用户轨使用带 P10/P90 包络与极值点的实线，最近 take 使用灰色点线，无参考检测使用独立未评分点线。半音网格强化 C/八度线并标音名；专业模式视窗外用顶/底三角 overflow 表达，不把曲线钳在边缘。所有线型、粗细、形状和按需图例在灰度/forced-colors 下可区分。
+- switch 使用原生可访问 `role=switch`/checked 语义、可见 focus、Tab/Space、至少 44 px 点击区域；切换不播放动效补帧，不改变页面布局、播放或录唱状态。关闭时曲线、当前音名、cents、反馈和指标全部使用同一八度折叠结果。
 - 准确使用中性高对比；偏高使用上箭头、垂直位置和“偏高”，偏低使用下箭头、垂直位置和“偏低”。数值使用 tabular 数字，宽度变化不得推动布局。
 
 ### Review
@@ -226,7 +236,7 @@ success/warning 只用于系统完成度、设备或数据质量，不用于奖�
 - 相关 WebView UI 以 WCAG 2.2 AA 为目标；dark/light 中正文对比度均至少 4.5:1，控件边界、焦点和重要非文本图形至少 3:1。
 - 所有主要操作可用键盘完成，焦点顺序与视觉顺序一致，焦点环不被 sticky/floating 区域遮挡。
 - drag 操作必须有按钮或键盘等价路径；A-B 区间不能只允许拖拽设置。
-- Canvas 图形提供并行文字状态、legend 和可访问摘要；不得按每个音频 frame 刷新 screen reader live region。
+- Canvas/图形提供可访问摘要和可键盘展开的 legend；视觉摘要可以省略，但 figure accessible name 必须表达同等状态，且不得按每个音频 frame 刷新 screen reader live region。
 - 状态、错误、音高方向和进度不得只依赖颜色。灰度截图仍须识别 reference/user/take、偏高/偏低和当前阶段。
 - Windows High Contrast/forced-colors 下保留内容、焦点和操作边界；背景纹理与透明度不是必要信息。
 - 用户界面不得频闪；录音/处理指示使用稳定图标和文字，不要求脉冲动画。

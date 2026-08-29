@@ -2,8 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import {
+  parseLyricsView,
   parseReferenceTrack,
   parseSong,
+  type LyricsEncoding,
+  type LyricsMetadata,
+  type LyricsStatus,
+  type LyricsView,
   type ReferenceTrack,
   type Song,
   type SongStatus,
@@ -23,6 +28,25 @@ export interface SongSummary {
   importedAt: string;
   lastPracticeAt: string | null;
   localSizeBytes: number;
+  lyricsStatus: LyricsStatus;
+}
+
+export interface LyricsCandidate {
+  token: string;
+  lyricId: string;
+  sourceEncoding: LyricsEncoding;
+  metadata: LyricsMetadata;
+  cueGroupCount: number;
+  firstEffectiveTimeMs: number;
+  lastEffectiveTimeMs: number;
+  sampleLines: string[];
+  warnings: string[];
+  replacing: boolean;
+}
+
+export interface LyricsRemovalPreparation {
+  confirmationToken: string;
+  lyricId: string;
 }
 
 export interface ImportCandidate {
@@ -62,6 +86,9 @@ export interface PracticeAssets {
   instrumentalResourceUrl: string;
   referenceTrack: ReferenceTrack;
   durationMs: number;
+  lyricsStatus: LyricsStatus;
+  lyrics: LyricsView | null;
+  lyricsError: AppError | null;
 }
 
 export interface DeletePlan {
@@ -109,6 +136,19 @@ export interface SongServicePort {
   ): Promise<{ job: AnalyzerJob; cacheHit: boolean }>;
   cancelAnalysis(jobId: string): Promise<AnalyzerJob>;
   getPracticeAssets(songId: string): Promise<PracticeAssets>;
+  selectLyrics(songId: string): Promise<LyricsCandidate | null>;
+  confirmLyrics(
+    songId: string,
+    candidateToken: string,
+  ): Promise<{ lyrics: LyricsView; deduplicated: boolean; replaced: boolean }>;
+  updateLyricsOffset(
+    songId: string,
+    lyricId: string,
+    userOffsetMs: number,
+    expectedRevision: number,
+  ): Promise<LyricsView>;
+  prepareRemoveLyrics(songId: string): Promise<LyricsRemovalPreparation>;
+  removeLyrics(songId: string, confirmationToken: string): Promise<void>;
   prepareDelete(songId: string): Promise<DeletePreparation>;
   deleteSong(songId: string, confirmationToken: string): Promise<number>;
   subscribe(listener: (event: SongEvent) => void): Promise<() => void>;
@@ -154,7 +194,9 @@ function parseSongSummary(value: unknown): SongSummary {
     (value.lastPracticeAt !== null &&
       typeof value.lastPracticeAt !== "string") ||
     !("localSizeBytes" in value) ||
-    !Number.isSafeInteger(value.localSizeBytes)
+    !Number.isSafeInteger(value.localSizeBytes) ||
+    !("lyricsStatus" in value) ||
+    !["none", "ready", "damaged"].includes(String(value.lyricsStatus))
   ) {
     throw new Error("library.error.invalidResponse");
   }
@@ -214,13 +256,78 @@ export class SongService implements SongServicePort {
         instrumentalResourceUrl: string;
         referenceTrack: unknown;
         durationMs: number;
+        lyricsStatus: LyricsStatus;
+        lyrics: unknown | null;
+        lyricsError: AppError | null;
       }>
     >("get_practice_assets", { request: { apiVersion: 1, songId } });
     const assets = unwrap(result);
     return {
       ...assets,
       referenceTrack: parseReferenceTrack(assets.referenceTrack),
+      lyrics: assets.lyrics === null ? null : parseLyricsView(assets.lyrics),
     };
+  }
+
+  async selectLyrics(songId: string): Promise<LyricsCandidate | null> {
+    const result = await invoke<
+      CommandResult<{ candidate: LyricsCandidate | null }>
+    >("select_lyrics_file", { request: { apiVersion: 1, songId } });
+    return unwrap(result).candidate;
+  }
+
+  async confirmLyrics(
+    songId: string,
+    candidateToken: string,
+  ): Promise<{ lyrics: LyricsView; deduplicated: boolean; replaced: boolean }> {
+    const result = await invoke<
+      CommandResult<{
+        lyrics: unknown;
+        deduplicated: boolean;
+        replaced: boolean;
+      }>
+    >("confirm_lyrics_import", {
+      request: { apiVersion: 1, songId, candidateToken },
+    });
+    const data = unwrap(result);
+    return { ...data, lyrics: parseLyricsView(data.lyrics) };
+  }
+
+  async updateLyricsOffset(
+    songId: string,
+    lyricId: string,
+    userOffsetMs: number,
+    expectedRevision: number,
+  ): Promise<LyricsView> {
+    const result = await invoke<CommandResult<{ lyrics: unknown }>>(
+      "update_lyrics_offset",
+      {
+        request: {
+          apiVersion: 1,
+          songId,
+          lyricId,
+          userOffsetMs,
+          expectedRevision,
+        },
+      },
+    );
+    return parseLyricsView(unwrap(result).lyrics);
+  }
+
+  async prepareRemoveLyrics(songId: string): Promise<LyricsRemovalPreparation> {
+    const result = await invoke<CommandResult<LyricsRemovalPreparation>>(
+      "prepare_remove_lyrics",
+      { request: { apiVersion: 1, songId } },
+    );
+    return unwrap(result);
+  }
+
+  async removeLyrics(songId: string, confirmationToken: string): Promise<void> {
+    const result = await invoke<CommandResult<{ removed: boolean }>>(
+      "remove_lyrics",
+      { request: { apiVersion: 1, songId, confirmationToken } },
+    );
+    unwrap(result);
   }
 
   async prepareDelete(songId: string): Promise<DeletePreparation> {

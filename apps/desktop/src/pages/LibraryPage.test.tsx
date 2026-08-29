@@ -51,6 +51,7 @@ function summary(status: SongSummary["status"]): SongSummary {
     importedAt: "2026-08-26T01:00:00Z",
     lastPracticeAt: null,
     localSizeBytes: 12_582_912,
+    lyricsStatus: "none",
   };
 }
 
@@ -60,6 +61,9 @@ const assets: PracticeAssets = {
   instrumentalResourceUrl:
     "cybermuse://localhost/00000000-0000-4000-8000-000000000002",
   durationMs: 180_000,
+  lyricsStatus: "none",
+  lyrics: null,
+  lyricsError: null,
   referenceTrack: {
     schemaVersion: 1,
     durationMs: 180_000,
@@ -93,6 +97,18 @@ function serviceWithSongs(songs: SongSummary[] = []): SongServicePort {
       status: "cancelling" as const,
     })),
     getPracticeAssets: vi.fn(async () => assets),
+    selectLyrics: vi.fn(async () => null),
+    confirmLyrics: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    updateLyricsOffset: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    prepareRemoveLyrics: vi.fn(async () => ({
+      confirmationToken: "00000000-0000-4000-8000-000000000005",
+      lyricId: "c".repeat(64),
+    })),
+    removeLyrics: vi.fn(async () => undefined),
     prepareDelete: vi.fn(async () => ({
       confirmationToken: "00000000-0000-4000-8000-000000000004",
       plan: {
@@ -142,6 +158,65 @@ describe("FR-001..008 Library import and recovery UI", () => {
       expect(service.startAnalysis).toHaveBeenCalledWith(songId),
     );
     expect(screen.getByText(/分析已开始/)).toBeVisible();
+  });
+
+  it("TC-LYR-002 previews and confirms a user-selected LRC", async () => {
+    const user = userEvent.setup();
+    const service = serviceWithSongs([summary("ready")]);
+    vi.mocked(service.selectLyrics).mockResolvedValueOnce({
+      token: "00000000-0000-4000-8000-000000000006",
+      lyricId: "c".repeat(64),
+      sourceEncoding: "utf-8",
+      metadata: {
+        title: "Moth To A Flame",
+        artist: "Swedish House Mafia",
+        album: null,
+        author: null,
+        creator: null,
+      },
+      cueGroupCount: 54,
+      firstEffectiveTimeMs: 15_440,
+      lastEffectiveTimeMs: 210_000,
+      sampleLines: ["Synthetic cue"],
+      warnings: [],
+      replacing: false,
+    });
+    vi.mocked(service.confirmLyrics).mockResolvedValueOnce({
+      lyrics: {
+        schemaVersion: 1,
+        revision: 0,
+        lyricId: "c".repeat(64),
+        songId,
+        sourceEncoding: "utf-8",
+        sourceOffsetMs: 0,
+        userOffsetMs: 0,
+        metadata: {
+          title: "Moth To A Flame",
+          artist: "Swedish House Mafia",
+          album: null,
+          author: null,
+          creator: null,
+        },
+        cues: [{ timestampMs: 15_440, lines: ["Synthetic cue"] }],
+      },
+      deduplicated: false,
+      replaced: false,
+    });
+    render(<LibraryPage service={service} />);
+
+    await user.click(await screen.findByRole("button", { name: "添加歌词" }));
+    const confirmation = await screen.findByRole("dialog");
+    expect(confirmation).toHaveTextContent("Moth To A Flame");
+    expect(confirmation).toHaveTextContent("Synthetic cue");
+    await user.click(screen.getByRole("button", { name: "添加到歌曲" }));
+
+    await waitFor(() =>
+      expect(service.confirmLyrics).toHaveBeenCalledWith(
+        songId,
+        "00000000-0000-4000-8000-000000000006",
+      ),
+    );
+    expect(screen.getByText(/歌词已添加/)).toBeVisible();
   });
 
   it("opens verified practice assets and performs explicit destructive confirmation", async () => {

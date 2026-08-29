@@ -23,6 +23,17 @@ function emptySongService(): SongServicePort {
     getPracticeAssets: vi.fn(async () => {
       throw new Error("unused");
     }),
+    selectLyrics: vi.fn(async () => null),
+    confirmLyrics: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    updateLyricsOffset: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    prepareRemoveLyrics: vi.fn(async () => {
+      throw new Error("unused");
+    }),
+    removeLyrics: vi.fn(async () => undefined),
     prepareDelete: vi.fn(async () => {
       throw new Error("unused");
     }),

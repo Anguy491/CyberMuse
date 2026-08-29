@@ -1,7 +1,9 @@
 import type { LoopRegion, ReferenceTrack } from "@cybermuse/audio";
 
 import { computeCombinedMetrics, computeMetrics } from "./metrics";
+import { applyPitchEvaluationMode } from "./reference";
 import type {
+  PitchEvaluationMode,
   PracticeTake,
   ScoredPitchSample,
   SessionMetrics,
@@ -34,6 +36,7 @@ function persistentSample(sample: ScoredPitchSample): SessionPitchSample {
     timeMs: sample.timeMs,
     userMidi: sample.userMidi,
     referenceMidi: sample.referenceMidi,
+    absoluteSignedCents: sample.absoluteSignedCents,
     signedCents: sample.signedCents,
     confidence: sample.confidence,
     voiced: true,
@@ -46,13 +49,31 @@ export class InMemoryPracticeSession {
   private current: MutableTake | null = null;
   private sampleCount = 0;
   private takeSequence = 0;
+  private evaluationMode: PitchEvaluationMode;
 
   constructor(
     private readonly track: ReferenceTrack,
     private readonly idFactory: (sequence: number) => string = (sequence) =>
       `take-${String(sequence).padStart(4, "0")}`,
     private readonly maximumSamples = MAX_SESSION_SAMPLES,
-  ) {}
+    evaluationMode: PitchEvaluationMode = "absolute",
+  ) {
+    this.evaluationMode = evaluationMode;
+  }
+
+  setEvaluationMode(mode: PitchEvaluationMode): void {
+    this.evaluationMode = mode;
+  }
+
+  getEvaluationMode(): PitchEvaluationMode {
+    return this.evaluationMode;
+  }
+
+  getCurrentSamples(): readonly ScoredPitchSample[] {
+    return this.current === null
+      ? []
+      : this.current.samples.map((sample) => this.evaluate(sample));
+  }
 
   beginTake(
     startedAtSongTimeMs: number,
@@ -86,8 +107,14 @@ export class InMemoryPracticeSession {
     ) {
       return false;
     }
-    take.samples.push(sample);
-    take.endedAtSongTimeMs = Math.max(take.endedAtSongTimeMs, sample.timeMs);
+    take.samples.push({
+      ...sample,
+      absoluteSignedCents: sample.absoluteSignedCents,
+    });
+    take.endedAtSongTimeMs = Math.max(
+      take.endedAtSongTimeMs,
+      sample.timeMs + this.track.hopMs,
+    );
     this.sampleCount += 1;
     return true;
   }
@@ -114,7 +141,9 @@ export class InMemoryPracticeSession {
   }
 
   getPreviousTake(): PracticeTake | null {
-    const take = this.completed.at(-1);
+    const take = [...this.completed]
+      .reverse()
+      .find((candidate) => candidate.samples.length > 0);
     return take === undefined ? null : this.present(take);
   }
 
@@ -131,7 +160,14 @@ export class InMemoryPracticeSession {
       ...(this.current === null ? [] : [this.current]),
     ].flatMap((take) => {
       const region = this.regionFor(take);
-      return region === null ? [] : [{ samples: take.samples, region }];
+      return region === null
+        ? []
+        : [
+            {
+              samples: take.samples.map((sample) => this.evaluate(sample)),
+              region,
+            },
+          ];
     });
     return attempts.length === 0
       ? emptyMetrics()
@@ -145,11 +181,17 @@ export class InMemoryPracticeSession {
       loopRegion: take.loopRegion === null ? null : { ...take.loopRegion },
       startedAtSongTimeMs: take.startedAtSongTimeMs,
       endedAtSongTimeMs: take.endedAtSongTimeMs,
-      observations: take.samples.map(persistentSample),
+      observations: take.samples.map((sample) =>
+        persistentSample(this.evaluate(sample)),
+      ),
       metrics:
         region === null
           ? emptyMetrics()
-          : computeMetrics(take.samples, this.track, region),
+          : computeMetrics(
+              take.samples.map((sample) => this.evaluate(sample)),
+              this.track,
+              region,
+            ),
     };
   }
 
@@ -160,5 +202,9 @@ export class InMemoryPracticeSession {
       startMs: take.startedAtSongTimeMs,
       endMs: Math.min(this.track.durationMs, take.endedAtSongTimeMs),
     };
+  }
+
+  private evaluate(sample: ScoredPitchSample): ScoredPitchSample {
+    return applyPitchEvaluationMode(sample, this.evaluationMode);
   }
 }

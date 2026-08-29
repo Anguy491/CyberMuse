@@ -21,11 +21,14 @@ export {
 } from "./analyzer";
 export {
   parsePracticeSession,
+  LEGACY_SCORING_VERSION,
   SCORING_VERSION,
+  type PitchEvaluationMode,
   type PracticeSession,
   type PracticeSessionReview,
   type PracticeSessionSummary,
   type PracticeTake,
+  type ScoringVersion,
   type SessionLoopRegion,
   type SessionMetrics,
   type SessionPitchSample,
@@ -44,3 +47,13 @@ export {
   type StorageCategoryUsage,
   type StorageOverview,
 } from "./storage-overview";
+export {
+  parseLyricsDocument,
+  parseLyricsView,
+  type LyricsCue,
+  type LyricsDocument,
+  type LyricsEncoding,
+  type LyricsMetadata,
+  type LyricsStatus,
+  type LyricsView,
+} from "./lyrics";

@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use crate::lyrics_store::{LyricsStatus, lyrics_status};
 use crate::storage::{read_versioned_json, resolve_relative, write_versioned_json};
 
 const MAX_SONG_DURATION_MS: u64 = 1_200_000;
@@ -54,6 +55,7 @@ pub struct SongSummary {
     pub imported_at: String,
     pub last_practice_at: Option<String>,
     pub local_size_bytes: u64,
+    pub lyrics_status: LyricsStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +441,7 @@ pub fn list_songs(app_root: &Path) -> Result<Vec<SongSummary>, SongStoreError> {
         let local_size_bytes = directory_size(&entry.path())?;
         match read_song_at(&entry.path().join("song.json")) {
             Ok(song) if validate_song_identity(&song, &song_id).is_ok() => {
+                let lyrics_status = lyrics_status(app_root, &song_id);
                 let status = if !original_exists(&entry.path(), &song)
                     || song.status == SongStatus::Ready
                         && !basic_ready_assets_exist(&entry.path(), &song)
@@ -455,6 +458,7 @@ pub fn list_songs(app_root: &Path) -> Result<Vec<SongSummary>, SongStoreError> {
                     imported_at: song.imported_at,
                     last_practice_at: song.last_practice_at,
                     local_size_bytes,
+                    lyrics_status,
                 });
             }
             _ => songs.push(SongSummary {
@@ -465,6 +469,7 @@ pub fn list_songs(app_root: &Path) -> Result<Vec<SongSummary>, SongStoreError> {
                 imported_at: "1970-01-01T00:00:00Z".to_owned(),
                 last_practice_at: None,
                 local_size_bytes,
+                lyrics_status: lyrics_status(app_root, &song_id),
             }),
         }
     }
@@ -567,6 +572,9 @@ pub fn prepare_delete(app_root: &Path, song_id: &str) -> Result<DeletePlan, Song
     if song_root.join("sessions").exists() {
         categories.push("sessions".to_owned());
     }
+    if song_root.join("lyrics").exists() {
+        categories.push("lyrics".to_owned());
+    }
     Ok(DeletePlan {
         song_id: song_id.to_owned(),
         display_name: song.display_name,
@@ -593,6 +601,7 @@ pub fn delete_song(
     let mut residual = Vec::new();
     remove_category(&song_root.join("sessions"), "sessions", &mut residual);
     remove_category(&song_root.join("analyses"), "analyses", &mut residual);
+    remove_category(&song_root.join("lyrics"), "lyrics", &mut residual);
     if interruption == DeleteInterruption::AfterAnalyses {
         residual.push("injected".to_owned());
     }

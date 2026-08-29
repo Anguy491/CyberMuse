@@ -7,6 +7,7 @@ pub mod analyzer_protocol;
 pub mod analyzer_request;
 pub mod asset_protocol;
 pub mod diagnostics;
+pub mod lyrics_store;
 pub mod model_manager;
 pub mod runtime_manifest;
 pub mod session_store;
@@ -42,6 +43,11 @@ pub fn run() {
             tauri_api::get_song,
             tauri_api::prepare_delete_song,
             tauri_api::delete_song,
+            tauri_api::select_lyrics_file,
+            tauri_api::confirm_lyrics_import,
+            tauri_api::update_lyrics_offset,
+            tauri_api::prepare_remove_lyrics,
+            tauri_api::remove_lyrics,
             tauri_api::get_practice_assets,
             tauri_api::save_practice_session,
             tauri_api::list_practice_sessions,

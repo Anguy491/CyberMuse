@@ -6,7 +6,8 @@ import { ReviewPage } from "./ReviewPage";
 
 const session: PracticeSession = {
   schemaVersion: 1,
-  scoringVersion: "1.0.0",
+  scoringVersion: "1.1.0",
+  pitchEvaluationMode: "absolute",
   sessionId: "00000000-0000-4000-8000-000000000030",
   songId: "a".repeat(64),
   analysisId: "b".repeat(32),
@@ -27,6 +28,7 @@ const session: PracticeSession = {
           timeMs: 2_000,
           userMidi: 69.7,
           referenceMidi: 69,
+          absoluteSignedCents: 70,
           signedCents: 70,
           confidence: 1,
           voiced: true,
@@ -67,6 +69,7 @@ describe("TC-REV-001 Review page", () => {
       screen.getByRole("heading", { name: "复盘《测试歌曲》" }),
     ).toBeVisible();
     expect(screen.getByText("整体约偏高 70 cents。")).toBeVisible();
+    expect(screen.getByText("评分模式：专业 · 真实八度")).toBeVisible();
     expect(screen.getByText("音准准确率")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "重新练习此处" }));
     expect(onPracticeRegion).toHaveBeenCalledWith(

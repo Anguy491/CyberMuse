@@ -5,11 +5,17 @@ export {
   matchedDurationMs,
   referenceVoicedDurationMs,
 } from "./metrics";
-export { findNearestReferenceFrame, scorePitchObservation } from "./reference";
+export {
+  applyPitchEvaluationMode,
+  findNearestReferenceFrame,
+  foldCentsToNearestOctave,
+  scorePitchObservation,
+} from "./reference";
 export { InMemoryPracticeSession } from "./session";
 export type {
   FeedbackGrade,
   InstantFeedback,
+  PitchEvaluationMode,
   PitchDirection,
   PracticeTake,
   ReferenceMatch,

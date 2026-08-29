@@ -54,6 +54,15 @@ export function ReviewPage({
       <section className="primary-layer review-primary" data-layer="primary">
         <h1>{t("review.title", { song: songTitle })}</h1>
         <p className="lede">{biasSummary}</p>
+        <p className="review-evaluation-mode">
+          {t("review.evaluationMode", {
+            mode: t(
+              session.pitchEvaluationMode === "absolute"
+                ? "review.evaluationMode.absolute"
+                : "review.evaluationMode.folded",
+            ),
+          })}
+        </p>
         <div className="primary-actions">
           <Button variant="quiet" onClick={onBackToLibrary}>
             {t("review.back")}

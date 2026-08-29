@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   FeedbackSmoother,
   InMemoryPracticeSession,
+  applyPitchEvaluationMode,
   classifyFeedback,
   computeCombinedMetrics,
   computeMetrics,
   findNearestReferenceFrame,
+  foldCentsToNearestOctave,
   scorePitchObservation,
   type ScoredPitchSample,
 } from "./index";
@@ -36,7 +38,9 @@ function scored(cents: number, index: number): ScoredPitchSample {
     userHz: 440 * 2 ** (cents / 1_200),
     referenceHz: 440,
     userMidi: 69 + cents / 100,
+    evaluatedUserMidi: 69 + cents / 100,
     referenceMidi: 69,
+    absoluteSignedCents: cents,
     signedCents: cents,
     confidence: 1,
   };
@@ -85,6 +89,63 @@ describe("TC-SCO-001 reference matching and feedback", () => {
     [100.01, "miss"],
   ] as const)("classifies %s cents as %s", (cents, grade) => {
     expect(classifyFeedback(cents)).toBe(grade);
+  });
+
+  it("folds complete octaves while preserving the signed tritone tie", () => {
+    expect(foldCentsToNearestOctave(1_225)).toBe(25);
+    expect(foldCentsToNearestOctave(-2_450)).toBe(-50);
+    expect(foldCentsToNearestOctave(600)).toBe(600);
+    expect(foldCentsToNearestOctave(-600)).toBe(-600);
+    expect(foldCentsToNearestOctave(1_800)).toBe(600);
+    expect(foldCentsToNearestOctave(-1_800)).toBe(-600);
+  });
+
+  it.each([
+    [0, 0],
+    [25, 25],
+    [-25, -25],
+    [50, 50],
+    [-50, -50],
+    [100, 100],
+    [-100, -100],
+    [1_225, 25],
+    [-1_225, -25],
+    [2_450, 50],
+    [-2_450, -50],
+    [3_700, 100],
+    [-3_700, -100],
+  ])(
+    "normalizes %s cents to %s without changing absolute mode",
+    (input, folded) => {
+      const original = scored(input, 20);
+      expect(
+        applyPitchEvaluationMode(original, "octaveFolded").signedCents,
+      ).toBe(folded);
+      expect(applyPitchEvaluationMode(original, "absolute")).toEqual(original);
+    },
+  );
+
+  it("scores the same observation in absolute and octave-folded modes", () => {
+    const track = referenceTrack(4);
+    const observation: PitchObservation = {
+      timeMs: 20,
+      contextTimeMs: 20,
+      alignedSongTimeMs: 20,
+      hz: 220 * 2 ** (25 / 1_200),
+      midi: 57.25,
+      confidence: 1,
+      voiced: true,
+      rmsDbfs: -12,
+      clarity: 1,
+      droppedWindows: 0,
+    };
+    const absolute = scorePitchObservation(track, observation, "absolute");
+    const folded = scorePitchObservation(track, observation, "octaveFolded");
+    expect(absolute?.absoluteSignedCents).toBeCloseTo(-1_175, 6);
+    expect(absolute?.signedCents).toBeCloseTo(-1_175, 6);
+    expect(folded?.absoluteSignedCents).toBeCloseTo(-1_175, 6);
+    expect(folded?.signedCents).toBeCloseTo(25, 6);
+    expect(folded?.evaluatedUserMidi).toBeCloseTo(69.25, 6);
   });
 
   it("applies 120 ms smoothing and 5 cents hysteresis without edge flicker", () => {
@@ -200,5 +261,52 @@ describe("TC-LOOP-001 in-memory take boundaries", () => {
         referenceTimeMs: 2_020,
       }),
     ).toBe(false);
+  });
+
+  it("keeps the latest scored take visible after an empty preview segment", () => {
+    const track = referenceTrack(300);
+    const session = new InMemoryPracticeSession(track);
+    session.beginTake(1_000, null);
+    expect(
+      session.record({
+        ...scored(-20, 50),
+        timeMs: 1_200,
+        referenceTimeMs: 1_200,
+      }),
+    ).toBe(true);
+    session.endTake(2_000);
+    session.beginTake(4_000, null);
+    session.endTake(5_000);
+
+    expect(session.getPreviousTake()).toMatchObject({
+      startedAtSongTimeMs: 1_000,
+      endedAtSongTimeMs: 2_000,
+      metrics: { validFrameCount: 1 },
+    });
+    expect(session.getTakes()).toHaveLength(2);
+  });
+
+  it("re-evaluates all takes reversibly without changing boundaries", () => {
+    const track = referenceTrack(300);
+    const session = new InMemoryPracticeSession(track);
+    session.beginTake(0, null);
+    session.record(scored(1_225, 10));
+    session.endTake(1_000);
+    const absolute = session.getTakes()[0];
+    session.setEvaluationMode("octaveFolded");
+    const folded = session.getTakes()[0];
+    session.setEvaluationMode("absolute");
+    const restored = session.getTakes()[0];
+
+    expect(folded?.observations[0]?.signedCents).toBe(25);
+    expect(folded?.metrics.pitchAccuracy).toBe(100);
+    expect(folded?.startedAtSongTimeMs).toBe(absolute?.startedAtSongTimeMs);
+    expect(folded?.endedAtSongTimeMs).toBe(absolute?.endedAtSongTimeMs);
+    expect(folded?.metrics.coverage).toBe(absolute?.metrics.coverage);
+    expect(folded?.metrics.validFrameCount).toBe(
+      absolute?.metrics.validFrameCount,
+    );
+    expect(folded?.observations[0]?.absoluteSignedCents).toBe(1_225);
+    expect(restored).toEqual(absolute);
   });
 });

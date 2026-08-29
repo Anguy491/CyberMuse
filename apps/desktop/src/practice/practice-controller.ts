@@ -6,13 +6,24 @@ import {
   type PracticeFixture,
 } from "@cybermuse/audio";
 import {
+  applyPitchEvaluationMode,
+  computeMetrics,
   FeedbackSmoother,
+  findNearestReferenceFrame,
   InMemoryPracticeSession,
   scorePitchObservation,
   type InstantFeedback,
+  type PitchEvaluationMode,
+  type ScoredPitchSample,
   type SessionMetrics,
 } from "@cybermuse/scoring";
-import type { PracticeSession } from "@cybermuse/contracts";
+import {
+  SCORING_VERSION,
+  type PitchEvaluationMode as StoredPitchEvaluationMode,
+  type PracticeSession,
+  type PracticeTake as StoredPracticeTake,
+} from "@cybermuse/contracts";
+import { hzToMidi } from "@cybermuse/domain";
 
 import { AudioInputController } from "../audio/audio-input-controller";
 import {
@@ -28,8 +39,10 @@ import type {
 import type { PracticeAssets } from "../services/song-service";
 import {
   buildPitchLaneData,
+  buildPitchLaneIndex,
   type LanePitchPoint,
   type PitchLaneData,
+  type PitchLaneTrackIndex,
 } from "./pitch-lane-model";
 import {
   PlaybackEngine,
@@ -59,6 +72,7 @@ export interface PracticeControllerSnapshot {
   currentTakeMetrics: SessionMetrics;
   previousTakeMetrics: SessionMetrics;
   sessionMetrics: SessionMetrics;
+  pitchEvaluationMode: PitchEvaluationMode;
   laneVersion: number;
   inputObservationCount: number;
   error: PracticeRuntimeError | null;
@@ -113,6 +127,11 @@ export interface PracticeControllerPort {
   clearLoop(): void;
   setVolume(value: number): void;
   setSessionContext(context: PracticeSessionContext): void;
+  setPitchEvaluationMode(mode: PitchEvaluationMode): void;
+  restorePreviousTake(
+    take: StoredPracticeTake,
+    sourceMode?: StoredPitchEvaluationMode,
+  ): void;
   finalizeSession(): PracticeSession | null;
   dispose(): Promise<void>;
 }
@@ -220,6 +239,7 @@ function initialSnapshot(
     currentTakeMetrics: EMPTY_METRICS,
     previousTakeMetrics: EMPTY_METRICS,
     sessionMetrics: EMPTY_METRICS,
+    pitchEvaluationMode: "absolute",
     laneVersion: 0,
     inputObservationCount: 0,
     error: null,
@@ -244,8 +264,12 @@ export class PracticeController implements PracticeControllerPort {
   private input: AudioInputControllerPort | null = null;
   private unsubscribeInput: (() => void) | null = null;
   private session: InMemoryPracticeSession | null = null;
+  private laneIndex: PitchLaneTrackIndex | null = null;
   private currentLane: LanePitchPoint[] = [];
   private previousLane: LanePitchPoint[] = [];
+  private restoredPreviousMetrics: SessionMetrics | null = null;
+  private restoredPreviousTake: StoredPracticeTake | null = null;
+  private laneSegmentId = 0;
   private handledLoopIteration = 0;
   private lastMetricFrameCount = 0;
   private uiFrameHandle: number | null = null;
@@ -284,15 +308,15 @@ export class PracticeController implements PracticeControllerPort {
   }
 
   getLaneData(width = 1_000, height = 280): PitchLaneData | null {
-    const track = this.snapshot.playback.fixture?.referenceTrack;
-    if (track === undefined) return null;
+    if (this.laneIndex === null) return null;
     return buildPitchLaneData(
-      track,
+      this.laneIndex,
       this.snapshot.playback.positionMs,
       this.currentLane,
       this.previousLane,
       width,
       height,
+      this.snapshot.pitchEvaluationMode,
     );
   }
 
@@ -305,8 +329,12 @@ export class PracticeController implements PracticeControllerPort {
       this.loadedIdentity = null;
       this.startedAt = this.now();
       this.session = new InMemoryPracticeSession(fixture.referenceTrack);
+      this.laneIndex = buildPitchLaneIndex(fixture.referenceTrack);
       this.currentLane = [];
       this.previousLane = [];
+      this.restoredPreviousMetrics = null;
+      this.restoredPreviousTake = null;
+      this.laneSegmentId = 0;
       this.handledLoopIteration = 0;
       this.lastMetricFrameCount = 0;
       this.snapshot = {
@@ -333,8 +361,12 @@ export class PracticeController implements PracticeControllerPort {
       };
       this.startedAt = this.now();
       this.session = new InMemoryPracticeSession(fixture.referenceTrack);
+      this.laneIndex = buildPitchLaneIndex(fixture.referenceTrack);
       this.currentLane = [];
       this.previousLane = [];
+      this.restoredPreviousMetrics = null;
+      this.restoredPreviousTake = null;
+      this.laneSegmentId = 0;
       this.handledLoopIteration = 0;
       this.lastMetricFrameCount = 0;
       this.snapshot = {
@@ -570,6 +602,59 @@ export class PracticeController implements PracticeControllerPort {
         };
   }
 
+  setPitchEvaluationMode(mode: PitchEvaluationMode): void {
+    if (mode === this.snapshot.pitchEvaluationMode) return;
+    this.session?.setEvaluationMode(mode);
+    this.smoother.reset();
+    let feedback: InstantFeedback | null = null;
+    const currentSamples = this.session?.getCurrentSamples() ?? [];
+    const lastTimeMs = this.currentLane.at(-1)?.timeMs;
+    if (
+      lastTimeMs !== undefined &&
+      this.snapshot.observationState === "scored"
+    ) {
+      for (const sample of currentSamples) {
+        if (sample.timeMs >= lastTimeMs - 120) {
+          feedback = this.smoother.update(sample);
+        }
+      }
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      pitchEvaluationMode: mode,
+      feedback,
+      laneVersion: this.snapshot.laneVersion + 1,
+    };
+    this.recomputeRestoredPreviousMetrics();
+    this.refreshMetrics();
+    this.emit();
+  }
+
+  restorePreviousTake(
+    take: StoredPracticeTake,
+    sourceMode: StoredPitchEvaluationMode = "absolute",
+  ): void {
+    if (
+      (sourceMode !== "absolute" && sourceMode !== "octaveFolded") ||
+      this.disposed ||
+      take.metrics.validFrameCount === 0 ||
+      take.observations.length === 0 ||
+      this.session?.getPreviousTake() !== null
+    ) {
+      return;
+    }
+    this.restoredPreviousTake = take;
+    this.previousLane = take.observations.map((observation) => ({
+      timeMs: observation.timeMs,
+      midi: observation.userMidi,
+      referenceMidi: observation.referenceMidi,
+      absoluteSignedCents: observation.absoluteSignedCents,
+    }));
+    this.recomputeRestoredPreviousMetrics();
+    this.refreshMetrics();
+    this.update({ laneVersion: this.snapshot.laneVersion + 1 });
+  }
+
   finalizeSession(): PracticeSession | null {
     if (
       this.session === null ||
@@ -586,7 +671,8 @@ export class PracticeController implements PracticeControllerPort {
     const endedAt = observedEnd > maximumEnd ? maximumEnd : observedEnd;
     return {
       schemaVersion: 1,
-      scoringVersion: "1.0.0",
+      scoringVersion: SCORING_VERSION,
+      pitchEvaluationMode: this.snapshot.pitchEvaluationMode,
       sessionId: this.sessionIdFactory(),
       songId: this.loadedIdentity.songId,
       analysisId: this.loadedIdentity.analysisId,
@@ -605,6 +691,7 @@ export class PracticeController implements PracticeControllerPort {
           timeMs: observation.timeMs,
           userMidi: observation.userMidi,
           referenceMidi: observation.referenceMidi,
+          absoluteSignedCents: observation.absoluteSignedCents,
           signedCents: observation.signedCents,
           confidence: observation.confidence,
           voiced: true,
@@ -630,6 +717,14 @@ export class PracticeController implements PracticeControllerPort {
 
   private receivePlayback(playback: PlaybackEngineSnapshot): void {
     const previousPlaybackStatus = this.snapshot.playback.status;
+    if (
+      (previousPlaybackStatus === "playing" ||
+        previousPlaybackStatus === "loop_gap") &&
+      playback.status === "ended"
+    ) {
+      this.finishCurrentTake(playback.positionMs);
+      this.smoother.reset();
+    }
     if (
       (previousPlaybackStatus === "playing" ||
         previousPlaybackStatus === "loop_gap") &&
@@ -684,6 +779,7 @@ export class PracticeController implements PracticeControllerPort {
     };
     const observation = input.observation;
     if (observation === null || !observation.voiced) {
+      this.laneSegmentId += 1;
       if (input.status === "ready") {
         this.snapshot = {
           ...this.snapshot,
@@ -726,11 +822,25 @@ export class PracticeController implements PracticeControllerPort {
       timeMs: Math.max(0, alignedSongTimeMs),
       alignedSongTimeMs,
     };
-    this.currentLane.push({ timeMs: aligned.timeMs, midi: observation.midi });
+    if (observation.droppedWindows > 0) this.laneSegmentId += 1;
+    const scored = scorePitchObservation(
+      fixture.referenceTrack,
+      aligned,
+      this.snapshot.pitchEvaluationMode,
+    );
+    const rawMidi =
+      (observation.hz === null ? null : hzToMidi(observation.hz)) ??
+      observation.midi;
+    this.currentLane.push({
+      timeMs: aligned.timeMs,
+      midi: rawMidi,
+      referenceMidi: scored?.referenceMidi ?? null,
+      absoluteSignedCents: scored?.absoluteSignedCents ?? null,
+      segmentId: this.laneSegmentId,
+    });
     if (this.currentLane.length > 36_000) {
       this.currentLane.splice(0, 1_000);
     }
-    const scored = scorePitchObservation(fixture.referenceTrack, aligned);
     if (scored === null) {
       this.update({
         observationState: "no_reference",
@@ -780,8 +890,12 @@ export class PracticeController implements PracticeControllerPort {
 
   private finishCurrentTake(endedAtSongTimeMs: number): void {
     if (this.session === null || this.session.getCurrentTake() === null) return;
-    this.session.endTake(endedAtSongTimeMs);
-    this.previousLane = this.currentLane;
+    const completed = this.session.endTake(endedAtSongTimeMs);
+    if (completed !== null && completed.metrics.validFrameCount > 0) {
+      this.previousLane = this.currentLane;
+      this.restoredPreviousMetrics = null;
+      this.restoredPreviousTake = null;
+    }
     this.currentLane = [];
     this.refreshMetrics();
   }
@@ -795,9 +909,49 @@ export class PracticeController implements PracticeControllerPort {
       currentTakeId: current?.takeId ?? null,
       takeCount: takes.length,
       currentTakeMetrics: current?.metrics ?? EMPTY_METRICS,
-      previousTakeMetrics: previous?.metrics ?? EMPTY_METRICS,
+      previousTakeMetrics:
+        previous?.metrics ?? this.restoredPreviousMetrics ?? EMPTY_METRICS,
       sessionMetrics: this.session?.getSessionMetrics() ?? EMPTY_METRICS,
     };
+  }
+
+  private recomputeRestoredPreviousMetrics(): void {
+    const take = this.restoredPreviousTake;
+    const track = this.snapshot.playback.fixture?.referenceTrack;
+    if (take === null || track === undefined) {
+      this.restoredPreviousMetrics = null;
+      return;
+    }
+    const samples = take.observations.flatMap((observation) => {
+      const match = findNearestReferenceFrame(track, observation.timeMs);
+      const frame = match?.frame;
+      if (frame === undefined) {
+        return [];
+      }
+      const absoluteSignedCents = observation.absoluteSignedCents;
+      const referenceHz = frame.hz ?? 440;
+      const base: ScoredPitchSample = {
+        timeMs: observation.timeMs,
+        referenceTimeMs: frame.timeMs,
+        userHz: referenceHz * 2 ** (absoluteSignedCents / 1_200),
+        referenceHz,
+        userMidi: observation.userMidi,
+        evaluatedUserMidi:
+          observation.referenceMidi + absoluteSignedCents / 100,
+        referenceMidi: observation.referenceMidi,
+        absoluteSignedCents,
+        signedCents: absoluteSignedCents,
+        confidence: observation.confidence,
+      };
+      return [
+        applyPitchEvaluationMode(base, this.snapshot.pitchEvaluationMode),
+      ];
+    });
+    const region = take.loopRegion ?? {
+      startMs: take.startedAtSongTimeMs,
+      endMs: Math.max(take.startedAtSongTimeMs + 1, take.endedAtSongTimeMs),
+    };
+    this.restoredPreviousMetrics = computeMetrics(samples, track, region);
   }
 
   private async releaseInput(): Promise<void> {

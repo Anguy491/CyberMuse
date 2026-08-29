@@ -63,7 +63,7 @@
 
 UI 自动化不伪造硬件结论；真实麦克风/声卡行为归入人工矩阵。
 
-UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Canvas 测试同时断言可访问摘要和 legend，不以像素截图替代时间语义断言。
+UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Pitch Lane 测试同时断言 figure 可访问摘要、20% NOW 时间映射、目标中心与 ±25/50 cents 通道、半音/C 网格、包络/极值/overflow/未评分线型、反馈行最左侧默认收起的“?”图例入口及非颜色线型；Practice 还断言紧凑 feedback、ready/unvoiced 时绿色圆点加“正在录唱”、transport 图标的 accessible name、录唱/循环/数据/专业模式顺序、switch 的 checked 与文字状态、操作区与 seek 无拉伸空白、最近有效的部分 take 可恢复且不被空预览遮蔽、自然结束显式封口，以及录唱说明与空会话决定只在对应操作后的居中模态对话框显示，不以像素截图替代时间语义断言。
 
 `TC-I18N-001` 必须比较 `zh-CN.json` 与 `en-US.json` 的全部 key 和占位符，并在两种语言下遍历 Library、Practice、Review、设置六分类、动态状态、错误与 ARIA 文本；除品牌、稳定错误码、标准单位和批准技术专名外不得混入另一语言。另测 `system` 解析、`languagechange`、即时切换、重启恢复、清除设置、旧 v1 缺字段、非法值与 revision 冲突回滚。
 
@@ -78,6 +78,7 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 - 30 分钟练习、25 次 loop 的 CPU/RAM/node 数 soak。
 - 3、5、10 分钟歌曲 analyzer CPU 实时倍数、峰值 RAM、临时空间。
 - 1,000 首元数据（使用虚拟小资产）的 Library 启动和滚动基准，防止 O(total pitch frames) 加载。
+- 1,000 px、60 分钟音高样本的预索引 Pitch Lane model P95 ≤4 ms，输出点数与像素宽度成正比；模式切换复验 UI 30–60 FPS 和 NFR-003/音频线程负载不变。
 
 ## 测试夹具
 
@@ -100,10 +101,29 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 
 - `TC-AN-005` 验证分析产物语义：生产 pipeline 在 F0/manifest 前拒绝字节/PCM 相同或彼此近似固定比例缩放的可听 stems；真实歌曲 harness 另检两 stem RMS、stem correlation、`mix-(vocals+instrumental)` 重构残差和参考 F0 覆盖。20 首人工矩阵继续检查人声段缺少参考 F0、伴奏段持续 voiced 与异常能量分配。语义失败不得写入 active cache，并必须保留旧有有效分析。
 - `TC-MOD-002` 依 ADR-020 对 exact 预训练权重做隔离 bake-off：检查出处/版本/字节数/SHA-256/权重与运行时许可，断网运行，不进入生产 model manager、installer、Git、SBOM 或外部分发。ADR-021 已单独批准一个 exact HTDemucs spectral-core artifact；该例外不使其他同名 checkpoint 自动进入生产。
+
+## M7 歌词验证
+
+- `TC-LYR-001` 覆盖原生选择取消、五分钟 token、UTF-8/BOM 与 UTF-16 LE/BE BOM、CRLF/LF、1–3 位小数、多前置时间戳、metadata/offset、同刻多行、增强标签行级降级、空清除 cue、Unicode、非法编码/数值、1 MiB/10,000 行/20,000 cue/单行 1,000 字符边界。
+- `TC-LYR-002` 覆盖 SHA 去重、源文件移走、原子首次写入/替换中断、旧版本保留、revision 冲突、损坏歌词隔离、确认移除、歌曲级联删除、重启恢复与歌词文本不进入日志/诊断。
+- `TC-LYR-003` 使用受控 `PlaybackSnapshot.positionMs` 覆盖播放、暂停、start-over、seek、点击/键盘导航、A-B loop、文件/用户 offset、手动滚动暂停跟随和恢复；另测歌词 offset 默认收起、设置入口展开/关闭、歌词列取页头以下剩余视口且底部状态/恢复动作可见，以及无视觉 scrollbar 时的键盘滚动，无歌词保持旧布局，歌词损坏仍可练习。
+- `TC-LYR-004` 记录 cue 切换 P95 ≤50 ms、10 分钟无独立漂移、无逐帧 IPC，并复验 NFR-003/005/007/012。视觉/可访问性矩阵覆盖 1280×800、1024×720、150%、dark/light、forced-colors、reduced-motion、焦点顺序、歌词右栏不折叠到底部、左侧主列不被歌词高度拉伸，以及右上退出、播放/暂停和回零图标、循环/数据互斥 disclosure、反馈行左置图例 disclosure、ready 录唱状态、麦克风模态说明和歌词设置入口的 44 px 目标/ARIA 状态。
+- 真实验收使用用户提供的 `Moth To A Flame` LRC 和现有 ready 歌曲；LRC/歌曲/截图作为本地私有证据，不进入 Git。用户确认歌词能正确跟随播放即满足 M7 人工退出条件。
 - 质量集为 20 首本地私有完整真实歌曲，其中至少 6–8 首有合法获得的 vocals/instrumental 真值 stems；曲目覆盖现代 pop/EDM、摇滚/乐队、稀疏伴奏、男/女不同音区、气声/假声/rap、和声/二重唱、强混响/音高修正与清唱/纯伴奏边界。
 - 所有合格候选先在 6 首代表性子集做单次筛选；每一模型类别最多保留 3 个 finalist，并必须包含当前生产基线。每个 exact finalist 对 20 首完整输入各重复三次，报告单曲、P10/最差值、失败率、SI-SDRi/泄漏、参考 F0 voicing/八度/连续性和人工语义矩阵；任一硬语义失败不得被平均分抵消。
 - 黄金集优先正规购买/授权的 DRM-free lossless/CD-quality 普通文件；正规商店 DRM-free AAC/MP3 进入兼容层；视频网站转换或多次有损转码文件只进入鲁棒性层。产品输入仍遵守 FR-001 的 MP3/WAV/FLAC；其他 DRM-free 格式如需用于产品路径，只能有记录地解码为 WAV/FLAC，不增加新的有损编码。订阅流媒体应用内缓存不是可导入 fixture。
 - 报告只保存匿名曲目 ID、输入质量等级和指标；歌名、音频、stems、权重与完整用户路径不提交。
+
+## M8 Pitch Lane v2 验证
+
+- `TC-PLV2-001` 覆盖 8 秒/20% NOW 的时间坐标、目标中心与 ±25/50 cents 边界误差 <0.5 px、至少 1,000 ms 无声乐句切分、上下 2 半音/最少 16 半音/整数 MIDI 刻度，以及加载、seek、loop、长无声时切换而乐句内不抖动。
+- `TC-PLV2-002` 覆盖像素桶 first/last/median、P10/P90、极值、窄视口、颤音、滑音、无声、丢帧、倒序和 80 ms 内 >6 半音断线；不得把异常平均成虚假直线，输出规模必须与像素宽度成正比。
+- `TC-PLV2-003` 覆盖无参考帧不评分/不折叠/未评分线型、专业模式视窗外 top/bottom overflow，以及历史参考保留到 NOW 左侧。
+- `TC-PLV2-004` 与 `TC-SES-002` 覆盖同音、±25/50/100、±1～3 八度、±600 平局，`absolute → octaveFolded → absolute` 可逆性，播放/seek/loop/保存期间不丢样本，coverage/valid frame/take 边界不变，最近 120 ms feedback 重放及历史 take 临时重算不回写。
+- `TC-A11Y-002` 覆盖 switch 位于“练习数据”右侧、默认开启、Tab/Space、ARIA checked、可见开/关、44 px、双语、dark/light、灰度、forced-colors、1024×720、150% 与歌词双列；Review 覆盖 session 模式标识和局部损坏。
+- `TC-PERF-005` 在 1,000 px、60 分钟有界样本集记录 lane model P50/P95/P99 和输出数量，P95 ≤4 ms；另复验 30–60 FPS、NFR-003 与 AudioWorklet/Worker 没有新增工作。
+- `TC-PIT-002` 分三层：合成正弦/谐波/颤音/滑音中位 ≤5 cents、P95 ≤20；Demucs + SwiftF0 合法真值 vocal stems 的 RPA50 ≥85%、中位 ≤30 cents、八度错误率 ≤5%；Windows 校准后硬件回环中位 ≤15 cents、P95 ≤35 cents。后两层不能用单元测试模拟结论。
+- M8 退出还要求发布构建视觉截图和至少一首真实歌曲人工验收；音频、stems、歌曲名、完整路径和私有截图不提交。
 
 ## 算法容限
 

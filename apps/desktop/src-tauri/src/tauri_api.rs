@@ -27,6 +27,10 @@ use crate::diagnostics::{
     DiagnosticBundle, DiagnosticContext, DiagnosticError, DiagnosticEvent, DiagnosticPreview,
     append_event, clear_logs, prepare_bundle, prune_logs, write_bundle,
 };
+use crate::lyrics_store::{
+    LyricsCandidatePreview, LyricsDocument, LyricsError, LyricsStatus, LyricsView, commit_document,
+    lyrics_status, parse_lrc, read_document, remove_document, update_offset,
+};
 use crate::model_manager::{
     ModelError, ModelInstallProgress, ModelStatus, install_model_controlled, model_catalog,
     model_statuses, remove_model as remove_model_asset,
@@ -213,6 +217,18 @@ impl From<SongStoreError> for ApiError {
     }
 }
 
+impl From<LyricsError> for ApiError {
+    fn from(value: LyricsError) -> Self {
+        Self {
+            code: value.code.to_owned(),
+            message_key: value.message_key.to_owned(),
+            retryable: value.retryable,
+            safe_details: value.safe_details,
+            diagnostic_id: value.diagnostic_id,
+        }
+    }
+}
+
 impl From<AnalysisStoreError> for ApiError {
     fn from(value: AnalysisStoreError) -> Self {
         Self {
@@ -280,6 +296,8 @@ pub struct RuntimeState {
     model_jobs: Arc<Mutex<HashMap<String, ModelJobControl>>>,
     pending_imports: Arc<Mutex<HashMap<String, PendingImport>>>,
     pending_deletes: Arc<Mutex<HashMap<String, PendingDelete>>>,
+    pending_lyrics: Arc<Mutex<HashMap<String, PendingLyrics>>>,
+    pending_lyrics_deletes: Arc<Mutex<HashMap<String, PendingLyricsDelete>>>,
     pending_diagnostics: Arc<Mutex<HashMap<String, PendingDiagnostic>>>,
     resources: ResourceRegistry,
     sink: EventSink,
@@ -299,6 +317,18 @@ struct PendingImport {
 
 struct PendingDelete {
     song_id: String,
+    expires_at: Instant,
+}
+
+struct PendingLyrics {
+    song_id: String,
+    document: LyricsDocument,
+    expires_at: Instant,
+}
+
+struct PendingLyricsDelete {
+    song_id: String,
+    lyric_id: String,
     expires_at: Instant,
 }
 
@@ -358,6 +388,8 @@ pub fn initialize(app: &AppHandle, resources: ResourceRegistry) -> Result<Runtim
         model_jobs: Arc::new(Mutex::new(HashMap::new())),
         pending_imports: Arc::new(Mutex::new(HashMap::new())),
         pending_deletes: Arc::new(Mutex::new(HashMap::new())),
+        pending_lyrics: Arc::new(Mutex::new(HashMap::new())),
+        pending_lyrics_deletes: Arc::new(Mutex::new(HashMap::new())),
         pending_diagnostics: Arc::new(Mutex::new(HashMap::new())),
         resources,
         sink,
@@ -405,6 +437,32 @@ pub struct SongRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConfirmLyricsImportRequest {
+    api_version: u32,
+    song_id: String,
+    candidate_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateLyricsOffsetRequest {
+    api_version: u32,
+    song_id: String,
+    lyric_id: String,
+    user_offset_ms: i64,
+    expected_revision: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveLyricsRequest {
+    api_version: u32,
+    song_id: String,
+    confirmation_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteSongRequest {
     api_version: u32,
     song_id: String,
@@ -445,12 +503,56 @@ pub struct DeleteSongResponse {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LyricsCandidate {
+    token: String,
+    #[serde(flatten)]
+    preview: LyricsCandidatePreview,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectLyricsResponse {
+    candidate: Option<LyricsCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmLyricsImportResponse {
+    lyrics: LyricsView,
+    deduplicated: bool,
+    replaced: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsResponse {
+    lyrics: LyricsView,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareRemoveLyricsResponse {
+    confirmation_token: String,
+    lyric_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoveLyricsResponse {
+    removed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PracticeAssetsResponse {
     song_id: String,
     analysis_id: String,
     instrumental_resource_url: String,
     reference_track: serde_json::Value,
     duration_ms: u64,
+    lyrics_status: LyricsStatus,
+    lyrics: Option<LyricsView>,
+    lyrics_error: Option<ApiError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -785,6 +887,217 @@ pub fn delete_song(
                 deleted: true,
                 reclaimed_bytes,
             })
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub async fn select_lyrics_file(
+    request: SongRequest,
+    app: AppHandle,
+    state: State<'_, RuntimeState>,
+) -> Result<CommandResult<SelectLyricsResponse>, ApiError> {
+    if request.api_version != 1 {
+        return Ok(CommandResult::unsupported());
+    }
+    let song = match get_song_data(&state.app_root, &request.song_id) {
+        Ok(song) => song,
+        Err(error) => return Ok(CommandResult::failure(error)),
+    };
+    let song_id = request.song_id;
+    let replacing = lyrics_status(&state.app_root, &song_id) != LyricsStatus::None;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let selected = app
+            .dialog()
+            .file()
+            .add_filter("LRC lyrics", &["lrc"])
+            .blocking_pick_file();
+        let Some(selected) = selected else {
+            return Ok(None);
+        };
+        let source_path = selected.into_path().map_err(|_| {
+            ApiError::new(
+                "LYRICS_SOURCE_UNREADABLE",
+                "lyrics.error.sourceUnreadable",
+                true,
+            )
+        })?;
+        let bytes = fs::read(source_path).map_err(|_| {
+            ApiError::new(
+                "LYRICS_SOURCE_UNREADABLE",
+                "lyrics.error.sourceUnreadable",
+                true,
+            )
+        })?;
+        parse_lrc(&song_id, song.duration_ms, &bytes, replacing)
+            .map(Some)
+            .map_err(ApiError::from)
+    })
+    .await;
+    Ok(match result {
+        Ok(Ok(Some((document, preview)))) => {
+            let token = new_job_id();
+            let mut pending = state
+                .pending_lyrics
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            pending.retain(|_, value| value.expires_at > Instant::now());
+            pending.insert(
+                token.clone(),
+                PendingLyrics {
+                    song_id: document.song_id.clone(),
+                    document,
+                    expires_at: Instant::now() + CAPABILITY_LIFETIME,
+                },
+            );
+            CommandResult::success(SelectLyricsResponse {
+                candidate: Some(LyricsCandidate { token, preview }),
+            })
+        }
+        Ok(Ok(None)) => CommandResult::success(SelectLyricsResponse { candidate: None }),
+        Ok(Err(error)) => CommandResult::failure(error),
+        Err(_) => CommandResult::failure(ApiError::new(
+            "LYRICS_INTERNAL",
+            "lyrics.error.internal",
+            true,
+        )),
+    })
+}
+
+#[tauri::command]
+pub fn confirm_lyrics_import(
+    request: ConfirmLyricsImportRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<ConfirmLyricsImportResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let document = {
+        let mut pending = state
+            .pending_lyrics
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        pending.retain(|_, value| value.expires_at > Instant::now());
+        pending
+            .get(&request.candidate_token)
+            .filter(|value| value.song_id == request.song_id)
+            .map(|value| value.document.clone())
+    };
+    let Some(document) = document else {
+        return CommandResult::failure(ApiError::new(
+            "LYRICS_CONFIRMATION_INVALID",
+            "lyrics.error.confirmationInvalid",
+            false,
+        ));
+    };
+    match commit_document(&state.app_root, &document) {
+        Ok((lyrics, deduplicated, replaced)) => {
+            state
+                .pending_lyrics
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .remove(&request.candidate_token);
+            CommandResult::success(ConfirmLyricsImportResponse {
+                lyrics,
+                deduplicated,
+                replaced,
+            })
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn update_lyrics_offset(
+    request: UpdateLyricsOffsetRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<LyricsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match update_offset(
+        &state.app_root,
+        &request.song_id,
+        &request.lyric_id,
+        request.user_offset_ms,
+        request.expected_revision,
+    ) {
+        Ok(lyrics) => CommandResult::success(LyricsResponse { lyrics }),
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn prepare_remove_lyrics(
+    request: SongRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<PrepareRemoveLyricsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    match read_document(&state.app_root, &request.song_id) {
+        Ok(document) => {
+            let confirmation_token = new_job_id();
+            let mut pending = state
+                .pending_lyrics_deletes
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            pending.retain(|_, value| value.expires_at > Instant::now());
+            pending.insert(
+                confirmation_token.clone(),
+                PendingLyricsDelete {
+                    song_id: request.song_id,
+                    lyric_id: document.lyric_id.clone(),
+                    expires_at: Instant::now() + CAPABILITY_LIFETIME,
+                },
+            );
+            CommandResult::success(PrepareRemoveLyricsResponse {
+                confirmation_token,
+                lyric_id: document.lyric_id,
+            })
+        }
+        Err(error) => CommandResult::failure(error),
+    }
+}
+
+#[tauri::command]
+pub fn remove_lyrics(
+    request: RemoveLyricsRequest,
+    state: State<'_, RuntimeState>,
+) -> CommandResult<RemoveLyricsResponse> {
+    if request.api_version != 1 {
+        return CommandResult::unsupported();
+    }
+    let valid = {
+        let mut pending = state
+            .pending_lyrics_deletes
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        pending.retain(|_, value| value.expires_at > Instant::now());
+        pending
+            .get(&request.confirmation_token)
+            .filter(|value| value.song_id == request.song_id)
+            .is_some_and(|value| {
+                read_document(&state.app_root, &request.song_id)
+                    .is_ok_and(|document| document.lyric_id == value.lyric_id)
+            })
+    };
+    if !valid {
+        return CommandResult::failure(ApiError::new(
+            "LYRICS_CONFIRMATION_INVALID",
+            "lyrics.error.confirmationInvalid",
+            false,
+        ));
+    }
+    match remove_document(&state.app_root, &request.song_id) {
+        Ok(()) => {
+            state
+                .pending_lyrics_deletes
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .remove(&request.confirmation_token);
+            CommandResult::success(RemoveLyricsResponse { removed: true })
         }
         Err(error) => CommandResult::failure(error),
     }
@@ -1393,6 +1706,22 @@ fn load_practice_assets(
     }
     let reference_track: serde_json::Value = serde_json::from_slice(&reference_bytes)
         .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let lyrics_status = lyrics_status(&state.app_root, song_id);
+    let (lyrics, lyrics_error) = match lyrics_status {
+        LyricsStatus::None => (None, None),
+        LyricsStatus::Ready => match read_document(&state.app_root, song_id) {
+            Ok(document) => (Some(LyricsView::from(&document)), None),
+            Err(error) => (None, Some(ApiError::from(error))),
+        },
+        LyricsStatus::Damaged => (
+            None,
+            Some(ApiError::new(
+                "LYRICS_DAMAGED",
+                "lyrics.error.damaged",
+                true,
+            )),
+        ),
+    };
     Ok(PracticeAssetsResponse {
         song_id: song_id.to_owned(),
         analysis_id,
@@ -1403,6 +1732,9 @@ fn load_practice_assets(
         ),
         reference_track,
         duration_ms: song.duration_ms,
+        lyrics_status,
+        lyrics,
+        lyrics_error,
     })
 }
 

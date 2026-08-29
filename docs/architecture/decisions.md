@@ -248,6 +248,31 @@
 - 被替代条目：替代 ADR-013 的生产分离模型、双 Python sidecar 与 Spleeter 工具契约；替代 ADR-020 中“当前 Spleeter/SwiftF0 是唯一 production-approved 组合”和对 Demucs 的笼统候选表述，不改变 exact artifact 审查与更大 bake-off 要求。
 - 相关需求/风险：FR-005/006/019、NFR-008/013/014/016/021、RISK-003/004/005/006/007/011/012/020/021。
 
+## ADR-022 — 本地 LRC 行级歌词资产与播放主时钟同步
+
+- 状态：Accepted
+- 日期：2026-08-28
+- 背景：用户已提供一份带行级时间标签的 Moth To A Flame LRC，希望应用负责解析、校准并在 Practice 右侧滚动显示。v0.2 首版需要避免引入 ASR/强制对齐模型、联网歌词源和新的实时线程。
+- 选项：把 TXT 与 vocals 送入新模型做强制对齐；仅支持已带时间标签的 LRC 并完全信任文件；由 Rust 解析用户 LRC、保存版本化本地副本，并允许在现有播放时钟上应用文件与用户全局偏移。
+- 决定：采用第三项。Rust 原生对话框只接受 `.lrc`，支持 UTF-8 与带 BOM 的 UTF-16 LE/BE，解析行级时间标签、常见 metadata、一个 `offset`、多前置时间戳与同刻多行；Enhanced LRC 的逐词标签只降级为行文本。`LyricsDocument v1` 保存在歌曲固定 `lyrics/lyrics.json`，包含解码后的源文本、source SHA-256、parser version、cue groups、source/user offsets 与 revision。Practice 直接以 `PlaybackSnapshot.positionMs` 二分当前 cue，不创建独立 timer 或逐帧 IPC。
+- 理由：用户资源已包含对齐信息；Rust 1.98 标准库足以严格解码三种编码，不新增生产依赖、模型、网络或 analyzer 路径。固定单 JSON 可复用现有原子写入，并让源文件移动后仍可使用、替换失败保留旧版本。
+- 影响：新增 FR-024..026/NFR-022、歌词 IPC/JSON schema、Library 管理动作和 Practice 双列布局；无歌词时旧 UI 不变。歌词文本被视为用户内容，不进入日志、诊断、Git、installer 或网络。M6 未完成的分发证据继续限制任何外部发布。
+- 被替代条目：扩展 ADR-008 的 v0.1 范围冻结到已获用户批准的 v0.2 M7；细化 ADR-004/006/016，不改变实时音频、评分或路径能力边界。
+- 相关需求/风险：FR-024/025/026、NFR-002/004/010/011/013/015/017/018/019/022、RISK-010/011/016/017/022/023。
+
+## ADR-023 — SVG Pitch Lane v2 与可逆八度折叠评分
+
+- 状态：Proposed
+- 日期：2026-08-29
+- 背景：M3 Pitch Lane 能表达参考、当前与最近 take，但固定全局范围和简单抽样会在真实歌曲音域、颤音、滑音、短暂异常和八度误检中降低可读性；仅在视觉上移动八度又会造成曲线、反馈与 session 指标相互矛盾。
+- 选项：继续固定纵轴并只改变视觉；引入新的 Canvas/WebGL 图表依赖；保留 SVG，以参考轨索引、稳定乐句刻度、像素桶统计和可逆评分模式升级现有模型。
+- 决定：采用第三项。窗口保持 8 秒、NOW 保持 20%；参考轨预索引并二分截取，至少 1,000 ms 无声划分乐句，乐句内整数 MIDI 纵轴固定、上下各留 2 个半音且至少 16 个半音。目标绘制中心线、±25/50 cents 两级通道；半音/C 网格、P10/P90 包络、first/last/median、极值、断线与 overflow 保留异常形态。Practice 默认 `absolute`，用户可在当前页面切到 `octaveFolded`；关闭时选择使绝对 cents 最小的整数八度偏移，±600 cents 保持原方向，无参考时不折叠或评分。
+- 决定（数据）：`PracticeSession.schemaVersion` 仍为 1，新写入 `scoringVersion=1.1.0` 并携带 `pitchEvaluationMode`；每个 observation 同时保存不可变 `absoluteSignedCents` 和当前模式的 `signedCents`。1.0 reader 默认 `absolute` 并从旧 `signedCents` 补足绝对误差，但不批量改写文件。切换模式从绝对误差重算当前 session 与最近 120 ms feedback，不改变 take、coverage 或 valid frame count；最近历史 take 只临时重算。
+- 理由：SVG 已满足当前 1,000 px/30–60 FPS 目标且可直接保留语义标记；预索引和像素桶使成本与视口而非全曲样本数相关。评分模式成为单一事实源，可防止“看起来正确但分数错误”。该设计只借鉴开源 K 歌工具公开展示的行为，不复制 GPL 代码，也不新增许可证面。
+- 影响：新增 FR-027/NFR-023、scoring 1.1 契约、Practice switch、Review 模式标识和 M8 精度/性能证据；任何依赖 1.0 常量的读端必须兼容两个版本。真实 vocal-stem 与硬件回环阈值完成前保持 Proposed，不能作为已通过的精度声明。
+- 被替代条目：细化 ADR-012 的 Pitch Lane/评分呈现及 ADR-017 的 session 契约，不改变 ADR-004 的 AudioContext 时基、ADR-011 的实时 F0 链路或 ADR-022 的歌词同步边界。
+- 相关需求/风险：FR-012/013/016/017/018/027、NFR-003/005/006/017/019/020/023、RISK-015/017/024/025。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。

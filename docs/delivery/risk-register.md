@@ -35,6 +35,10 @@
 | RISK-019 | M2 硬件覆盖有限且长时 working set 余量小 | Medium | High | Desktop Audio/QA | USB/48 kHz 完整路径、切换、unplug/replug、permission allow/deny、离页归零、NFR-003/006/007 已有独立证据；当前环境无 built-in/Bluetooth/44.1 kHz 实机；M2 soak working set P95 743.129 MiB | M6 受控 25-loop 自动测试保持单 active source 且 dispose 归零，匿名 30 分钟 release collector 已验证；真实 30 分钟/设备/采样率矩阵仍阻止 M6 退出 | M6 | Accepted |
 | RISK-020 | 当前开发主机无法证明 sidecar/安装包在独立干净 Windows 11 上不依赖开发环境且不被 Defender 拦截 | High | High | Analyzer/Release/Delivery | 首次准备向朋友提供内测包或进入 M6 release candidate | 可搬运 10-file hash package 与 standalone PowerShell gate 已在 diagnostic host 演练：首装/重装、1,066 文件扫描、启动、零应用 endpoint、真实分析、三 artifact hash、卸载/用户数据保留均通过；package 因 dirty、在线、有开发工具且跳过 Defender 明确 gate=false，独立 clean Win11 仍是硬门禁 | 首次外部内测/M6 | Accepted |
 | RISK-021 | 分离产物语义退化或低质量/多次转码输入被码率标签掩盖 | High | High | Analyzer/QA/Delivery | 两 stem 字节/PCM 相同、都近似原混音，或输入声称 320 kbps 但存在明显硬频带截止/重编码迹象 | TC-AN-005 已在缓存提交前拒绝 collapsed stems；两首指定输入通过非塌缩/重构/F0 覆盖门禁；输入继续按 A/B/C 分层，并保留 20 首、6–8 首真值 stems、三次运行验收 | M6 | Mitigating |
+| RISK-022 | 用户提供的歌词版权内容进入 Git、诊断、安装包或网络 | Low | Critical | Privacy/Compliance/Desktop | 日志/diagnostic/SBOM 出现歌词文本或应用自动请求歌词源 | 只接受用户原生选择的本地 LRC；固定歌曲目录原子存储；无搜索/上传；日志与诊断禁歌词字段扫描；真实 LRC 保持 Git ignored | M7 | Mitigating |
+| RISK-023 | LRC 与歌曲错配、offset 方言或 cue 错误造成歌词误跟随 | Medium | High | Product/Desktop QA | 预览标题/时长异常、全部 cue 越界、真实播放持续提前/滞后 | 显式预览确认、严格方言、source/user offset 分离、±30 秒校准、同刻合组、受控时钟测试和 Moth To A Flame 真实播放验收 | M7 | Mitigating |
+| RISK-024 | 八度折叠掩盖真实声区错误，或视觉、反馈与持久指标使用不同误差 | Medium | High | Scoring/Desktop QA | 关闭专业模式后成绩提高但 raw 值丢失、模式往返不一致、Review 无法解释评分方式 | 始终保存 absolute error；单一 mode 驱动曲线/反馈/指标；1.1 契约显式 mode；1.0 只读归一；可逆性/边界/真实歌曲测试；Review 显示模式 | M8 | Mitigating |
+| RISK-025 | 既有实时 F0 长窗口在快速颤音上达不到 M8 合成精度门槛 | High | High | Audio/QA | 5.5 Hz、±35 cents fixture 的 median absolute error >5 cents | 当前实测与脚本保持失败；profile 窗口估计/时间对齐/平滑，任何调整复验 NFR-003/006/007、静音/噪声/低频与硬件；不得通过降低颤音或放宽阈值消除失败 | M8 | Materialized |
 
 ## 风险更新规则
 
@@ -72,6 +76,16 @@ M5 已对 RISK-010 增加导入复制中断、空间重检、分析失败/取消
 
 真实打包烟测发现并修复了两个已物化问题：Windows verbatim path 与普通 canonical root 表示不一致导致 analyzer `input_escape`，以及 WebView2 自定义协议映射未用于媒体 URL。修复后同一 Unicode/空格 WAV 可从失败重试至 ready，并在 Practice 完整播放。用户于 2026-08-26 确认物理断网播放通过并明确批准 M5；M5 gate 已通过，M6 可开始。RISK-018 的系统 WebView2 诊断连接解释和 RISK-020 的首次外部内测/M6 clean-host 限制不变。
 
-## M6 进行中风险结论
+## M6 风险结论
 
-开发主机的 session/settings/diagnostics 故障测试、NSIS 安装/重装/卸载、供应链产物和隐私捕获已降低 RISK-009/010/011/018/020 的实现不确定性，但没有替代独立 clean-host 与真实硬件。退出审计发现并修复了固定默认输出 fingerprint 和过早应用校准导致设备变化后复用旧延迟的问题；现在只有实际 input/output fingerprint 与共享采样率完全命中才应用，否则回退 `none/0`。Standalone 演练还发现并修复了旧 TensorFlow/Keras 在缺失环境变量时向安装目录写状态的问题。M6 真实歌曲发现相同 stems 后，ADR-021 已以 exact MIT HTDemucs spectral-core 替换 Spleeter，并在 manifest 前增加语义拒绝；用户指定的两首完整歌曲均通过非塌缩、重构与参考 F0 覆盖初验，RISK-004/021 从 Materialized 转为 Mitigating。20 首歌曲 bake-off、新模型性能/取消/打包/断网、RISK-019 的真实设备矩阵及 RISK-020 的 clean Windows 11/Defender 仍未到证据终态。当前 unsigned dirty 构建明确不可分发，M6 gate 未批准。
+开发主机的 session/settings/diagnostics 故障测试、NSIS 安装/重装/卸载、供应链产物和隐私捕获已降低 RISK-009/010/011/018/020 的实现不确定性，但没有替代独立 clean-host 与真实硬件。退出审计发现并修复了固定默认输出 fingerprint 和过早应用校准导致设备变化后复用旧延迟的问题；现在只有实际 input/output fingerprint 与共享采样率完全命中才应用，否则回退 `none/0`。Standalone 演练还发现并修复了旧 TensorFlow/Keras 在缺失环境变量时向安装目录写状态的问题。M6 真实歌曲发现相同 stems 后，ADR-021 已以 exact MIT HTDemucs spectral-core 替换 Spleeter，并在 manifest 前增加语义拒绝；用户指定的两首完整歌曲均通过非塌缩、重构与参考 F0 覆盖初验，RISK-004/021 从 Materialized 转为 Mitigating。用户于 2026-08-28 明确批准 M6 门禁以进入本机 v0.2 开发，并接受 20 首 bake-off、新模型性能/取消/打包/断网、RISK-019 真实设备矩阵及 RISK-020 clean Windows 11/Defender 继续开放；当前 unsigned dirty 构建仍明确不可分发。
+
+## M7 风险结论
+
+歌词只来自用户主动选择的本地文件，解析和保存均在 Rust 固定根完成，不引入模型、依赖或网络。RISK-022 以日志/诊断禁字段与真实资源不入 Git 控制；RISK-023 以导入预览、可恢复全局 offset、单时钟 cue lookup 和用户提供的 Moth To A Flame 实播作为门禁。
+
+2026-08-28 的 release executable 验收确认：私有 LRC 导入后为 72 个 cue group；点击 `0:15` cue 后，高亮和独立滚动容器随播放推进至 `0:23`、`0:29` 切换。用户预先定义的歌词跟随通过条件已满足。错误 LRC 方言、歌曲错配和真实长时资源预算仍按 RISK-022/023 持续缓解，不把单曲验收外推为任意 LRC 都正确。
+
+## M8 风险结论
+
+M8 以不可变 `absoluteSignedCents`、显式 session mode 和单一重算路径缓解 RISK-024；SVG 预索引和像素桶限制绘制成本，避免把全曲样本直接送入 DOM。确定性合成矩阵已物化 RISK-025：正弦、谐波和滑音通过，但 5.5 Hz/±35 cents 颤音 median 7.8459 cents，高于 5 cents 门槛；该失败必须在不破坏既有实时边界的前提下解决。ADR-023 在该失败、合法 vocal-stem、校准硬件回环、发布视觉截图与真实歌曲人工验收完成前保持 Proposed。自动契约、坐标或性能通过不能被外推为检测算法已经达到 NFR-023 的三层精度，也不能自行关闭 M8 门禁。

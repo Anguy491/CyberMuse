@@ -156,6 +156,7 @@ function AppContent({
           initialLoop={practice.initialLoop}
           sessionService={sessionService}
           settingsService={settingsService}
+          songService={songService}
           songTitle={practice.song.displayName}
           onLeaveWithoutSession={() => setPage("library")}
           onSessionSaved={(session) => {

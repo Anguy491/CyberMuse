@@ -23,7 +23,9 @@ function sample(cents: number, timeMs: number): ScoredPitchSample {
     userHz: frame.hz * 2 ** (cents / 1_200),
     referenceHz: frame.hz,
     userMidi: frame.midi + cents / 100,
+    evaluatedUserMidi: frame.midi + cents / 100,
     referenceMidi: frame.midi,
+    absoluteSignedCents: cents,
     signedCents: cents,
     confidence: 1,
   };

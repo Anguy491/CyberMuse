@@ -228,6 +228,18 @@ interface PitchObservation extends PitchFrame {
   droppedWindows: number;
 }
 
+type PitchEvaluationMode = "absolute" | "octaveFolded";
+
+interface SessionPitchSample {
+  timeMs: number;
+  userMidi: number;
+  referenceMidi: number;
+  absoluteSignedCents: number;
+  signedCents: number;
+  confidence: number;
+  voiced: true;
+}
+
 interface SessionMetrics {
   pitchAccuracy: number | null;   // 0..100
   medianAbsoluteErrorCents: number | null;
@@ -248,7 +260,8 @@ interface PracticeTake {
 
 interface PracticeSession {
   schemaVersion: 1;
-  scoringVersion: "1.0.0";
+  scoringVersion: "1.0.0" | "1.1.0";
+  pitchEvaluationMode: PitchEvaluationMode;
   sessionId: string;
   songId: string;
   analysisId: string;
@@ -269,9 +282,9 @@ interface SessionUnavailableRange {
 }
 ```
 
-`SessionPitchSample` 是持久化的有界子集：`timeMs`、user/reference MIDI、signed cents、confidence、voiced。它不保存 `contextTimeMs`、RMS 全序列或 PCM。
+`SessionPitchSample` 是持久化的有界子集：`timeMs`、user/reference MIDI、不可变的 `absoluteSignedCents`、最终评分使用的 `signedCents`、confidence、voiced。它不保存 `contextTimeMs`、RMS 全序列或 PCM。新写入固定 `scoringVersion=1.1.0` 并要求 `pitchEvaluationMode` 与每个 observation 的 `absoluteSignedCents`；`absolute` 下两种 cents 相同，`octaveFolded` 下 `signedCents` 是整数八度折叠后的误差。旧 `1.0.0` 文件没有新增字段，读取时只在内存中默认 `pitchEvaluationMode=absolute` 并以旧 `signedCents` 补足 `absoluteSignedCents`，不得批量改写历史文件。
 
-`PracticeSession` 单文件最多 16 MiB、60 分钟和 180,000 个有效 observation；保存路径要求 `metrics.validFrameCount` 等于所有 take 的持久化 observation 总数。保存时 Rust 重新验证 `songId`、当前 `analysisId`、设备指纹、时间范围、有限数值和 take ID 唯一性；同 `sessionId` 的相同内容可幂等重试，不同内容冲突。session 成功原子提交后才更新歌曲 `lastPracticeAt`，索引更新失败则移除刚写入的 session，避免悬空记录。Review 读取另有显式降级路径：主结构与已存整体指标仍合法时，逐项丢弃损坏 observation/take observations，并返回 `SessionUnavailableRange[]`；因此降级响应中的已存 `validFrameCount` 可大于本次可绘制 observation 数，UI 必须同时展示不可用范围提示。
+`PracticeSession` 单文件最多 16 MiB、60 分钟和 180,000 个有效 observation；保存路径要求 `metrics.validFrameCount` 等于所有 take 的持久化 observation 总数。保存时 Rust 重新验证 scoring version/mode、`songId`、当前 `analysisId`、设备指纹、时间范围、有限数值和 take ID 唯一性；1.1 observation 缺少绝对误差或模式非法必须拒绝。同 `sessionId` 的相同内容可幂等重试，不同内容冲突。session 成功原子提交后才更新歌曲 `lastPracticeAt`，索引更新失败则移除刚写入的 session，避免悬空记录。Review 读取另有显式降级路径：主结构与已存整体指标仍合法时，逐项丢弃损坏 observation/take observations，并返回 `SessionUnavailableRange[]`；因此降级响应中的已存 `validFrameCount` 可大于本次可绘制 observation 数，UI 必须同时展示不可用范围提示。`SessionSummary` 必须携带 `pitchEvaluationMode`，Review 用其解释已存指标。
 
 ```ts
 interface LatencyCalibration {
@@ -315,6 +328,42 @@ interface StorageOverview {
 ```
 
 `StorageOverview` 是按需计算的只读快照，不持久化。Rust 只扫描应用控制的固定目录，跳过 symbolic link、junction 和 reparse point，不接受页面路径，也不返回完整路径。`itemCount` 是每个分类固定根下的直接项目数，`bytes` 包含该项目的受限递归内容；缺失目录计为零。
+
+M7 新增歌曲级歌词资产：
+
+```ts
+type LyricsEncoding = "utf-8" | "utf-16le" | "utf-16be";
+type LyricsStatus = "none" | "ready" | "damaged";
+
+interface LyricsCue {
+  timestampMs: number;           // LRC 原始非负整数时间；尚未应用 offset
+  lines: string[];               // 同刻多行，按源文件顺序；空数组表示清空显示
+}
+
+interface LyricsDocument {
+  schemaVersion: 1;
+  revision: number;
+  lyricId: string;               // 原始文件 bytes 的 lowercase SHA-256
+  songId: string;
+  parserVersion: "lrc-line-v1";
+  importedAt: string;
+  sourceEncoding: LyricsEncoding;
+  sourceSha256: string;
+  sourceText: string;             // 严格解码并统一为 LF 的本地副本
+  sourceOffsetMs: number;         // -30000..30000；正数使歌词延后
+  userOffsetMs: number;           // -30000..30000；正数使歌词延后
+  metadata: {
+    title: string | null;
+    artist: string | null;
+    album: string | null;
+    author: string | null;
+    creator: string | null;
+  };
+  cues: LyricsCue[];              // timestampMs 升序、无重复 timestamp
+}
+```
+
+歌词固定保存在 `<songRoot>/lyrics/lyrics.json`，不进入 analysisId/cache 指纹，也不改变 `Song.status`。有效 cue 时间为 `timestampMs + sourceOffsetMs + userOffsetMs`；播放位置选择有效时间不大于当前位置的最后一个 cue，下一有效时间结束当前 cue。歌词文件缺失或损坏只产生独立 `LyricsStatus=damaged`，不得让可练习歌曲失效。`sourceText` 不通过 Practice IPC 返回，不进入日志或诊断。
 
 诊断导出是单个版本化 JSON 文件：
 
@@ -386,7 +435,9 @@ interface AnalyzerWarning {
 - `stability = clamp(100 - 2 * MAD(cents - localMedian), 0, 100)`，MAD 使用 cents。
 - `coverage = 100 * validMatchedDurationMs / referenceVoicedDurationMs`，无参考声段时为 0。
 
-M3 可通过 ADR 调整稳定性缩放，但不得改变指标名称含义；任何算法变化必须提升 `scoringVersion`，历史 session 保留其原版本。
+所有指标都使用 session 当前 `pitchEvaluationMode` 的 `signedCents`；模式切换只重算有匹配参考的误差派生指标，不改变 observation 数、take 边界、有效匹配时长或 coverage。无参考 observation 不进入指标。
+
+M3 之后可通过 ADR 调整稳定性缩放，但不得改变指标名称含义；任何算法变化必须提升 `scoringVersion`，历史 session 保留其原版本。M8 的 1.1 只增加明确的 evaluation mode 和绝对误差来源，1.0 指标仍按绝对模式解释。
 
 ## 状态一致性
 
@@ -394,4 +445,5 @@ M3 可通过 ADR 调整稳定性缩放，但不得改变指标名称含义；任
 - `analyzing` 要求存在非终态 job。
 - `deleting` 只在用户提供与 `songId` 绑定的五分钟确认能力后出现；部分删除失败转为 `damaged` 并保留可重试元数据。
 - 删除歌曲级联删除 job、analysis 和 session；模型是共享资产，不级联删除。
+- 删除歌曲同时删除歌词；单独移除歌词不改变歌曲、analysis 或 session。
 - session 引用的 analysis 在 session 存在期间不得自动清理。

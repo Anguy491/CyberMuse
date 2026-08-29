@@ -150,6 +150,10 @@ class FakePlayback implements PlaybackEnginePort {
     });
   }
 
+  end(positionMs = 12_000): void {
+    this.emit({ ...this.snapshot, status: "ended", positionMs });
+  }
+
   private emit(snapshot: PlaybackEngineSnapshot): void {
     this.snapshot = snapshot;
     this.listener?.(snapshot);
@@ -231,7 +235,7 @@ describe("M3 Practice controller integration", () => {
     expect(
       controller.getSnapshot().currentTakeMetrics.signedMedianErrorCents,
     ).toBeCloseTo(-40, 8);
-    expect(controller.getLaneData()?.nowX).toBe(380);
+    expect(controller.getLaneData()?.nowX).toBe(200);
   });
 
   it("TC-SET-001 restores the saved input and reports the actual runtime identity", async () => {
@@ -309,6 +313,57 @@ describe("M3 Practice controller integration", () => {
     expect(controller.getSnapshot().micStatus).toBe("permission_denied");
   });
 
+  it("re-scores the active session reversibly when professional mode changes", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(1_000, -1_200),
+    });
+    const takeId = controller.getSnapshot().currentTakeId;
+    expect(controller.getSnapshot().feedback?.signedCents).toBeCloseTo(
+      -1_200,
+      6,
+    );
+
+    controller.setPitchEvaluationMode("octaveFolded");
+    expect(controller.getSnapshot()).toMatchObject({
+      currentTakeId: takeId,
+      pitchEvaluationMode: "octaveFolded",
+      feedback: { signedCents: 0, evaluatedUserMidi: 57 },
+      currentTakeMetrics: { pitchAccuracy: 100, validFrameCount: 1 },
+    });
+
+    controller.setPitchEvaluationMode("absolute");
+    expect(controller.getSnapshot()).toMatchObject({
+      currentTakeId: takeId,
+      pitchEvaluationMode: "absolute",
+      feedback: { signedCents: -1_200 },
+      currentTakeMetrics: {
+        pitchAccuracy: 0,
+        medianAbsoluteErrorCents: 1_200,
+        validFrameCount: 1,
+      },
+    });
+
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(500, 0),
+    });
+    expect(controller.getSnapshot().observationState).toBe("no_reference");
+    controller.setPitchEvaluationMode("octaveFolded");
+    expect(controller.getSnapshot().feedback).toBeNull();
+  });
+
   it("pauses a scored take after device loss but keeps preview recoverable", async () => {
     const playback = new FakePlayback();
     const input = new FakeInput();
@@ -366,6 +421,58 @@ describe("M3 Practice controller integration", () => {
     );
   });
 
+  it("restores a partial saved take and finalizes a scored take at song end", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+    });
+    await controller.loadFixture();
+    controller.restorePreviousTake({
+      takeId: "take-saved",
+      loopRegion: null,
+      startedAtSongTimeMs: 2_000,
+      endedAtSongTimeMs: 4_000,
+      observations: [
+        {
+          timeMs: 3_000,
+          userMidi: 57,
+          referenceMidi: 57,
+          absoluteSignedCents: 0,
+          signedCents: 0,
+          confidence: 1,
+          voiced: true,
+        },
+      ],
+      metrics: {
+        pitchAccuracy: 100,
+        medianAbsoluteErrorCents: 0,
+        signedMedianErrorCents: 0,
+        stability: 100,
+        coverage: 50,
+        validFrameCount: 1,
+      },
+    });
+    expect(controller.getSnapshot().previousTakeMetrics.validFrameCount).toBe(
+      1,
+    );
+
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(6_000),
+    });
+    playback.end(7_000);
+
+    expect(controller.getSnapshot().currentTakeId).toBeNull();
+    expect(controller.getSnapshot().previousTakeMetrics.validFrameCount).toBe(
+      1,
+    );
+  });
+
   it("TC-SES-001 finalizes a versioned session and applies calibrated alignment", async () => {
     const playback = new FakePlayback();
     const input = new FakeInput();
@@ -390,6 +497,9 @@ describe("M3 Practice controller integration", () => {
           })),
         },
         durationMs: PRACTICE_FIXTURE_V1.referenceTrack.durationMs,
+        lyricsStatus: "none",
+        lyrics: null,
+        lyricsError: null,
       },
       "测试歌曲",
     );
@@ -410,7 +520,8 @@ describe("M3 Practice controller integration", () => {
     const session = controller.finalizeSession();
     expect(session).toMatchObject({
       schemaVersion: 1,
-      scoringVersion: "1.0.0",
+      scoringVersion: "1.1.0",
+      pitchEvaluationMode: "absolute",
       sessionId: "00000000-0000-4000-8000-000000000010",
       songId: "a".repeat(64),
       analysisId: "b".repeat(32),

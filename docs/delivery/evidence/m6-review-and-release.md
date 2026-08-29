@@ -2,8 +2,8 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | In progress；未通过人工门禁，不可分发 |
-| 日期 | 2026-08-27 |
+| 状态 | 用户已批准进入本机 v0.2 开发；剩余发布风险接受；不可分发 |
+| 日期 | 2026-08-28 |
 | 责任域 | sessions、Review、calibration、settings、i18n、storage、diagnostics、Windows release |
 | 需求依据 | FR-005/006/019、FR-015、FR-017、FR-018、FR-020..023；NFR-001/008、NFR-012..017、NFR-019..021 |
 | 候选 commit | `ade2198886aae3b0bb35bbe400db983f27bcdbe1`（构建时工作树 dirty） |
@@ -83,7 +83,7 @@
 
 10 秒、100 ms 间隔的 app+descendants 捕获没有应用控制的外部端点。系统 `msedgewebview2` 出现 TCP `Bound`、`SynSent`、`Established` 类别；按用户已接受的 RISK-018，这属于系统 WebView2 平台诊断边界，不能扩展为允许 CyberMuse 遥测或数据上传。捕获只保留进程类别、协议和状态，不保留 endpoint address。测试安装被卸载，原有非日志用户文件不变，诊断日志恢复到捕获前字节。
 
-## 尚未满足的 M6 硬门禁
+## 用户批准时仍未满足的 M6 发布证据
 
 1. 在独立干净 Windows 11 x64 主机/VM 从锁文件构建，并在没有 Python/Rust/uv PATH、Defender 开启条件下完成扫描、安装、启动、断网 Practice、Review 与卸载；RISK-020/NFR-001/NFR-021 仍未满足。
 2. 对 release candidate 运行 30 分钟 Practice、至少 25 次 loop 的实机 soak，记录 CPU/RAM P95、underrun、资源计数和可取得的 44.1/48 kHz、built-in/USB/Bluetooth 匿名矩阵；RISK-019/NFR-012 仍未满足。
@@ -92,6 +92,6 @@
 5. TC-AN-005 的 collapsed/identical stem 结构化失败已实现；仍需在桌面 UI 验证旧坏 cache 的失效/重新分析恢复路径，并完成参考 F0 人声/非人声段的人工语义矩阵。
 6. 依 ADR-020/TC-MOD-002 完成其余 6 首候选筛选，再对每类最多 3 个 finalist（含当前 HTDemucs 基线）执行 20 首本地私有真实歌曲、6–8 首真值 stems、每首三次的匿名 bake-off；只用 A 级输入决定模型质量，B/C 级只做兼容/鲁棒性证据。
 7. 完成 system/中文/English、dark/light 原生下拉展开态、100%/150%、1024×720/1280×800、键盘、灰度、forced-colors、reduced-motion 和真实歌曲反馈语义的人工矩阵。
-8. 在全部 Must/NFR、风险和证据通过后，由用户决定 M6 gate；是否签名或外部发布需要另行明确授权。
+8. 是否签名或外部发布需要另行明确授权。
 
-因此当前结论是“M6 主体本地实现、Demucs 两歌初验和开发主机自动验证已有证据，完整模型 bake-off、性能/打包复验与外部硬门禁待执行”，不是“M6 完成”或“v0.1 可发布”。
+2026-08-28 用户明确批准 M6 门禁并授权开始歌词实现。该批准用于进入本机 v0.2 M7 开发，并接受上述缺口继续作为已知风险；它不改变这些测试的实际结果，也不授权把当前 unsigned/dirty 构建称为 release candidate 或向外分发。当前准确结论是“M6 人工开发门禁已批准，发布证据与外部分发门禁仍开放”。

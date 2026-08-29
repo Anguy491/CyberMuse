@@ -51,10 +51,14 @@
 - [M4 Offline Analyzer 证据](delivery/evidence/m4-offline-analyzer.md)
 - [M5 Import-to-Practice 证据](delivery/evidence/m5-import-to-practice.md)
 - [M6 Review and Windows Release 进行中证据](delivery/evidence/m6-review-and-release.md)
+- [M7 User-supplied LRC Lyrics 证据](delivery/evidence/m7-lrc-lyrics.md)
+- [M8 Pitch Lane v2 与专业模式证据](delivery/evidence/m8-pitch-lane-v2.md)
 - [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
 - [M1–M5 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)
 - [M4 Analyzer JSON Schemas v1](../schemas/analyzer-request.schema.json)
+- [Lyrics JSON Schema v1](../schemas/lyrics.schema.json)
+- [Practice Session JSON Schema v1 / scoring 1.0–1.1](../schemas/practice-session.schema.json)
 
 ## 事实源规则
 

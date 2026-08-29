@@ -124,12 +124,92 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
 
   it("keeps M3 Pitch Lane semantics independent of color and CSS timing", async () => {
     const css = await readFile(stylesheetPath, "utf8");
-    expect(css).toMatch(/\.now-line[\s\S]*left: 38%/);
+    const laneModel = await readFile(
+      resolve("apps/desktop/src/practice/pitch-lane-model.ts"),
+      "utf8",
+    );
+    expect(laneModel).toMatch(/const NOW_RATIO = 0\.2/);
     expect(css).toMatch(/\.reference-line[\s\S]*stroke-dasharray: 10 8/);
     expect(css).toMatch(/\.previous-take-line[\s\S]*stroke-dasharray: 3 7/);
     expect(css).toMatch(/\.user-line[\s\S]*stroke-width: 3/);
     expect(css).not.toMatch(
       /\.(?:reference-line|user-line|previous-take-line|now-line)\s*\{[^}]*transition:/,
+    );
+  });
+
+  it("keeps the M8 mode switch keyboard-sized and visible in forced colors", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(/\.practice-mode-toggle\s*\{[^}]*min-height:\s*44px/s);
+    expect(css).toMatch(
+      /\.practice-mode-toggle:focus-within\s*\{[^}]*outline:/s,
+    );
+    expect(css).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*\.practice-mode-toggle,[\s\S]*border-color:\s*CanvasText/s,
+    );
+    expect(css).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*\.practice-mode-toggle i,[\s\S]*forced-color-adjust:\s*auto/s,
+    );
+  });
+
+  it("anchors the on-demand Pitch Lane legend to the feedback row", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(
+      /\.practice-feedback-row\s*\{[^}]*justify-content:\s*space-between/s,
+    );
+    expect(css).toMatch(
+      /\.pitch-legend-control\s*\{[^}]*position:\s*relative/s,
+    );
+    expect(css).toMatch(
+      /\.pitch-legend-panel\s*\{[^}]*position:\s*absolute[^}]*left:\s*0/s,
+    );
+    expect(css).toMatch(
+      /\.pitch-legend-panel\[hidden\]\s*\{[^}]*display:\s*none/s,
+    );
+  });
+
+  it("keeps the Practice main column compact beside lyrics", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(
+      /\.practice-main-column\s*\{[^}]*display:\s*grid[^}]*align-content:\s*start/s,
+    );
+    expect(css).not.toContain("grid-template-areas:");
+    expect(css).toMatch(/\.practice-primary\s*\{[^}]*padding-bottom:\s*0/s);
+    expect(css).toMatch(
+      /\.practice-secondary\s*\{[^}]*align-content:\s*start[^}]*gap:\s*12px[^}]*padding-top:\s*12px/s,
+    );
+    expect(css).toMatch(
+      /\.pitch-lane-shell\s*\{[^}]*min-height:\s*280px[^}]*margin:\s*16px 0 0/s,
+    );
+  });
+
+  it("keeps lyrics scrollable without a visible scrollbar", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(
+      /\.practice-page--with-lyrics\s*\{[^}]*height:\s*calc\(100dvh - 104px\)[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/s,
+    );
+    expect(css).toMatch(
+      /\.lyrics-panel\s*\{[^}]*height:\s*100%[^}]*max-height:\s*920px/s,
+    );
+    expect(css).toMatch(
+      /\.lyrics-scroll\s*\{[^}]*flex:\s*1 1 0[^}]*min-height:\s*0[^}]*overflow-y:\s*auto[^}]*scrollbar-width:\s*none/s,
+    );
+    expect(css).toMatch(
+      /\.lyrics-panel__header,[\s\S]*\.lyrics-panel__controls\s*\{[^}]*flex:\s*0 0 auto/s,
+    );
+    expect(css).toMatch(
+      /\.lyrics-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*none/s,
+    );
+    expect(css).toMatch(/\.lyrics-scroll:focus-visible\s*\{[^}]*outline:/s);
+    expect(css).not.toContain("scrollbar-gutter: stable");
+  });
+
+  it("centers modal practice decisions without transient treatments", async () => {
+    const css = await readFile(stylesheetPath, "utf8");
+    expect(css).toMatch(
+      /\.practice-modal-backdrop\s*\{[^}]*position:\s*fixed[^}]*place-items:\s*center/s,
+    );
+    expect(css).toMatch(
+      /\.practice-empty-session-dialog\s*\{[^}]*display:\s*grid/s,
     );
   });
 

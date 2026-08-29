@@ -6,7 +6,8 @@ import { buildReviewErrorIntervals, reviewBiasResult } from "./review-model";
 function session(): PracticeSession {
   return {
     schemaVersion: 1,
-    scoringVersion: "1.0.0",
+    scoringVersion: "1.1.0",
+    pitchEvaluationMode: "absolute",
     sessionId: "00000000-0000-4000-8000-000000000020",
     songId: "a".repeat(64),
     analysisId: "b".repeat(32),
@@ -27,6 +28,7 @@ function session(): PracticeSession {
             timeMs: 1_000,
             userMidi: 69.6,
             referenceMidi: 69,
+            absoluteSignedCents: 60,
             signedCents: 60,
             confidence: 1,
             voiced: true,
@@ -35,6 +37,7 @@ function session(): PracticeSession {
             timeMs: 1_100,
             userMidi: 69.7,
             referenceMidi: 69,
+            absoluteSignedCents: 70,
             signedCents: 70,
             confidence: 1,
             voiced: true,
@@ -43,6 +46,7 @@ function session(): PracticeSession {
             timeMs: 4_000,
             userMidi: 68.2,
             referenceMidi: 69,
+            absoluteSignedCents: -80,
             signedCents: -80,
             confidence: 1,
             voiced: true,

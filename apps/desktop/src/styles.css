@@ -231,8 +231,7 @@ select {
 .eyebrow,
 .technical-label,
 .milestone-note,
-.page-state__label,
-.metric-placeholder span {
+.page-state__label {
   font-family: var(--font-data);
   font-size: 12px;
   font-weight: 600;
@@ -418,6 +417,23 @@ select {
   line-height: 1.5;
 }
 
+.lyrics-confirmation__sample {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 16px;
+  border-left: 2px solid var(--color-signal);
+  color: var(--color-text-display);
+}
+
+.lyrics-confirmation__sample span {
+  display: block;
+}
+
+.lyrics-confirmation__warning {
+  color: var(--color-status-warning);
+}
+
 .import-confirmation dl,
 .song-row__metadata {
   display: grid;
@@ -538,39 +554,286 @@ select {
 }
 
 .practice-page {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
+}
+
+.practice-page__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--color-border-visible);
+}
+
+.practice-page__header h1 {
+  max-width: 920px;
+  margin: 0;
+  color: var(--color-text-display);
+  font-size: clamp(34px, 4vw, 52px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.practice-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.practice-exit svg,
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.7;
+}
+
+.practice-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.practice-main-column {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.practice-page--with-lyrics {
+  width: min(100%, 1480px);
+  height: calc(100vh - 104px);
+  height: calc(100dvh - 104px);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.practice-page--with-lyrics .practice-workspace {
+  grid-template-columns: minmax(520px, 1fr) minmax(300px, 400px);
+  align-items: start;
+  min-height: 0;
+  column-gap: 40px;
+}
+
+.practice-page--with-lyrics .practice-main-column {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.practice-page--with-lyrics .lyrics-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.lyrics-panel {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  min-width: 0;
+  height: 100%;
+  max-height: 920px;
+  padding: 24px 0 0 32px;
+  border-left: 1px solid var(--color-border-visible);
+}
+
+.lyrics-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-visible);
+}
+
+.lyrics-panel__header,
+.lyrics-settings-panel,
+.lyrics-panel__controls {
+  flex: 0 0 auto;
+}
+
+.lyrics-panel__header h2 {
+  margin: 5px 0 4px;
+  color: var(--color-text-display);
+  font-size: 24px;
+}
+
+.lyrics-panel__header p,
+.lyrics-panel__time {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.lyrics-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lyrics-panel__time {
+  color: var(--color-signal-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrics-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.lyrics-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.lyrics-scroll:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.lyrics-scroll__spacer {
+  height: clamp(96px, 20vh, 180px);
+}
+
+.lyrics-cue {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.lyrics-cue:hover,
+.lyrics-cue:focus-visible {
+  color: var(--color-text-primary);
+  background: var(--color-surface-raised);
+}
+
+.lyrics-cue time {
+  padding-top: 3px;
+  color: inherit;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrics-cue > span,
+.lyrics-cue > span > span {
+  display: block;
+}
+
+.lyrics-cue > span > span + span {
+  margin-top: 3px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.lyrics-cue--active {
+  border-left-color: var(--color-signal);
+  color: var(--color-text-display);
+  background: var(--color-surface-raised);
+  font-size: 18px;
+  font-weight: 600;
+  transform: translateX(4px);
+}
+
+.lyrics-cue--empty {
+  font-style: italic;
+}
+
+.lyrics-panel__controls {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0 24px;
+  border-top: 1px solid var(--color-border-visible);
+}
+
+.lyrics-settings-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border-visible);
+}
+
+.lyrics-settings-panel[hidden],
+.practice-disclosure-panel[hidden] {
+  display: none;
+}
+
+.lyrics-offset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.lyrics-offset label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 6px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.lyrics-offset label > span:first-child {
+  grid-column: 1 / -1;
+}
+
+.lyrics-offset input {
+  width: 88px;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-control-border);
+  color: var(--color-text-primary);
+  background: transparent;
+  font-family: var(--font-data);
 }
 
 .practice-primary {
   min-height: 0;
+  padding-bottom: 0;
 }
 
-.practice-heading {
+.practice-feedback-row {
+  position: relative;
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
-  gap: 32px;
-}
-
-.practice-heading h1 {
-  font-size: clamp(36px, 4vw, 56px);
-}
-
-.metric-placeholder {
-  min-width: 260px;
-  margin: 0;
-  color: var(--color-text-display);
-  font-family: var(--font-data);
-  font-size: 48px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  gap: 16px;
 }
 
 .practice-feedback {
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-  min-width: 280px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px 16px;
   color: var(--color-text-secondary);
   font-family: var(--font-data);
   font-size: 14px;
@@ -580,6 +843,23 @@ select {
 .practice-feedback strong {
   color: var(--color-text-display);
   font-size: 18px;
+}
+
+.practice-recording-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-recording-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-status-success);
+}
+
+.practice-feedback__cents {
+  color: var(--color-text-display);
 }
 
 .practice-load {
@@ -599,14 +879,10 @@ select {
   line-height: 1.5;
 }
 
-.metric-placeholder span {
-  color: var(--color-text-secondary);
-}
-
 .pitch-lane-shell {
   position: relative;
-  min-height: 300px;
-  margin: 48px 0 0;
+  min-height: 280px;
+  margin: 16px 0 0;
   overflow: hidden;
   border-top: 1px solid var(--color-border-visible);
   border-bottom: 1px solid var(--color-border-visible);
@@ -624,6 +900,37 @@ select {
   stroke-width: 1;
 }
 
+.pitch-grid--octave {
+  stroke: var(--color-control-border);
+  stroke-width: 1.5;
+}
+
+.pitch-grid-label {
+  fill: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.target-band {
+  stroke: var(--color-text-secondary);
+  vector-effect: non-scaling-stroke;
+}
+
+.target-band--good {
+  fill: var(--color-text-secondary);
+  fill-opacity: 0.08;
+  stroke-dasharray: 4 5;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+.target-band--core {
+  fill: var(--color-text-display);
+  fill-opacity: 0.1;
+  stroke: none;
+}
+
 .reference-line {
   fill: none;
   stroke: var(--color-text-secondary);
@@ -637,6 +944,38 @@ select {
   stroke-width: 3;
 }
 
+.user-line--unscored {
+  stroke: var(--color-text-secondary);
+  stroke-dasharray: 2 6;
+  stroke-width: 2;
+}
+
+.pitch-envelope {
+  fill: var(--color-text-display);
+  fill-opacity: 0.1;
+  stroke: none;
+}
+
+.pitch-envelope--previous {
+  fill: var(--color-control-border);
+  fill-opacity: 0.08;
+}
+
+.pitch-extreme {
+  fill: var(--color-text-display);
+}
+
+.pitch-extreme--previous {
+  fill: var(--color-control-border);
+}
+
+.pitch-overflow {
+  fill: var(--color-signal);
+  stroke: var(--color-canvas);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .previous-take-line {
   fill: none;
   stroke: var(--color-control-border);
@@ -647,8 +986,7 @@ select {
 .now-line {
   position: absolute;
   top: -16px;
-  bottom: 40px;
-  left: 38%;
+  bottom: 0;
   width: 2px;
   background: var(--color-signal);
 }
@@ -663,22 +1001,34 @@ select {
   font-weight: 600;
 }
 
-.pitch-lane-shell figcaption {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding: 8px 0;
-  color: var(--color-text-secondary);
-  background: var(--color-canvas);
-  font-size: 12px;
+.pitch-legend-control {
+  position: relative;
+  flex: 0 0 auto;
 }
 
-.pitch-lane-summary {
-  min-height: 24px;
-  margin: 16px 0 0;
-  color: var(--color-text-primary);
-  line-height: 1.5;
+.icon-button.pitch-legend-trigger {
+  background: var(--color-canvas);
+  border-radius: 50%;
+  font-family: var(--font-data);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pitch-legend-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 3;
+  display: flex;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 48px));
+  padding: 14px 16px;
+  border: 1px solid var(--color-control-border);
+  background: var(--color-canvas);
+}
+
+.pitch-legend-panel[hidden] {
+  display: none;
 }
 
 .practice-controls {
@@ -695,12 +1045,10 @@ select {
 }
 
 .practice-legend {
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   gap: 16px 32px;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--color-border-visible);
-  border-left: 0;
 }
 
 .practice-legend span {
@@ -724,11 +1072,23 @@ select {
   border-top-color: var(--color-control-border);
 }
 
+.legend-line--unscored {
+  border-top-style: dashed;
+  border-top-color: var(--color-text-secondary);
+}
+
+.legend-band {
+  width: 32px;
+  height: 10px;
+  border: 1px dashed var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-display) 10%, transparent);
+}
+
 .practice-secondary {
   display: grid;
-  gap: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-border-visible);
+  align-content: start;
+  gap: 12px;
+  padding-top: 12px;
 }
 
 .transport-row,
@@ -762,15 +1122,180 @@ select {
   accent-color: var(--color-signal);
 }
 
-.practice-input-state {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 16px 32px;
+.practice-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.practice-input-state .page-state {
+.practice-mode-toggle {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--color-control-border);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.practice-mode-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.practice-mode-toggle i {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--color-control-border);
+  background: var(--color-canvas);
+}
+
+.practice-mode-toggle i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: var(--color-text-secondary);
+  content: "";
+  transition: transform 180ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.practice-mode-toggle input:checked + i {
+  border-color: var(--color-signal);
+}
+
+.practice-mode-toggle input:checked + i::after {
+  background: var(--color-signal);
+  transform: translateX(16px);
+}
+
+.practice-mode-toggle:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.practice-mode-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.practice-mode-toggle strong {
+  min-width: 20px;
+  color: var(--color-text-display);
+  font-family: var(--font-data);
+  font-size: 11px;
+}
+
+.icon-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.icon-button[aria-expanded="true"] {
+  padding-top: 2px;
+  border-bottom-width: 3px;
+  background: var(--color-surface-raised);
+}
+
+.icon-button svg {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-button svg.transport-icon--play,
+.icon-button svg.practice-data-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
+.icon-button svg.transport-icon--start-over {
+  stroke-width: 2.1;
+}
+
+.practice-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 72%);
+}
+
+.practice-mic-dialog,
+.practice-empty-session-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 520px);
+  padding: 28px;
+  border: 1px solid var(--color-control-border);
+  color: var(--color-text-primary);
+  background: var(--color-canvas);
+}
+
+.practice-mic-dialog h2,
+.practice-mic-dialog p,
+.practice-empty-session-dialog h2,
+.practice-empty-session-dialog p {
+  margin: 0;
+}
+
+.practice-mic-dialog h2 {
+  color: var(--color-text-display);
+  font-size: 24px;
+}
+
+.practice-mic-dialog p {
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.practice-mic-dialog code {
+  color: var(--color-signal-text);
+  font-family: var(--font-data);
+}
+
+.practice-mic-dialog__actions,
+.practice-empty-session-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.practice-empty-session-dialog .page-state {
   padding-top: 0;
+}
+
+.practice-tool-button[data-loop-active="true"]::after {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--color-canvas);
+  background: currentColor;
+  content: "";
+}
+
+.practice-disclosure-panel {
+  min-width: 0;
 }
 
 .loop-controls {
@@ -1320,10 +1845,6 @@ select {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .practice-input-state {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .song-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1331,7 +1852,6 @@ select {
 
 @media (max-width: 620px) {
   .primary-actions,
-  .practice-heading,
   .practice-load {
     align-items: flex-start;
     flex-direction: column;
@@ -1351,8 +1871,7 @@ select {
   }
 
   .practice-feedback {
-    justify-items: start;
-    min-width: 0;
+    justify-content: flex-start;
   }
 
   .loop-values {
@@ -1411,6 +1930,16 @@ select {
 
 .review-primary {
   min-height: 0;
+}
+
+.review-evaluation-mode {
+  width: fit-content;
+  margin: 16px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--color-control-border);
+  color: var(--color-text-secondary);
+  font-family: var(--font-data);
+  font-size: 12px;
 }
 
 .review-hero-metrics {
@@ -1561,16 +2090,30 @@ select {
   }
 
   .button,
+  .icon-button,
   .nav-link,
   .page-state,
   .audio-readout,
   .level-meter,
   .pitch-lane-shell,
+  .pitch-legend-panel,
+  .practice-mode-toggle,
+  .practice-mic-dialog,
+  .practice-empty-session-dialog,
   .loop-values input,
   .seek-control input,
   .setting-row select {
     border-color: CanvasText;
     forced-color-adjust: auto;
+  }
+
+  .practice-tool-button[data-loop-active="true"]::after {
+    border-color: Canvas;
+    background: CanvasText;
+  }
+
+  .practice-recording-status i {
+    background: Highlight;
   }
 
   .model-progress progress,
@@ -1588,5 +2131,18 @@ select {
   .user-line,
   .previous-take-line {
     stroke: CanvasText;
+  }
+
+  .target-band,
+  .pitch-envelope,
+  .pitch-extreme,
+  .pitch-overflow,
+  .practice-mode-toggle i,
+  .practice-mode-toggle i::after {
+    color: CanvasText;
+    fill: CanvasText;
+    stroke: CanvasText;
+    background: Canvas;
+    forced-color-adjust: auto;
   }
 }

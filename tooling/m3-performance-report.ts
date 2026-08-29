@@ -32,7 +32,9 @@ function scored(cents: number, timeMs: number): ScoredPitchSample {
     userHz: 220 * 2 ** (cents / 1_200),
     referenceHz: 220,
     userMidi: 57 + cents / 100,
+    evaluatedUserMidi: 57 + cents / 100,
     referenceMidi: 57,
+    absoluteSignedCents: cents,
     signedCents: cents,
     confidence: 1,
   };
@@ -151,6 +153,8 @@ const ui = {
       Array.from({ length: 5_000 }, (_, index) => ({
         timeMs: 2_000 + index,
         midi: 60 + Math.sin(index / 20),
+        referenceMidi: 60,
+        absoluteSignedCents: 100 * Math.sin(index / 20),
       })),
       [],
       width,
@@ -158,8 +162,13 @@ const ui = {
     );
     return {
       width,
-      pointCount: lane.current.flat().length,
-      bounded: lane.current.flat().length <= width + 1,
+      pointCount: lane.current.reduce(
+        (total, segment) => total + segment.length,
+        0,
+      ),
+      bounded:
+        lane.current.reduce((total, segment) => total + segment.length, 0) <=
+        3 * (width + 1),
     };
   }),
 };

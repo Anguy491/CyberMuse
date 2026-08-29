@@ -28,6 +28,8 @@ pub struct SessionPitchSample {
     pub time_ms: u64,
     pub user_midi: f64,
     pub reference_midi: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absolute_signed_cents: Option<f64>,
     pub signed_cents: f64,
     pub confidence: f64,
     pub voiced: bool,
@@ -56,6 +58,8 @@ pub struct PracticeTake {
 pub struct PracticeSession {
     pub schema_version: u32,
     pub scoring_version: String,
+    #[serde(default = "default_pitch_evaluation_mode")]
+    pub pitch_evaluation_mode: String,
     pub session_id: String,
     pub song_id: String,
     pub analysis_id: String,
@@ -78,7 +82,12 @@ pub struct SessionSummary {
     pub ended_at: String,
     pub duration_ms: u64,
     pub take_count: usize,
+    pub pitch_evaluation_mode: String,
     pub metrics: SessionMetrics,
+}
+
+fn default_pitch_evaluation_mode() -> String {
+    "absolute".to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -207,6 +216,11 @@ pub fn get_session_review(
     {
         return Err(SessionStoreError::invalid("stored_schema"));
     }
+    let scoring_version = value
+        .get("scoringVersion")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| SessionStoreError::invalid("stored_scoring_version"))?
+        .to_owned();
     let mut unavailable_ranges = Vec::new();
     let takes = value
         .get_mut("takes")
@@ -236,7 +250,7 @@ pub fn get_session_review(
         observations.retain(|observation| {
             let sample = serde_json::from_value::<SessionPitchSample>(observation.clone());
             match sample {
-                Ok(sample) if valid_sample(&sample) => {
+                Ok(sample) if valid_sample(&sample, &scoring_version) => {
                     last_valid_time = sample.time_ms;
                     true
                 }
@@ -289,6 +303,7 @@ pub fn list_sessions(
             ended_at: session.ended_at,
             duration_ms: session_duration_ms(&session.takes),
             take_count: session.takes.len(),
+            pitch_evaluation_mode: session.pitch_evaluation_mode,
             metrics: session.metrics,
         });
     }
@@ -337,8 +352,15 @@ fn validate_session_with_count(
     session: &PracticeSession,
     require_exact_sample_count: bool,
 ) -> Result<(), SessionStoreError> {
+    let legacy_scoring = session.scoring_version == "1.0.0";
+    let current_scoring = session.scoring_version == "1.1.0";
     if session.schema_version != 1
-        || session.scoring_version != "1.0.0"
+        || (!legacy_scoring && !current_scoring)
+        || !matches!(
+            session.pitch_evaluation_mode.as_str(),
+            "absolute" | "octaveFolded"
+        )
+        || (legacy_scoring && session.pitch_evaluation_mode != "absolute")
         || validate_uuid(&session.session_id).is_err()
         || !is_sha256(&session.song_id)
         || !is_analysis_id(&session.analysis_id)
@@ -397,7 +419,7 @@ fn validate_session_with_count(
             return Err(SessionStoreError::invalid("take"));
         }
         for observation in &take.observations {
-            if !valid_sample(observation) {
+            if !valid_sample(observation, &session.scoring_version) {
                 return Err(SessionStoreError::invalid("observation"));
             }
         }
@@ -411,10 +433,17 @@ fn validate_session_with_count(
     Ok(())
 }
 
-fn valid_sample(observation: &SessionPitchSample) -> bool {
+fn valid_sample(observation: &SessionPitchSample, scoring_version: &str) -> bool {
     observation.time_ms <= MAX_SESSION_TIME_MS
         && observation.user_midi.is_finite()
         && observation.reference_midi.is_finite()
+        && match scoring_version {
+            "1.0.0" => observation.absolute_signed_cents.is_none_or(f64::is_finite),
+            "1.1.0" => observation
+                .absolute_signed_cents
+                .is_some_and(f64::is_finite),
+            _ => false,
+        }
         && observation.signed_cents.is_finite()
         && observation.confidence.is_finite()
         && (0.0..=1.0).contains(&observation.confidence)
@@ -554,7 +583,8 @@ mod tests {
     fn session(song_id: String, analysis_id: String) -> PracticeSession {
         PracticeSession {
             schema_version: 1,
-            scoring_version: "1.0.0".to_owned(),
+            scoring_version: "1.1.0".to_owned(),
+            pitch_evaluation_mode: "absolute".to_owned(),
             session_id: "00000000-0000-4000-8000-000000000001".to_owned(),
             song_id,
             analysis_id,
@@ -576,6 +606,7 @@ mod tests {
                     time_ms: 1_500,
                     user_midi: 69.0,
                     reference_midi: 69.02,
+                    absolute_signed_cents: Some(-2.0),
                     signed_cents: -2.0,
                     confidence: 0.99,
                     voiced: true,
@@ -686,6 +717,37 @@ mod tests {
                 .code,
             "SESSION_INVALID"
         );
+        let _ignored = fs::remove_dir_all(app_root);
+    }
+
+    #[test]
+    fn tc_ses_001_accepts_legacy_absolute_and_requires_current_raw_error() {
+        let app_root = root("scoring-compatibility");
+        let (song_id, analysis_id) = prepare_song(&app_root);
+        let mut legacy = session(song_id, analysis_id);
+        legacy.scoring_version = "1.0.0".to_owned();
+        legacy.pitch_evaluation_mode = "absolute".to_owned();
+        legacy.takes[0].observations[0].absolute_signed_cents = None;
+        validate_session(&legacy).expect("legacy absolute session");
+
+        legacy.pitch_evaluation_mode = "octaveFolded".to_owned();
+        assert_eq!(
+            validate_session(&legacy)
+                .expect_err("legacy mode must be absolute")
+                .code,
+            "SESSION_INVALID"
+        );
+
+        let mut current = legacy;
+        current.scoring_version = "1.1.0".to_owned();
+        assert_eq!(
+            validate_session(&current)
+                .expect_err("current samples require absolute cents")
+                .code,
+            "SESSION_INVALID"
+        );
+        current.takes[0].observations[0].absolute_signed_cents = Some(-2.0);
+        validate_session(&current).expect("current folded session");
         let _ignored = fs::remove_dir_all(app_root);
     }
 }

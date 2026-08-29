@@ -2,6 +2,7 @@ import type { LoopRegion, PitchFrame } from "@cybermuse/audio";
 
 export type FeedbackGrade = "perfect" | "good" | "off" | "miss";
 export type PitchDirection = "high" | "low" | "center";
+export type PitchEvaluationMode = "absolute" | "octaveFolded";
 
 export interface ScoredPitchSample {
   timeMs: number;
@@ -9,7 +10,9 @@ export interface ScoredPitchSample {
   userHz: number;
   referenceHz: number;
   userMidi: number;
+  evaluatedUserMidi: number;
   referenceMidi: number;
+  absoluteSignedCents: number;
   signedCents: number;
   confidence: number;
 }
@@ -33,6 +36,7 @@ export interface SessionPitchSample {
   timeMs: number;
   userMidi: number;
   referenceMidi: number;
+  absoluteSignedCents: number;
   signedCents: number;
   confidence: number;
   voiced: true;
