@@ -88,7 +88,7 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
     expect(css).toMatch(/\.level-meter__fill[\s\S]*background: Highlight/);
     expect(css).toMatch(
-      /\.reference-line,[\s\S]*\.previous-take-line[\s\S]*stroke: CanvasText/,
+      /\.target-tick__center,[\s\S]*\.previous-take-line[\s\S]*stroke: CanvasText/,
     );
   });
 
@@ -122,18 +122,20 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     expect(css).not.toContain(".tertiary-layer");
   });
 
-  it("keeps M3 Pitch Lane semantics independent of color and CSS timing", async () => {
+  it("keeps M10 Pitch Lane ticks independent of color and CSS timing", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     const laneModel = await readFile(
       resolve("apps/desktop/src/practice/pitch-lane-model.ts"),
       "utf8",
     );
     expect(laneModel).toMatch(/const NOW_RATIO = 0\.2/);
-    expect(css).toMatch(/\.reference-line[\s\S]*stroke-dasharray: 10 8/);
+    expect(laneModel).toMatch(/const TARGET_TICK_WINDOW_MS = 100/);
+    expect(css).toMatch(/\.target-tick__center[\s\S]*stroke-width: 1\.5/);
+    expect(css).not.toMatch(/\.target-band|\.reference-line/);
     expect(css).toMatch(/\.previous-take-line[\s\S]*stroke-dasharray: 3 7/);
     expect(css).toMatch(/\.user-line[\s\S]*stroke-width: 3/);
     expect(css).not.toMatch(
-      /\.(?:reference-line|user-line|previous-take-line|now-line)\s*\{[^}]*transition:/,
+      /\.(?:target-tick__center|user-line|previous-take-line|now-line)\s*\{[^}]*transition:/,
     );
   });
 

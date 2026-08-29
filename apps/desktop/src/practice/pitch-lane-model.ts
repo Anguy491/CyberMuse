@@ -29,6 +29,17 @@ export interface LaneOverflowMarker extends LanePoint {
   direction: "high" | "low";
 }
 
+export interface LaneTargetTick {
+  segmentId: number;
+  x: number;
+  width: number;
+  centerY: number;
+  coreTopY: number;
+  coreBottomY: number;
+  goodTopY: number;
+  goodBottomY: number;
+}
+
 export interface PitchLaneTrackIndex {
   track: ReferenceTrack;
   referencePoints: readonly LanePitchPoint[];
@@ -45,6 +56,7 @@ export interface PitchLaneData {
   reference: readonly (readonly LanePoint[])[];
   targetCore: readonly (readonly LanePoint[])[];
   targetGood: readonly (readonly LanePoint[])[];
+  targetTicks: readonly LaneTargetTick[];
   current: readonly (readonly LanePoint[])[];
   currentUnscored: readonly (readonly LanePoint[])[];
   currentEnvelope: readonly (readonly LanePoint[])[];
@@ -95,6 +107,8 @@ const USER_GAP_MS = 80;
 const FAST_JUMP_MIDI = 6;
 const MINIMUM_MIDI_SPAN = 16;
 const SCALE_PADDING_MIDI = 2;
+const TARGET_TICK_WINDOW_MS = 100;
+const TARGET_TICK_DUTY_CYCLE = 0.68;
 
 function lowerBoundByTime<T extends { timeMs: number }>(
   values: readonly T[],
@@ -236,7 +250,7 @@ function bucketSegment(
         (first, second) => first.timeMs - second.timeMs,
       );
       const midi = values.map((value) => value.midi).sort((a, b) => a - b);
-      const first = chronological[0] ?? { x: 0, midi: 0 };
+      const first = chronological[0] ?? { x: 0, midi: 0, timeMs: 0 };
       const last = chronological.at(-1) ?? first;
       return {
         x: quantile(
@@ -254,6 +268,55 @@ function bucketSegment(
         maximumMidi: midi.at(-1) ?? 0,
       };
     });
+}
+
+function buildTargetTicks(
+  bucketSegments: readonly (readonly PitchBucket[])[],
+  windowStartMs: number,
+  windowEndMs: number,
+  width: number,
+  height: number,
+  minimumMidi: number,
+  maximumMidi: number,
+): readonly LaneTargetTick[] {
+  const windowDurationMs = windowEndMs - windowStartMs;
+  const tickWindowPx = (width * TARGET_TICK_WINDOW_MS) / windowDurationMs;
+  const tickWidth = Math.max(2, tickWindowPx * TARGET_TICK_DUTY_CYCLE);
+  const result: LaneTargetTick[] = [];
+
+  for (const [segmentId, buckets] of bucketSegments.entries()) {
+    const groups = new Map<number, PitchBucket[]>();
+    for (const bucket of buckets) {
+      const groupId = Math.floor(bucket.x / tickWindowPx);
+      const group = groups.get(groupId) ?? [];
+      group.push(bucket);
+      groups.set(groupId, group);
+    }
+    for (const group of groups.values()) {
+      const x = quantile(
+        group.map((bucket) => bucket.x).sort((left, right) => left - right),
+        0.5,
+      );
+      const midi = quantile(
+        group
+          .map((bucket) => bucket.medianMidi)
+          .sort((left, right) => left - right),
+        0.5,
+      );
+      if (midi < minimumMidi || midi > maximumMidi) continue;
+      result.push({
+        segmentId,
+        x,
+        width: tickWidth,
+        centerY: midiToY(midi, height, minimumMidi, maximumMidi),
+        coreTopY: midiToY(midi + 0.25, height, minimumMidi, maximumMidi),
+        coreBottomY: midiToY(midi - 0.25, height, minimumMidi, maximumMidi),
+        goodTopY: midiToY(midi + 0.5, height, minimumMidi, maximumMidi),
+        goodBottomY: midiToY(midi - 0.5, height, minimumMidi, maximumMidi),
+      });
+    }
+  }
+  return result.sort((left, right) => left.x - right.x);
 }
 
 function centerSegments(
@@ -581,6 +644,15 @@ export function buildPitchLaneData(
     targetGood: bandPolygons(
       reference.scoredBuckets,
       50,
+      height,
+      minimumMidi,
+      maximumMidi,
+    ),
+    targetTicks: buildTargetTicks(
+      reference.scoredBuckets,
+      windowStartMs,
+      windowEndMs,
+      width,
       height,
       minimumMidi,
       maximumMidi,

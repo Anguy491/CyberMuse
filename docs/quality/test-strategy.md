@@ -64,7 +64,7 @@
 
 UI 自动化不伪造硬件结论；真实麦克风/声卡行为归入人工矩阵。
 
-UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Pitch Lane 测试同时断言 figure 可访问摘要、20% NOW 时间映射、目标中心与 ±25/50 cents 通道、半音/C 网格、包络/极值/overflow/未评分线型、反馈行最左侧默认收起的“?”图例入口及非颜色线型；Practice 还断言紧凑 feedback、ready/unvoiced 时绿色圆点加“正在录唱”、transport 图标的 accessible name、录唱/循环/数据/专业模式/原唱顺序、两个 switch 的 checked 与文字状态、原唱“不影响评分”说明及错误重试、操作区与 seek 无拉伸空白、最近有效的部分 take 可恢复且不被空预览遮蔽、自然结束显式封口，以及录唱说明与空会话决定只在对应操作后的居中模态对话框显示，不以像素截图替代时间语义断言。
+UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Pitch Lane 测试同时断言 figure 可访问摘要、20% NOW 时间映射、互不连接的实心校准刻度中心与 ±25/50 cents 厚度、80–120 ms 有界聚合、半音/C 网格、包络/极值/overflow/未评分线型、反馈行最左侧默认收起的“?”图例入口及非颜色线型；Practice 还断言紧凑 feedback、轻松模式 ±25 cents 内“目标内”文案、ready/unvoiced 时绿色圆点加“正在录唱”、transport 图标的 accessible name、录唱/循环/数据/专业模式/原唱顺序、两个 switch 的 checked 与文字状态、原唱“不影响评分”说明及错误重试、操作区与 seek 无拉伸空白、最近有效的部分 take 可恢复且不被空预览遮蔽、自然结束显式封口，以及录唱说明与空会话决定只在对应操作后的居中模态对话框显示，不以像素截图替代时间语义断言。
 
 `TC-I18N-001` 必须比较 `zh-CN.json` 与 `en-US.json` 的全部 key 和占位符，并在两种语言下遍历 Library、Practice、Review、设置六分类、动态状态、错误与 ARIA 文本；除品牌、稳定错误码、标准单位和批准技术专名外不得混入另一语言。另测 `system` 解析、`languagechange`、即时切换、重启恢复、清除设置、旧 v1 缺字段、非法值与 revision 冲突回滚。
 
@@ -135,6 +135,13 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 - `TC-VOC-003` 覆盖 play、pause、回零、seek、至少十次 loop、AudioContext suspend/resume 和十分钟连续播放；每个边界同 song time 重锚、instrumental 为主、stem 差 ≤20 ms、只校正 vocals，dispose 后 media/source/gain/listener 全归零。
 - `TC-VOC-004` 在 controller/page/session 层对切换前后 position、segment、take ID/count、observations、feedback、pitch mode、metrics 和序列化 session 做深比较；另注入 vocal metadata/load/play/re-anchor 失败，断言自动关闭、instrumental/评分不中断、错误安全可操作、重试只恢复 vocals 分支。
 - 可访问性/i18n 矩阵断言“原唱”紧邻专业模式右侧、默认 unchecked、Tab/Space、ARIA checked、可见开/关、44 px、中英文、不影响评分说明、dark/light、灰度、forced-colors、1024×720、150% 与歌词双列。Windows release build 至少用一首本地私有真实歌曲耳听两种混音并采集 NFR-003/004/006/007/012；只提交匿名指标，不提交音频、歌名、路径或私有截图。
+
+## M10 UI 与导航收尾验证
+
+- `TC-PLV3-001` 对稳定音、颤音、滑音、短无声和 segment 跳变生成 320/1,000 px lane；断言目标由互不连接的实心 tick 组成，每个 tick 的中心及 ±25/50 cents 厚度误差 <0.5 px，时间聚合约 80–120 ms，不跨无声/segment，tick 数与宽度成正比。页面和样式测试禁止目标 polygon、连续 reference polyline、目标虚线边界和 Pitch Lane 容器边框；forced-colors 保留可辨厚度/轮廓。
+- `TC-FBK-001` 在 absolute/octaveFolded 两种模式覆盖 0、±5、±25、±50、±100 和边界外值；专业模式保持准确/偏高/偏低，轻松模式依次显示目标内、接近目标、方向调整和高于/低于目标，同时保留 signed cents/方向与原 grade/metrics/session。Review 对轻松 session 的 ±25 cents 整体 bias 使用目标区内句式，>50 cents 区间逻辑不变；中英文 key/占位符一致。
+- `TC-NAV-001` 覆盖 Library→Practice→Review、Library→Review→整首 Practice、Review→区间 Practice、品牌首页以及 Practice→Library/Review/Settings 的有效 session、空 session 保留/丢弃/取消、保存失败/重试和重复请求。断言所有离开意图先成为 pending destination，Practice 未决时路由不提交，成功、明确丢弃或取消后原子清空一次性退出事件；从 Settings/Library/Review 重新挂载 Practice 不得重放旧请求。另以严格 revision fake 覆盖 Practice 设备身份写入后立即修改主题，证明二者共享 Preferences 队列并按连续 revision 保存；`aria-current`、键盘顺序和直接 Review 后 Practice 导航完整。
+- M10 定向测试必须深比较呈现/路由操作前后的 cents、grade、observations、take、metrics、`pitchEvaluationMode`、原唱状态和序列化 session，证明没有修改 scoring、session、音频或跨进程契约。另运行 `test:m8:performance` 保持 P95 ≤4 ms，并在 Windows release build 复核 dark/light、灰度、forced-colors、1024×720、150% 与歌词双列。
 
 ## 算法容限
 

@@ -121,6 +121,17 @@
 - 输出：双 stem Practice playback graph、`PracticeAssets.vocalsResourceUrl`、默认关闭的“原唱”switch、无评分副作用的运行时状态、故障降级及 M9 自动/人工证据。
 - 必跑验证：TC-VOC-001..004；`pnpm check`、Rust fmt/clippy/test、Tauri release build、NFR-003/004/006/007/012 回归和 Windows 真实歌曲人工矩阵。
 - 退出：十分钟 stem 差 ≤20 ms，十次 loop/seek/suspend 矩阵、30 ms gain、错误降级、session 不变、资源/性能/a11y/i18n 自动证据全部通过；至少一首真实歌曲在 release build 中完成纯伴奏↔原唱耳听与评分隔离验收；RISK-026 无阻塞项；用户确认。
+- 门禁记录（2026-08-29）：用户明确确认“M9 已确认通过，开始 M10 的更新”。该批准允许进入 M10，并接受 M9 evidence 中 Windows 私有真实歌曲耳听、实际 WebView2 长时 CPU/RAM/node 和完整显示矩阵仍未形成证据；RISK-026 转为 Accepted 并继续阻止把当前产物称为跨机器 release candidate 或对外分发，不得把开放项改写为通过。
+
+## M10 — Pitch UI, Relaxed Feedback and Guarded Navigation Closeout
+
+- 责任域：desktop Practice/Review/App shell、Pitch Lane 呈现、i18n、导航与 UI QA。
+- 允许：把连续目标通道替换为 80–120 ms 独立实心校准刻度、轻松模式独立反馈文案层、Review 轻松摘要、“练习整首”、类型化路由状态机、Practice pending destination 退出门禁、中英文与自动/人工验证。
+- 禁止：修改实时 F0、AudioWorklet/Worker、cents/grade/metrics 算法、`PracticeSession` schema/scoringVersion、持久化数据、Tauri/API 契约、analyzer、原唱混音拓扑或增加生产依赖。
+- 输入：用户批准的 M9 人工门禁；用户于 2026-08-29 选择“方案 B + 轻松模式独立反馈文案层 + 带退出门禁的类型化路由状态机”；FR-013/018/027/029、NFR-017/023。
+- 输出：分段校准刻度 Pitch Lane、mode-aware Practice/Review 文案、上下文完整导航、统一 Practice 离开门禁、M10 自动/人工证据。
+- 必跑验证：TC-PLV3-001、TC-FBK-001、TC-NAV-001；`pnpm test:m10:docs`、定向 Vitest、`pnpm check`、M8 lane 性能回归、Tauri release build 和 Windows dark/light/forced-colors/1024×720/150% 人工矩阵。
+- 退出：校准刻度不连接且中心/±25/50 坐标误差 <0.5 px；轻松模式 ±25 cents 内无“偏高/偏低”主反馈且评分/session 深比较不变；全部导航与退出门禁矩阵通过；无新增依赖或契约变化；用户确认。
 
 ## 变更和阻塞
 

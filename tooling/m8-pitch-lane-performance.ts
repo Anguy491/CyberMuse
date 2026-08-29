@@ -40,6 +40,7 @@ function outputPointCount(lane: PitchLaneData): number {
   );
   return (
     segmented +
+    lane.targetTicks.length * 4 +
     lane.currentExtremes.length +
     lane.currentOverflow.length +
     lane.previousExtremes.length +

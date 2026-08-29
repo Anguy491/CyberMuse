@@ -13,7 +13,11 @@ import type {
   PracticeTake,
   SessionLoopRegion,
 } from "@cybermuse/contracts";
-import type { SessionMetrics } from "@cybermuse/scoring";
+import type {
+  InstantFeedback,
+  PitchEvaluationMode,
+  SessionMetrics,
+} from "@cybermuse/scoring";
 
 import { Button } from "../components/Button";
 import { PageState, type PageStateKind } from "../components/PageState";
@@ -37,6 +41,10 @@ import {
 } from "../practice/practice-controller";
 import type { PitchLaneData } from "../practice/pitch-lane-model";
 import {
+  feedbackPresentationCue,
+  type FeedbackPresentationCue,
+} from "../practice/feedback-presentation";
+import {
   SongService,
   appError,
   type PracticeAssets,
@@ -50,10 +58,7 @@ import {
   PracticeSessionService,
   type PracticeSessionServicePort,
 } from "../services/practice-session-service";
-import {
-  SettingsService,
-  type SettingsServicePort,
-} from "../services/settings-service";
+import type { SettingsServicePort } from "../services/settings-service";
 import {
   DiagnosticService,
   type DiagnosticPreparation,
@@ -69,6 +74,7 @@ interface PracticePageProps {
   assets?: PracticeAssets | null;
   songTitle?: string;
   initialLoop?: SessionLoopRegion | null;
+  exitRequestId?: number | null;
   sessionService?: PracticeSessionServicePort;
   settingsService?: SettingsServicePort;
   diagnosticService?: DiagnosticServicePort;
@@ -77,10 +83,10 @@ interface PracticePageProps {
   songService?: Pick<SongServicePort, "updateLyricsOffset">;
   onSessionSaved?: (session: PracticeSession) => void;
   onLeaveWithoutSession?: () => void;
+  onExitCancelled?: () => void;
 }
 
 const defaultSessionService = new PracticeSessionService();
-const defaultSettingsService = new SettingsService();
 const defaultDiagnosticService = new DiagnosticService();
 const defaultWindowCloseService = new WindowCloseService();
 const defaultOutputDeviceService = new AudioOutputDeviceService();
@@ -148,26 +154,6 @@ async function listOutputDevicesWithDeadline(
           );
         },
       ),
-    ]);
-  } finally {
-    window.clearTimeout(timeoutHandle);
-  }
-}
-
-async function settleWithDeadline<T>(
-  promise: Promise<T>,
-  fallback: T,
-): Promise<T> {
-  let timeoutHandle = 0;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((resolve) => {
-        timeoutHandle = window.setTimeout(
-          () => resolve(fallback),
-          OUTPUT_ENUMERATION_DEADLINE_MS,
-        );
-      }),
     ]);
   } finally {
     window.clearTimeout(timeoutHandle);
@@ -250,12 +236,11 @@ function feedbackSummary(
   if (feedback === null) {
     return t("practice.feedback.notStarted");
   }
-  const direction =
-    feedback.direction === "high"
-      ? t("practice.direction.high")
-      : feedback.direction === "low"
-        ? t("practice.direction.low")
-        : t("practice.direction.accurate");
+  const direction = feedbackDirectionText(
+    feedback,
+    snapshot.pitchEvaluationMode,
+    t,
+  );
   return t("practice.feedback.summary", {
     target: noteName(feedback.referenceMidi),
     current: noteName(feedback.evaluatedUserMidi),
@@ -263,6 +248,31 @@ function feedbackSummary(
     cents: Math.abs(feedback.smoothedCents).toFixed(1),
     grade: t(`practice.grade.${feedback.grade}`),
   });
+}
+
+const FEEDBACK_CUE_KEYS: Record<FeedbackPresentationCue, string> = {
+  accurate: "practice.direction.accurate",
+  high: "practice.direction.high",
+  low: "practice.direction.low",
+  relaxedInTarget: "practice.feedback.relaxed.inTarget",
+  relaxedCloseHigh: "practice.feedback.relaxed.closeHigh",
+  relaxedCloseLow: "practice.feedback.relaxed.closeLow",
+  relaxedAdjustHigh: "practice.feedback.relaxed.adjustHigh",
+  relaxedAdjustLow: "practice.feedback.relaxed.adjustLow",
+  relaxedHigh: "practice.feedback.relaxed.high",
+  relaxedLow: "practice.feedback.relaxed.low",
+};
+
+function feedbackDirectionText(
+  feedback: InstantFeedback,
+  mode: PitchEvaluationMode,
+  t: Translate,
+): string {
+  return t(
+    FEEDBACK_CUE_KEYS[
+      feedbackPresentationCue(mode, feedback.smoothedCents, feedback.direction)
+    ],
+  );
 }
 
 function playbackState(snapshot: PracticeControllerSnapshot): {
@@ -401,16 +411,22 @@ function PracticeContent({
   assets = null,
   songTitle,
   initialLoop = null,
+  exitRequestId = null,
   sessionService = defaultSessionService,
-  settingsService = defaultSettingsService,
   diagnosticService = defaultDiagnosticService,
   windowCloseService = defaultWindowCloseService,
   outputDeviceService = defaultOutputDeviceService,
   songService = defaultSongService,
   onSessionSaved,
   onLeaveWithoutSession,
+  onExitCancelled,
 }: PracticePageProps) {
-  const { t } = usePreferences();
+  const {
+    settings,
+    status: settingsStatus,
+    t,
+    update: updateSettings,
+  } = usePreferences();
   const [controller] = useState<PracticeControllerPort>(() =>
     controllerFactory(),
   );
@@ -432,6 +448,8 @@ function PracticeContent({
   const closeAfterDecisionRef = useRef(false);
   const closeRequestInFlightRef = useRef(false);
   const closeHandlerRef = useRef<() => void>(() => undefined);
+  const externalExitHandlerRef = useRef<() => void>(() => undefined);
+  const handledExitRequestRef = useRef(0);
   const settingsRef = useRef<AppSettings | null>(null);
   const outputFingerprintRef = useRef<string | null>(null);
   const micDialogRef = useRef<HTMLDivElement>(null);
@@ -455,6 +473,10 @@ function PracticeContent({
   const lyricLineRefs = useRef(new Map<number, HTMLButtonElement>());
 
   useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
     controllerSubscriberCountRef.current += 1;
     const unsubscribe = controller.subscribe(setSnapshot);
     return () => {
@@ -469,7 +491,11 @@ function PracticeContent({
   }, [controller]);
 
   useEffect(() => {
-    if (assets !== null && songTitle !== undefined) {
+    if (
+      assets !== null &&
+      songTitle !== undefined &&
+      settingsStatus !== "loading"
+    ) {
       const loadKey = `${assets.songId}:${assets.analysisId}`;
       if (practiceLoadKeyRef.current === loadKey) return;
       practiceLoadKeyRef.current = loadKey;
@@ -480,31 +506,18 @@ function PracticeContent({
           assets.analysisId,
         ).catch(() => null);
         let outputDeviceId = "default";
-        let volume = 0.65;
         outputFingerprintRef.current = null;
-        let loadedSettings: AppSettings | null = null;
-        try {
-          const loaded = await settleWithDeadline(settingsService.load(), null);
-          if (loaded !== null) {
-            settingsRef.current = loaded.settings;
-            loadedSettings = loaded.settings;
-            volume = loaded.settings.volume;
-          } else {
-            settingsRef.current = null;
-          }
-        } catch {
-          settingsRef.current = null;
-        }
+        settingsRef.current = settings;
         try {
           const outputs =
             await listOutputDevicesWithDeadline(outputDeviceService);
           const preferredOutput =
-            loadedSettings?.outputDeviceFingerprint == null
+            settings.outputDeviceFingerprint == null
               ? null
               : await findAudioDeviceByFingerprint(
                   "audiooutput",
                   outputs,
-                  loadedSettings.outputDeviceFingerprint,
+                  settings.outputDeviceFingerprint,
                 );
           const selectedOutput =
             preferredOutput ?? outputs.find((device) => device.isDefault);
@@ -525,7 +538,7 @@ function PracticeContent({
           appliedLatencyMs: 0,
           latencySource: "none",
         });
-        controller.setVolume(volume);
+        controller.setVolume(settings.volume);
         if (initialLoop !== null) {
           controller.setLoopBoundary("start", initialLoop.startMs);
           controller.setLoopBoundary("end", initialLoop.endMs);
@@ -546,7 +559,8 @@ function PracticeContent({
     initialLoop,
     outputDeviceService,
     sessionService,
-    settingsService,
+    settings,
+    settingsStatus,
     songTitle,
   ]);
 
@@ -589,16 +603,13 @@ function PracticeContent({
         loadedSettings.outputDeviceFingerprint !== outputFingerprintRef.current)
     ) {
       try {
-        settingsRef.current = await settingsService.update(
-          {
-            inputDeviceFingerprint: result.inputDeviceFingerprint,
-            outputDeviceFingerprint: outputFingerprintRef.current,
-          },
-          loadedSettings.revision,
-        );
+        const updated = await updateSettings({
+          inputDeviceFingerprint: result.inputDeviceFingerprint,
+          outputDeviceFingerprint: outputFingerprintRef.current,
+        });
+        if (updated !== null) settingsRef.current = updated;
       } catch {
-        // Runtime identity and safe zero-latency fallback remain correct; the
-        // Settings page can reconcile an external revision conflict explicitly.
+        // Runtime identity and safe zero-latency fallback remain correct.
       }
     }
     return true;
@@ -646,13 +657,9 @@ function PracticeContent({
       ? "—"
       : `${feedback.smoothedCents >= 0 ? "+" : "−"}${Math.abs(feedback.smoothedCents).toFixed(1)}`;
   const direction =
-    feedback?.direction === "high"
-      ? t("practice.direction.high")
-      : feedback?.direction === "low"
-        ? t("practice.direction.low")
-        : feedback === null
-          ? t("practice.direction.waiting")
-          : t("practice.direction.accurate");
+    feedback === null
+      ? t("practice.direction.waiting")
+      : feedbackDirectionText(feedback, snapshot.pitchEvaluationMode, t);
   const currentPlaybackState = playbackState(snapshot);
   const currentMicState = micState(snapshot);
   const loaded = snapshot.playback.fixture !== null;
@@ -752,6 +759,8 @@ function PracticeContent({
       if (closeAfterDecisionRef.current) {
         closeAfterDecisionRef.current = false;
         await windowCloseService.destroy();
+      } else {
+        onLeaveWithoutSession?.();
       }
       return;
     }
@@ -778,8 +787,25 @@ function PracticeContent({
     closeAfterDecisionRef.current = false;
     closeRequestInFlightRef.current = false;
     setSaveState("idle");
+    onExitCancelled?.();
     queueMicrotask(() => document.getElementById("practice-exit")?.focus());
   };
+
+  useEffect(() => {
+    externalExitHandlerRef.current = () => {
+      void finishPractice();
+    };
+  });
+  useEffect(() => {
+    if (
+      exitRequestId === null ||
+      exitRequestId === handledExitRequestRef.current
+    ) {
+      return;
+    }
+    handledExitRequestRef.current = exitRequestId;
+    externalExitHandlerRef.current();
+  }, [exitRequestId]);
 
   useEffect(() => {
     closeHandlerRef.current = () => {
@@ -1031,26 +1057,34 @@ function PracticeContent({
                     )}
                   </g>
                 ))}
-                {lane?.targetGood.map((segment, index) => (
-                  <polygon
-                    className="target-band target-band--good"
-                    key={`target-good-${index}`}
-                    points={points(segment)}
-                  />
-                ))}
-                {lane?.targetCore.map((segment, index) => (
-                  <polygon
-                    className="target-band target-band--core"
-                    key={`target-core-${index}`}
-                    points={points(segment)}
-                  />
-                ))}
-                {lane?.reference.map((segment, index) => (
-                  <polyline
-                    className="reference-line"
-                    key={`reference-${index}`}
-                    points={points(segment)}
-                  />
+                {lane?.targetTicks.map((tick, index) => (
+                  <g
+                    className="target-tick"
+                    data-segment-id={tick.segmentId}
+                    key={`target-tick-${tick.segmentId}-${index}`}
+                  >
+                    <rect
+                      className="target-tick__good"
+                      height={tick.goodBottomY - tick.goodTopY}
+                      width={tick.width}
+                      x={tick.x - tick.width / 2}
+                      y={tick.goodTopY}
+                    />
+                    <rect
+                      className="target-tick__core"
+                      height={tick.coreBottomY - tick.coreTopY}
+                      width={tick.width}
+                      x={tick.x - tick.width / 2}
+                      y={tick.coreTopY}
+                    />
+                    <line
+                      className="target-tick__center"
+                      x1={tick.x - tick.width / 2}
+                      x2={tick.x + tick.width / 2}
+                      y1={tick.centerY}
+                      y2={tick.centerY}
+                    />
+                  </g>
                 ))}
                 {lane?.previousEnvelope.map((segment, index) => (
                   <polygon

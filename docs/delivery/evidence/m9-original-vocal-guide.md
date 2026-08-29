@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | 产品实现与自动门禁通过；Windows 人工矩阵开放 |
+| 状态 | 用户已批准 M9 门禁；Windows 人工矩阵作为已接受限制开放 |
 | 版本 | 0.1.0 |
 | 责任域 | Desktop Audio、Practice UX、QA |
 | 上游依据 | FR-028、NFR-024、Proposed ADR-024、M9 Milestone |
@@ -13,6 +13,7 @@
 - 用户于 2026-08-29 批准 M9 实施计划：使用 `instrumental.wav + vocals.wav`、默认关闭且不记忆、播放/录唱中即时无缝切换，并禁止影响评分和其他练习功能。
 - M8 evidence 仍记录颤音阈值失败、三层精度/发布视觉/真实歌曲证据开放，ADR-023 仍为 Proposed；用户于 2026-08-29 明确确认 M8 gate 通过并授权开始 M9 产品实现。这些 M8 开放项继续保留，不被改写为通过。
 - 已完成 Tauri 双 capability、PlaybackEngine 共享 AudioContext 双媒体图、Controller port、默认关闭的“原唱”switch、中英文/forced-colors、独立错误/重试及自动验证；未修改 analyzer、AudioWorklet/Worker、scoring、`AppSettings`、`PracticeSession` schema 或 Review 数据。
+- 用户于 2026-08-29 明确确认“M9 已确认通过，开始 M10 的更新”。该人工门禁接受下述 Windows 私有真实歌曲、实际 WebView2 长时资源和完整显示矩阵继续开放，但不将它们改写为通过，也不授权对外分发或跨机器 release candidate 声明。
 
 ## 需求与证据矩阵
 
@@ -58,6 +59,6 @@ pnpm tauri build
 
 ## 开放风险与退出判定
 
-- `RISK-026` 由 Desktop Audio/QA 负责，在 M9 关闭；自动矩阵已降低故障隔离与逻辑副作用风险，但真实 WebView2 漂移、节点/CPU/RAM 和听感尚未验证，因此状态保持 Open。
+- `RISK-026` 由 Desktop Audio/QA 负责；自动矩阵已降低故障隔离与逻辑副作用风险，用户接受真实 WebView2 漂移、节点/CPU/RAM 和听感尚未验证后进入 M10，因此状态转为 Accepted，并保留外部分发限制。
 - 不新增生产依赖、模型、网络或持久化 schema；若实现需要修改 analyzer、AudioWorklet/Worker、AppSettings、PracticeSession 或 scoring，停止受影响工作并修订 FR/NFR/ADR。
-- 本文件当前不满足 M9 退出条件。只有自动矩阵、Windows release 实播、匿名性能/资源证据、RISK-026 处理和用户人工确认齐全后，才可申请 M9 gate。
+- M9 已由用户人工批准，M10 获得进入授权。未完成的 Windows release 实播、匿名性能/资源和显示矩阵继续作为明确限制保留，不能从人工批准推导为技术证据已经通过。

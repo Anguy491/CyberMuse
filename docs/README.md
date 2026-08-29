@@ -54,6 +54,7 @@
 - [M7 User-supplied LRC Lyrics 证据](delivery/evidence/m7-lrc-lyrics.md)
 - [M8 Pitch Lane v2 与专业模式证据](delivery/evidence/m8-pitch-lane-v2.md)
 - [M9 原唱辅助混音实现证据](delivery/evidence/m9-original-vocal-guide.md)
+- [M10 UI 与导航收尾证据](delivery/evidence/m10-ux-closeout.md)
 - [M3 Fixture-based Practice 开发交接 prompt](delivery/m3-development-prompt.md)
 - [M1–M5 依赖审批清单](quality/dependencies.json)
 - [Song JSON Schema v1](../schemas/song.schema.json)

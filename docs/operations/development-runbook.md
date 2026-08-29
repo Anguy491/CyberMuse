@@ -185,6 +185,29 @@ pnpm tauri build
 
 如果 vocals 分支失败，报告必须证明 instrumental 继续、逻辑 segment/take/session 未变化并可单独重试；若 transport 或评分被中断，TC-VOC-004 直接失败。M9 不修改 analyzer、AppSettings、PracticeSession schema 或评分包，任何此类差异都必须停止并重新走需求/ADR 门禁。
 
+## M10：UI 与导航收尾
+
+用户已于 2026-08-29 确认 M9 gate，并选择分段校准刻度、轻松模式独立反馈文案层和带退出门禁的类型化路由状态机。M10 从仓库根执行：
+
+```powershell
+pnpm test:m10:docs
+pnpm exec vitest run `
+  apps/desktop/src/practice/feedback-presentation.test.ts `
+  apps/desktop/src/practice/pitch-lane-model.test.ts `
+  apps/desktop/src/pages/PracticePage.test.tsx `
+  apps/desktop/src/review/review-model.test.ts `
+  apps/desktop/src/pages/ReviewPage.test.tsx `
+  apps/desktop/src/app-route-machine.test.ts `
+  apps/desktop/src/App.test.tsx `
+  apps/desktop/src/signal-ui.test.ts `
+  --config tooling/vitest.unit.config.ts
+pnpm check
+pnpm test:m8:performance
+pnpm tauri build
+```
+
+自动结果必须覆盖 TC-PLV3-001、TC-FBK-001、TC-NAV-001。Pitch Lane 的目标 tick 必须互不连接、只在同一 reference segment 内聚合，并在 320/1,000 px 下验证中心与 ±25/50 cents 厚度；轻松文案不得改变 scoring/session；所有离开 Practice 的顶部导航与品牌首页必须经过同一保存门禁，完成/取消后必须清除一次性退出事件并验证 Settings/Library/Review→Practice 重挂载。Practice 设备身份与主题设置必须经过同一 Preferences revision 队列，使用严格 revision fake 验证连续写入。Windows 人工矩阵保存脱敏 dark/light、灰度、forced-colors、1024×720、150% 和歌词双列结果，不提交歌曲、音频、歌词、路径或设备标识。
+
 ## M4：Analyzer 环境约定
 
 ```powershell

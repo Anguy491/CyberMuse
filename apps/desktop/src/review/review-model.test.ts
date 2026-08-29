@@ -90,4 +90,15 @@ describe("TC-REV-001 review model", () => {
       cents: 60,
     });
   });
+
+  it("TC-FBK-001 centers the inclusive relaxed-mode target boundary", () => {
+    const relaxed = session();
+    relaxed.pitchEvaluationMode = "octaveFolded";
+    relaxed.metrics.signedMedianErrorCents = 25;
+
+    expect(reviewBiasResult(relaxed)).toEqual({
+      direction: "centered",
+      cents: 25,
+    });
+  });
 });

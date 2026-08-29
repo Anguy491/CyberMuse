@@ -64,7 +64,7 @@ describe("TC-UI-001 Pitch Lane v2 model", () => {
     expect(lane.currentUnscored).toHaveLength(3);
   });
 
-  it("draws exact ±25/50 cent target lanes on a stable phrase scale", () => {
+  it("draws exact unconnected ±25/50 cent calibration ticks", () => {
     const track = constantTrack();
     const first = buildPitchLaneData(track, 1_000, [], [], 1_000, 280);
     const later = buildPitchLaneData(track, 2_500, [], [], 1_000, 280);
@@ -80,8 +80,38 @@ describe("TC-UI-001 Pitch Lane v2 model", () => {
       Math.max(...good.map((point) => point.y)) -
         Math.min(...good.map((point) => point.y)),
     ).toBeCloseTo(17.5, 6);
+    expect(first.targetTicks.length).toBeGreaterThan(10);
+    const tick = first.targetTicks[0];
+    if (tick === undefined) throw new Error("Expected a target tick");
+    expect(tick.coreBottomY - tick.coreTopY).toBeCloseTo(8.75, 6);
+    expect(tick.goodBottomY - tick.goodTopY).toBeCloseTo(17.5, 6);
+    expect(tick.width).toBeCloseTo(8.5, 6);
+    const gaps = first.targetTicks
+      .slice(1)
+      .map(
+        (candidate, index) => candidate.x - (first.targetTicks[index]?.x ?? 0),
+      );
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(15);
     expect(first.grid.some((line) => line.octave && line.label !== null)).toBe(
       true,
+    );
+  });
+
+  it("does not merge target ticks across a reference discontinuity", () => {
+    const track = constantTrack();
+    const frames = track.frames.map((frame) =>
+      frame.timeMs >= 1_000 && frame.timeMs < 1_120
+        ? { ...frame, hz: null, midi: null, voiced: false }
+        : frame,
+    );
+    const lane = buildPitchLaneData({ ...track, frames }, 1_500, [], []);
+    expect(new Set(lane.targetTicks.map((tick) => tick.segmentId)).size).toBe(
+      2,
+    );
+    const before = lane.targetTicks.filter((tick) => tick.segmentId === 0);
+    const after = lane.targetTicks.filter((tick) => tick.segmentId === 1);
+    expect(Math.max(...before.map((tick) => tick.x))).toBeLessThan(
+      Math.min(...after.map((tick) => tick.x)),
     );
   });
 

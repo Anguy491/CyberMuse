@@ -43,7 +43,7 @@ Require-Pattern 'docs/quality/requirements-traceability.md' '(?m)^\| FR-028 \|' 
 Require-Pattern 'docs/quality/requirements-traceability.md' '(?m)^\| NFR-024 \|' 'NFR-024 traceability'
 Require-Pattern 'docs/architecture/data-model.md' 'vocalsResourceUrl: string' 'PracticeAssets.vocalsResourceUrl'
 Require-Pattern 'docs/architecture/api-contracts.md' 'vocalsResourceUrl: string' 'PracticeAssets API field'
-Require-Pattern 'docs/delivery/evidence/m9-original-vocal-guide.md' '状态 \| 产品实现与自动门禁通过；Windows 人工矩阵开放' 'implemented M9 evidence status'
+Require-Pattern 'docs/delivery/evidence/m9-original-vocal-guide.md' '状态 \| 用户已批准 M9 门禁；Windows 人工矩阵作为已接受限制开放' 'approved M9 evidence status'
 Require-Pattern 'docs/README.md' 'm9-original-vocal-guide\.md' 'M9 evidence link'
 Require-Pattern 'docs/delivery/evidence/m8-pitch-lane-v2.md' '用户于 2026-08-29 明确批准 M8 人工门禁' 'M8 gate approval evidence'
 

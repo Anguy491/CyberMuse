@@ -57,11 +57,13 @@ const session: PracticeSession = {
 describe("TC-REV-001 Review page", () => {
   it("shows split metrics and creates a prefilled retry region", () => {
     const onPracticeRegion = vi.fn();
+    const onPracticeSong = vi.fn();
     render(
       <ReviewPage
         session={session}
         songTitle="测试歌曲"
         onBackToLibrary={() => undefined}
+        onPracticeSong={onPracticeSong}
         onPracticeRegion={onPracticeRegion}
       />,
     );
@@ -71,6 +73,8 @@ describe("TC-REV-001 Review page", () => {
     expect(screen.getByText("整体约偏高 70 cents。")).toBeVisible();
     expect(screen.getByText("评分模式：专业 · 真实八度")).toBeVisible();
     expect(screen.getByText("音准准确率")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "练习整首" }));
+    expect(onPracticeSong).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "重新练习此处" }));
     expect(onPracticeRegion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -83,6 +87,31 @@ describe("TC-REV-001 Review page", () => {
       endMs: number;
     };
     expect(region.endMs - region.startMs).toBeGreaterThanOrEqual(1_000);
+  });
+
+  it("TC-FBK-001 describes a small relaxed-mode bias as inside the target zone", () => {
+    const relaxedSession: PracticeSession = {
+      ...session,
+      pitchEvaluationMode: "octaveFolded",
+      metrics: {
+        ...session.metrics,
+        signedMedianErrorCents: 20,
+      },
+    };
+    render(
+      <ReviewPage
+        session={relaxedSession}
+        songTitle="测试歌曲"
+        onBackToLibrary={() => undefined}
+        onPracticeSong={() => undefined}
+        onPracticeRegion={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByText("整体在目标区内，中位位置比参考高 20 cents。"),
+    ).toBeVisible();
+    expect(screen.queryByText(/整体约偏高/)).not.toBeInTheDocument();
   });
 
   it("keeps the stored summary while marking corrupt pitch ranges unavailable", () => {
@@ -98,6 +127,7 @@ describe("TC-REV-001 Review page", () => {
           },
         ]}
         onBackToLibrary={() => undefined}
+        onPracticeSong={() => undefined}
         onPracticeRegion={() => undefined}
       />,
     );

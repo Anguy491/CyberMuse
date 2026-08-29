@@ -7,11 +7,15 @@ import type {
 import { Button } from "../components/Button";
 import { PageState } from "../components/PageState";
 import { useLocalizedText } from "../preferences/PreferencesProvider";
-import { buildReviewErrorIntervals } from "../review/review-model";
+import {
+  buildReviewErrorIntervals,
+  reviewBiasResult,
+} from "../review/review-model";
 
 interface ReviewPageProps {
   session: PracticeSession;
   songTitle: string;
+  onPracticeSong: () => void;
   onPracticeRegion: (region: SessionLoopRegion) => void;
   onBackToLibrary: () => void;
   unavailableRanges?: SessionUnavailableRange[];
@@ -29,6 +33,7 @@ function time(timeMs: number): string {
 export function ReviewPage({
   session,
   songTitle,
+  onPracticeSong,
   onPracticeRegion,
   onBackToLibrary,
   unavailableRanges = [],
@@ -40,11 +45,16 @@ export function ReviewPage({
     ...session.takes.map((take) => take.endedAtSongTimeMs),
   );
   const bias = session.metrics.signedMedianErrorCents;
+  const biasResult = reviewBiasResult(session);
   const biasSummary =
-    bias === null || session.metrics.validFrameCount === 0
+    biasResult.direction === "insufficient" || bias === null
       ? t("review.bias.insufficient")
-      : Math.abs(bias) < 5
-        ? t("review.bias.centered")
+      : biasResult.direction === "centered"
+        ? session.pitchEvaluationMode === "octaveFolded" && Math.abs(bias) >= 5
+          ? t(bias > 0 ? "review.bias.relaxedHigh" : "review.bias.relaxedLow", {
+              cents: Math.abs(bias).toFixed(0),
+            })
+          : t("review.bias.centered")
         : t(bias > 0 ? "review.bias.high" : "review.bias.low", {
             cents: Math.abs(bias).toFixed(0),
           });
@@ -64,6 +74,9 @@ export function ReviewPage({
           })}
         </p>
         <div className="primary-actions">
+          <Button variant="primary" onClick={onPracticeSong}>
+            {t("review.practiceSong")}
+          </Button>
           <Button variant="quiet" onClick={onBackToLibrary}>
             {t("review.back")}
           </Button>

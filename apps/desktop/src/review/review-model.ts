@@ -1,5 +1,7 @@
 import type { PracticeSession, SessionLoopRegion } from "@cybermuse/contracts";
 
+import { isBiasCentered } from "../practice/feedback-presentation";
+
 export interface ReviewErrorInterval extends SessionLoopRegion {
   direction: "high" | "low" | "mixed";
   sampleCount: number;
@@ -79,7 +81,7 @@ export function reviewBiasResult(session: PracticeSession): {
   if (bias === null || session.metrics.validFrameCount === 0) {
     return { direction: "insufficient", cents: null };
   }
-  if (Math.abs(bias) < 5) {
+  if (isBiasCentered(session.pitchEvaluationMode, bias)) {
     return { direction: "centered", cents: Math.abs(bias) };
   }
   return {

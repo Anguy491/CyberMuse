@@ -198,6 +198,11 @@ select {
   color: var(--color-text-primary);
 }
 
+.nav-link:disabled {
+  color: var(--color-text-disabled);
+  cursor: wait;
+}
+
 .nav-link[aria-current="page"] {
   color: var(--color-text-display);
   font-weight: 600;
@@ -205,6 +210,14 @@ select {
 
 .nav-link[aria-current="page"]::after {
   background: var(--color-signal);
+}
+
+.app-navigation-error {
+  grid-column: 1 / -1;
+  margin: -8px 0 12px;
+  color: var(--color-signal-text);
+  font-family: var(--font-data);
+  font-size: 12px;
 }
 
 .page {
@@ -884,8 +897,6 @@ select {
   min-height: 280px;
   margin: 16px 0 0;
   overflow: hidden;
-  border-top: 1px solid var(--color-border-visible);
-  border-bottom: 1px solid var(--color-border-visible);
 }
 
 .pitch-lane-plot {
@@ -912,30 +923,22 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-.target-band {
-  stroke: var(--color-text-secondary);
-  vector-effect: non-scaling-stroke;
-}
-
-.target-band--good {
+.target-tick__good {
   fill: var(--color-text-secondary);
-  fill-opacity: 0.08;
-  stroke-dasharray: 4 5;
-  stroke-opacity: 0.55;
-  stroke-width: 1;
-}
-
-.target-band--core {
-  fill: var(--color-text-display);
-  fill-opacity: 0.1;
+  fill-opacity: 0.14;
   stroke: none;
 }
 
-.reference-line {
-  fill: none;
-  stroke: var(--color-text-secondary);
-  stroke-dasharray: 10 8;
-  stroke-width: 2;
+.target-tick__core {
+  fill: var(--color-text-display);
+  fill-opacity: 0.2;
+  stroke: none;
+}
+
+.target-tick__center {
+  stroke: var(--color-text-primary);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .user-line {
@@ -1063,7 +1066,8 @@ select {
 }
 
 .legend-line--reference {
-  border-top-style: dashed;
+  border-top-width: 4px;
+  border-top-style: solid;
   border-top-color: var(--color-text-secondary);
 }
 
@@ -2146,13 +2150,14 @@ select {
     background: Highlight;
   }
 
-  .reference-line,
+  .target-tick__center,
   .user-line,
   .previous-take-line {
     stroke: CanvasText;
   }
 
-  .target-band,
+  .target-tick__good,
+  .target-tick__core,
   .pitch-envelope,
   .pitch-extreme,
   .pitch-overflow,
@@ -2163,5 +2168,11 @@ select {
     stroke: CanvasText;
     background: Canvas;
     forced-color-adjust: auto;
+  }
+
+  .target-tick__good {
+    fill: Canvas;
+    stroke: CanvasText;
+    stroke-width: 1;
   }
 }

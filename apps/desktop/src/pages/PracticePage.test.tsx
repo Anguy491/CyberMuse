@@ -3,7 +3,7 @@ import type { AppSettings, PracticeSession } from "@cybermuse/contracts";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 
 import type {
   PracticeControllerPort,
@@ -21,6 +21,8 @@ import type {
   WindowCloseRequest,
   WindowCloseServicePort,
 } from "../services/window-close-service";
+import { PreferencesProvider } from "../preferences/PreferencesProvider";
+import { AppearanceSettings } from "../settings/AppearanceSettings";
 import { PracticePage } from "./PracticePage";
 
 const emptyMetrics = {
@@ -87,6 +89,18 @@ const lane: PitchLaneData = {
   ],
   targetCore: [],
   targetGood: [],
+  targetTicks: [
+    {
+      segmentId: 0,
+      x: 200,
+      width: 8,
+      centerY: 100,
+      coreTopY: 96,
+      coreBottomY: 104,
+      goodTopY: 91,
+      goodBottomY: 109,
+    },
+  ],
   current: [
     [
       { x: 100, y: 120 },
@@ -212,6 +226,8 @@ function renderPractice(
     sessionService?: PracticeSessionServicePort;
     onSessionSaved?: (session: PracticeSession) => void;
     onLeaveWithoutSession?: () => void;
+    onExitCancelled?: () => void;
+    exitRequestId?: number;
     windowCloseService?: WindowCloseServicePort;
     settingsService?: SettingsServicePort;
     outputDeviceService?: AudioOutputDeviceServicePort;
@@ -519,6 +535,108 @@ describe("FR-009/012/014 Practice UI", () => {
     });
   });
 
+  it("TC-NAV-001 serializes Practice device identity and later theme updates through one revision", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    const inputFingerprint = await fingerprintAudioDevice("audioinput", {
+      deviceId: "usb-mic",
+      groupId: "usb-input",
+    });
+    const outputDevice = {
+      deviceId: "usb-speakers",
+      groupId: "usb-output",
+      label: "USB 扬声器",
+      isDefault: true,
+    };
+    const outputFingerprint = await fingerprintAudioDevice(
+      "audiooutput",
+      outputDevice,
+    );
+    let current: AppSettings = {
+      schemaVersion: 1,
+      revision: 4,
+      inputDeviceFingerprint: null,
+      outputDeviceFingerprint: null,
+      volume: 0.7,
+      themePreference: "system",
+      motionPreference: "system",
+      languagePreference: "zh-CN",
+      modelCacheSelection: [],
+      latencyCalibrations: [],
+    };
+    const settingsService: SettingsServicePort = {
+      load: vi.fn(async () => ({ settings: current, recovered: false })),
+      update: vi.fn(async (patch, expectedRevision) => {
+        if (expectedRevision !== current.revision) {
+          throw new Error("settings revision conflict");
+        }
+        current = { ...current, ...patch, revision: current.revision + 1 };
+        return current;
+      }),
+      clear: vi.fn(async () => current),
+    };
+    const outputDeviceService: AudioOutputDeviceServicePort = {
+      list: vi.fn(async () => [outputDevice]),
+      subscribe: vi.fn(() => () => undefined),
+    };
+    controller.startInput.mockResolvedValue({
+      inputDeviceFingerprint: inputFingerprint,
+      sampleRateHz: 48_000,
+      restoreStatus: "fallback",
+    });
+
+    function Harness() {
+      const [appearanceOpen, setAppearanceOpen] = useState(false);
+      return (
+        <PreferencesProvider service={settingsService}>
+          <button onClick={() => setAppearanceOpen(true)} type="button">
+            打开主题设置
+          </button>
+          {appearanceOpen ? (
+            <AppearanceSettings />
+          ) : (
+            <PracticePage
+              assets={practiceAssets}
+              controllerFactory={() => controller}
+              outputDeviceService={outputDeviceService}
+              sessionService={fakeSessionService()}
+              settingsService={settingsService}
+              songTitle="测试歌曲"
+            />
+          )}
+        </PreferencesProvider>
+      );
+    }
+
+    render(<Harness />);
+    await waitFor(() => expect(controller.loadSong).toHaveBeenCalled());
+    emit(controller, readySnapshot());
+    await user.click(screen.getByRole("button", { name: "开始录唱" }));
+    await user.click(screen.getByRole("button", { name: "继续开启麦克风" }));
+    await waitFor(() =>
+      expect(settingsService.update).toHaveBeenNthCalledWith(
+        1,
+        {
+          inputDeviceFingerprint: inputFingerprint,
+          outputDeviceFingerprint: outputFingerprint,
+        },
+        4,
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "打开主题设置" }));
+    await user.selectOptions(screen.getByLabelText("主题"), "dark");
+
+    await waitFor(() =>
+      expect(settingsService.update).toHaveBeenNthCalledWith(
+        2,
+        { themePreference: "dark" },
+        5,
+      ),
+    );
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
   it("shows microphone guidance only after explicit action and restores focus on escape", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
@@ -725,7 +843,7 @@ describe("FR-009/012/014 Practice UI", () => {
     ).toBeVisible();
     expect(screen.queryByText(/未检测到稳定音高/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 Hz/)).not.toBeInTheDocument();
-    expect(screen.getByText("参考音高 · 虚线")).not.toBeVisible();
+    expect(screen.getByText("目标刻度 · 实心分段")).not.toBeVisible();
     const legendToggle = screen.getByRole("button", { name: "打开线型图例" });
     const feedbackRow = legendToggle.closest(".practice-feedback-row");
     if (!(feedbackRow instanceof HTMLElement))
@@ -735,7 +853,7 @@ describe("FR-009/012/014 Practice UI", () => {
     await user.click(legendToggle);
     expect(legendToggle).toHaveAttribute("aria-expanded", "true");
     expect(legendToggle).toHaveAccessibleName("关闭线型图例");
-    expect(screen.getByText("参考音高 · 虚线")).toBeVisible();
+    expect(screen.getByText("目标刻度 · 实心分段")).toBeVisible();
     expect(screen.getByText("当前录唱 · 实线")).toBeVisible();
     expect(screen.getByText("上次录唱 · 点线")).toBeVisible();
     expect(screen.queryByRole("log")).not.toBeInTheDocument();
@@ -863,6 +981,43 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     ).toBeVisible();
   });
 
+  it("TC-FBK-001 replaces near-target relaxed-mode blame while retaining cents", () => {
+    const controller = new FakePracticeController();
+    renderPractice(controller);
+    emit(
+      controller,
+      readySnapshot({
+        pitchEvaluationMode: "octaveFolded",
+        observationState: "scored",
+        feedback: {
+          timeMs: 2_000,
+          referenceTimeMs: 2_000,
+          userHz: 225.14,
+          referenceHz: 220,
+          userMidi: 57.4,
+          evaluatedUserMidi: 57.4,
+          referenceMidi: 57,
+          absoluteSignedCents: 40,
+          signedCents: 40,
+          smoothedCents: 40,
+          confidence: 1,
+          grade: "good",
+          direction: "high",
+        },
+      }),
+    );
+
+    const feedback = screen.getByLabelText("当前音高偏差");
+    expect(feedback).toHaveTextContent("◇ 接近目标 · 向下微调");
+    expect(feedback).toHaveTextContent("+40.0 cents");
+    expect(feedback).not.toHaveTextContent("偏高");
+    expect(
+      screen.getByRole("figure", {
+        name: /接近目标 · 向下微调 40.0 cents，接近/,
+      }),
+    ).toBeVisible();
+  });
+
   it("shows unavailable metrics as dashes and never invents a total score", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
@@ -870,7 +1025,7 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     emit(controller, readySnapshot());
 
     expect(screen.getByLabelText("练习指标")).not.toBeVisible();
-    expect(screen.getByText("参考音高 · 虚线")).not.toBeVisible();
+    expect(screen.getByText("目标刻度 · 实心分段")).not.toBeVisible();
     await user.click(screen.getByRole("button", { name: "展开练习数据" }));
     expect(screen.getByLabelText("练习指标")).toHaveTextContent("当前录唱");
     expect(document.querySelectorAll(".practice-data-icon rect")).toHaveLength(
@@ -940,6 +1095,48 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
 });
 
 describe("TC-SES-001 Practice session save UI", () => {
+  it("TC-NAV-001 runs the same save gate for an external route request", async () => {
+    const controller = new FakePracticeController();
+    const finalized = practiceSession();
+    const unchangedSession = structuredClone(finalized);
+    controller.finalizeSession.mockReturnValue(finalized);
+    const sessionService = fakeSessionService();
+    const onSessionSaved = vi.fn();
+
+    renderPractice(controller, {
+      exitRequestId: 1,
+      sessionService,
+      onSessionSaved,
+    });
+
+    await waitFor(() =>
+      expect(sessionService.save).toHaveBeenCalledWith(finalized),
+    );
+    expect(controller.pause).toHaveBeenCalledOnce();
+    expect(controller.finalizeSession).toHaveBeenCalledOnce();
+    expect(onSessionSaved).toHaveBeenCalledWith(finalized);
+    expect(finalized).toEqual(unchangedSession);
+  });
+
+  it("TC-NAV-001 cancels a pending destination when empty-session exit is cancelled", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    controller.finalizeSession.mockReturnValue(practiceSession(0));
+    const onExitCancelled = vi.fn();
+
+    renderPractice(controller, { exitRequestId: 1, onExitCancelled });
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "没有可评分的观察",
+    });
+    await user.click(within(dialog).getByRole("button", { name: "继续练习" }));
+
+    expect(onExitCancelled).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("dialog", { name: "没有可评分的观察" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("atomically saves a finalized session and opens Review", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
