@@ -711,6 +711,10 @@ describe("FR-009/012/014 Practice UI", () => {
     const controller = new FakePracticeController();
     renderPractice(controller);
     emit(controller, readySnapshot());
+    const snapshotBeforeDisclosures = controller.getSnapshot();
+    const feedbackStage = screen.getByRole("region", {
+      name: "当前音高偏差",
+    });
 
     const loopToggle = screen.getByRole("button", {
       name: "展开循环配置",
@@ -727,6 +731,8 @@ describe("FR-009/012/014 Practice UI", () => {
     loopToggle.focus();
     await user.keyboard("{Enter}");
     expect(loopToggle).toHaveAttribute("aria-expanded", "true");
+    expect(feedbackStage).not.toBeVisible();
+    expect(screen.getByRole("region", { name: "练习工具" })).toBeVisible();
     expect(
       screen.getByRole("spinbutton", { name: "A 点（秒）" }),
     ).toBeVisible();
@@ -742,6 +748,8 @@ describe("FR-009/012/014 Practice UI", () => {
 
     await user.keyboard(" ");
     expect(metricsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(feedbackStage).toBeVisible();
+    expect(controller.getSnapshot()).toEqual(snapshotBeforeDisclosures);
   });
 
   it("places an accessible professional-mode switch after practice data", async () => {
@@ -830,11 +838,14 @@ describe("FR-009/012/014 Practice UI", () => {
     expect(controller.retryOriginalVocal).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps NOW at 20% and discloses the line legend from the feedback row", async () => {
+  it("keeps NOW at 20% and discloses the line legend from the stable status row", async () => {
     const user = userEvent.setup();
     const controller = new FakePracticeController();
     const { container } = renderPractice(controller);
-    emit(controller, readySnapshot({ observationState: "unvoiced" }));
+    emit(
+      controller,
+      readySnapshot({ micStatus: "ready", observationState: "unvoiced" }),
+    );
 
     expect(container.querySelector("[data-now-position='0.2']")).not.toBeNull();
     expect(container.querySelectorAll("[data-pattern-break]")).toHaveLength(1);
@@ -845,10 +856,10 @@ describe("FR-009/012/014 Practice UI", () => {
     expect(screen.queryByText(/0 Hz/)).not.toBeInTheDocument();
     expect(screen.getByText("目标刻度 · 实心分段")).not.toBeVisible();
     const legendToggle = screen.getByRole("button", { name: "打开线型图例" });
-    const feedbackRow = legendToggle.closest(".practice-feedback-row");
-    if (!(feedbackRow instanceof HTMLElement))
-      throw new Error("feedback row is missing");
-    expect(feedbackRow.firstElementChild).toContainElement(legendToggle);
+    const statusRow = legendToggle.closest(".practice-status-row");
+    if (!(statusRow instanceof HTMLElement))
+      throw new Error("status row is missing");
+    expect(statusRow.firstElementChild).toContainElement(legendToggle);
     expect(legendToggle).toHaveAttribute("aria-expanded", "false");
     await user.click(legendToggle);
     expect(legendToggle).toHaveAttribute("aria-expanded", "true");
@@ -945,6 +956,16 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     expect(
       container.querySelector(".practice-recording-status i"),
     ).not.toBeNull();
+    expect(
+      screen.getByRole("region", { name: "当前音高偏差" }),
+    ).toHaveTextContent("等待稳定音高");
+    const figure = screen.getByRole("figure");
+    const feedbackStage = screen.getByRole("region", {
+      name: "当前音高偏差",
+    });
+    expect(figure.compareDocumentPosition(feedbackStage)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("expresses direction through arrow, position semantics and text", () => {
@@ -953,7 +974,9 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     emit(
       controller,
       readySnapshot({
+        micStatus: "ready",
         observationState: "scored",
+        playback: { ...baseSnapshot.playback, status: "playing" },
         feedback: {
           timeMs: 2_000,
           referenceTimeMs: 2_000,
@@ -987,8 +1010,19 @@ describe("FR-013/016 and TC-A11Y-001 Practice feedback", () => {
     emit(
       controller,
       readySnapshot({
+        micStatus: "ready",
+        pitchEvaluationMode: "octaveFolded",
+        observationState: "unvoiced",
+        playback: { ...baseSnapshot.playback, status: "playing" },
+      }),
+    );
+    emit(
+      controller,
+      readySnapshot({
+        micStatus: "ready",
         pitchEvaluationMode: "octaveFolded",
         observationState: "scored",
+        playback: { ...baseSnapshot.playback, status: "playing" },
         feedback: {
           timeMs: 2_000,
           referenceTimeMs: 2_000,

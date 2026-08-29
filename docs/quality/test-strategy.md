@@ -140,8 +140,9 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 
 - `TC-PLV3-001` 对稳定音、颤音、滑音、短无声和 segment 跳变生成 320/1,000 px lane；断言目标由互不连接的实心 tick 组成，每个 tick 的中心及 ±25/50 cents 厚度误差 <0.5 px，时间聚合约 80–120 ms，不跨无声/segment，tick 数与宽度成正比。页面和样式测试禁止目标 polygon、连续 reference polyline、目标虚线边界和 Pitch Lane 容器边框；forced-colors 保留可辨厚度/轮廓。
 - `TC-FBK-001` 在 absolute/octaveFolded 两种模式覆盖 0、±5、±25、±50、±100 和边界外值；专业模式保持准确/偏高/偏低，轻松模式依次显示目标内、接近目标、方向调整和高于/低于目标，同时保留 signed cents/方向与原 grade/metrics/session。Review 对轻松 session 的 ±25 cents 整体 bias 使用目标区内句式，>50 cents 区间逻辑不变；中英文 key/占位符一致。
+- `TC-FBK-002` 以受控单调时钟向 UI 呈现层连续注入 20 ms 观察：首个有效反馈立即出现，后续在 300 ms 边界采用最新完整提示/音名/cents，短暂无声在最近有效样本后保持 600 ms，再切换为中性状态。no-reference、pause、end、seek/segment、loop、歌曲/设备、模式变化必须立即作废旧反馈；Loop/数据展开时可见提交暂停，关闭后立即呈现最新状态。页面与样式测试断言稳定“正在录唱”、Pitch Lane 下方大字号舞台、主列底部控制坞、互斥向上覆盖、低高度 sticky/滚动 fallback 和无高频 live region。
 - `TC-NAV-001` 覆盖 Library→Practice→Review、Library→Review→整首 Practice、Review→区间 Practice、品牌首页以及 Practice→Library/Review/Settings 的有效 session、空 session 保留/丢弃/取消、保存失败/重试和重复请求。断言所有离开意图先成为 pending destination，Practice 未决时路由不提交，成功、明确丢弃或取消后原子清空一次性退出事件；从 Settings/Library/Review 重新挂载 Practice 不得重放旧请求。另以严格 revision fake 覆盖 Practice 设备身份写入后立即修改主题，证明二者共享 Preferences 队列并按连续 revision 保存；`aria-current`、键盘顺序和直接 Review 后 Practice 导航完整。
-- M10 定向测试必须深比较呈现/路由操作前后的 cents、grade、observations、take、metrics、`pitchEvaluationMode`、原唱状态和序列化 session，证明没有修改 scoring、session、音频或跨进程契约。另运行 `test:m8:performance` 保持 P95 ≤4 ms，并在 Windows release build 复核 dark/light、灰度、forced-colors、1024×720、150% 与歌词双列。
+- M10 定向测试必须深比较呈现/覆盖层/路由操作前后的 cents、grade、observations、take、metrics、`pitchEvaluationMode`、原唱状态和序列化 session，证明没有修改 scoring、session、音频或跨进程契约。另运行 `test:m3:performance` 与 `test:m8:performance`，并在 Windows release build 复核 dark/light、灰度、forced-colors、1024×720、1280×800、100%/150% 与有无歌词。
 
 ## 算法容限
 

@@ -40,7 +40,7 @@
 | RISK-024 | 八度折叠掩盖真实声区错误，或视觉、反馈与持久指标使用不同误差 | Medium | High | Scoring/Desktop QA | 关闭专业模式后成绩提高但 raw 值丢失、模式往返不一致、Review 无法解释评分方式 | 始终保存 absolute error；单一 mode 驱动曲线/反馈/指标；1.1 契约显式 mode；1.0 只读归一；可逆性/边界/真实歌曲测试；Review 显示模式 | M8 | Mitigating |
 | RISK-025 | 既有实时 F0 长窗口在快速颤音上达不到 M8 合成精度门槛 | High | High | Audio/QA | 5.5 Hz、±35 cents fixture 的 median absolute error >5 cents | 当前实测与脚本保持失败；profile 窗口估计/时间对齐/平滑，任何调整复验 NFR-003/006/007、静音/噪声/低频与硬件；用户接受其不阻止进入 M9，但不得降低颤音或放宽阈值消除失败 | M8/M9 review | Accepted |
 | RISK-026 | 双 media stem 起点/长时漂移、节点累积或原唱故障中断伴奏与评分 | Medium | High | Desktop Audio/QA | stem 差 >20 ms、切换产生 segment/take、vocal load/play 失败让 transport 进入 error、CPU/RAM/节点超预算 | 单 AudioContext、instrumental 主轨、同 song time 重锚、只校正 vocals、30 ms gain、独立 vocal error/fallback；TC-VOC-001..004、十分钟/loop/suspend、故障注入、NFR-003/004/007/012 与 Windows real-song soak；用户接受未完成 Windows 实播证据后进入 M10，但限制继续公开 | M9/M10 review | Accepted |
-| RISK-027 | 分段目标刻度掩盖参考变化，或导航/设置状态生命周期破坏 Practice 往返 | Medium | High | Desktop Product/QA | 校准刻度跨越无声/跳变、中心/厚度与评分参考不一致；旧退出请求在 Practice 重挂载时重放；Practice 独立 settings revision 写入导致主题保存冲突 | 刻度只聚合 80–120 ms 且按参考 segment 分组，中心/±25/50 坐标黄金测试；typed route state 原子持有/清除 pending destination 与一次性 exit request；Practice 设备身份改走共享 `PreferencesProvider` 队列；TC-PLV3-001、TC-NAV-001、严格 revision 与重挂载回归、人工显示矩阵 | M10 | Mitigating |
+| RISK-027 | 分段刻度或节流文本掩盖实时变化，底部/展开布局遮挡交互，或导航/设置状态生命周期破坏 Practice 往返 | Medium | High | Desktop Product/QA | 校准刻度跨无声/跳变；反馈逐帧闪烁或跨 seek/loop 保留旧值；1024×720/150% 下控制、焦点或展开层被遮挡；旧退出请求重放；settings revision 冲突 | 刻度 80–120 ms 分段；文本首条立即、300 ms 原子替换、无声 600 ms、硬边界清除；主列底部坞与可滚动向上覆盖、低高度 sticky fallback；typed route 原子清理；共享 Preferences 队列；TC-PLV3-001、TC-FBK-002、TC-NAV-001 与人工显示矩阵 | M10 | Mitigating |
 
 ## 风险更新规则
 
@@ -98,4 +98,4 @@ M9 选择复用当前分析产物的 instrumental/vocals stems，而不是直接
 
 ## M10 风险结论
 
-M10 不修改检测、评分或 session 契约。RISK-027 由两条独立不变式控制：Pitch Lane 只把既有参考像素桶再聚合为有界实心刻度并保留精确中心/±25/50 厚度；App shell 的所有 Practice 离开意图只登记 pending destination，由 PracticePage 完成现有保存/空会话/失败/取消流程后提交。2026-08-29 用户实测使导航侧风险物化：已消费的 exit request 在 Practice 重挂载后被当成新事件，且 Practice 绕过顶层 Preferences 队列直接保存设备身份，使 Settings 的旧 revision 主题写入冲突。修复后 exit request 与 pending destination 由同一 typed route transition 原子清理，Practice 设备身份与主题写入按连续 revision 共用队列；重挂载和严格 revision 回归、全仓库检查、M8 性能与 Tauri release build 均通过。dark/light、灰度、forced-colors、1024×720、150% 与歌词双列的 Windows 人工显示矩阵尚未记录，因此 RISK-027 保持 Mitigating，M10 门禁仍待用户确认。
+M10 不修改检测、评分或 session 契约。RISK-027 由三条独立不变式控制：Pitch Lane 只把既有参考像素桶再聚合为有界实心刻度并保留精确中心/±25/50 厚度；大字号文本在 React 呈现层首条立即、300 ms 原子替换、短暂无声保持 600 ms，硬边界不携带旧值；App shell 的所有 Practice 离开意图只登记 pending destination，由 PracticePage 完成现有保存/空会话/失败/取消流程后提交。用户实测先后暴露导航重放/settings revision 冲突和逐帧反馈不可读问题；相应修复使用 typed route 原子清理、共享 Preferences 队列，以及独立反馈舞台、主列底部控制坞和向上 disclosure。自动回归与 Windows 人工显示矩阵全部记录前，RISK-027 保持 Mitigating，M10 门禁仍待用户确认。

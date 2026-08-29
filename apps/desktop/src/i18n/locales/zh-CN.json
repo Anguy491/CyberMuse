@@ -314,6 +314,8 @@
   "practice.feedback.noPitch": "未检测到稳定音高，因此没有评分。",
   "practice.feedback.noReference": "已检测到音高，但当前点没有参考音高，因此当前不评分。",
   "practice.feedback.notStarted": "尚未开始录唱。",
+  "practice.feedback.waitingStable": "等待稳定音高",
+  "practice.feedback.noReferenceShort": "当前无参考音",
   "practice.feedback.summary": "目标 {target}，当前 {current}，{direction} {cents} cents，{grade}。",
   "practice.direction.high": "↑ 偏高",
   "practice.direction.low": "↓ 偏低",

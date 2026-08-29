@@ -111,6 +111,6 @@ describe("TC-I18N-001 preferences", () => {
     await waitFor(() => expect(screen.getByText("error")).toBeVisible());
     expect(screen.getByText("设置")).toBeVisible();
     expect(screen.getByText("zh-CN")).toBeVisible();
-    expect(document.documentElement.lang).toBe("zh-CN");
+    await waitFor(() => expect(document.documentElement.lang).toBe("zh-CN"));
   });
 });

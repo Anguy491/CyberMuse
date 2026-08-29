@@ -156,10 +156,10 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
   });
 
-  it("anchors the on-demand Pitch Lane legend to the feedback row", async () => {
+  it("anchors the on-demand Pitch Lane legend to the stable status row", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toMatch(
-      /\.practice-feedback-row\s*\{[^}]*justify-content:\s*space-between/s,
+      /\.practice-status-row\s*\{[^}]*justify-content:\s*space-between/s,
     );
     expect(css).toMatch(
       /\.pitch-legend-control\s*\{[^}]*position:\s*relative/s,
@@ -172,15 +172,16 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
   });
 
-  it("keeps the Practice main column compact beside lyrics", async () => {
+  it("uses the Practice main-column viewport as pitch, feedback, and controls", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toMatch(
-      /\.practice-main-column\s*\{[^}]*display:\s*grid[^}]*align-content:\s*start/s,
+      /\.practice-main-column\s*\{[^}]*display:\s*grid[^}]*grid-template-areas:[^}]*"primary"[^}]*"stage"[^}]*"controls"/s,
     );
-    expect(css).not.toContain("grid-template-areas:");
-    expect(css).toMatch(/\.practice-primary\s*\{[^}]*padding-bottom:\s*0/s);
     expect(css).toMatch(
-      /\.practice-secondary\s*\{[^}]*align-content:\s*start[^}]*gap:\s*12px[^}]*padding-top:\s*12px/s,
+      /\.practice-feedback-stage\s*\{[^}]*grid-area:\s*stage[^}]*min-height:\s*96px/s,
+    );
+    expect(css).toMatch(
+      /\.practice-secondary\s*\{[^}]*grid-area:\s*controls[^}]*align-content:\s*end[^}]*background:\s*var\(--color-canvas\)/s,
     );
     expect(css).toMatch(
       /\.pitch-lane-shell\s*\{[^}]*min-height:\s*280px[^}]*margin:\s*16px 0 0/s,
@@ -190,7 +191,7 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
   it("keeps lyrics scrollable without a visible scrollbar", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toMatch(
-      /\.practice-page--with-lyrics\s*\{[^}]*height:\s*calc\(100dvh - 104px\)[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)/s,
+      /\.practice-page\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\)[^}]*height:\s*calc\(100dvh - 104px\)/s,
     );
     expect(css).toMatch(
       /\.lyrics-panel\s*\{[^}]*height:\s*100%[^}]*max-height:\s*920px/s,

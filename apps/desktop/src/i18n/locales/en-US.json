@@ -314,6 +314,8 @@
   "practice.feedback.noPitch": "No stable pitch was detected, so no score was produced.",
   "practice.feedback.noReference": "Pitch was detected, but there is no reference at NOW, so this point is not scored.",
   "practice.feedback.notStarted": "Singing input has not started.",
+  "practice.feedback.waitingStable": "Waiting for a stable pitch",
+  "practice.feedback.noReferenceShort": "No reference pitch here",
   "practice.feedback.summary": "Target {target}, current {current}, {direction} {cents} cents, {grade}.",
   "practice.direction.high": "↑ Sharp",
   "practice.direction.low": "↓ Flat",

@@ -45,6 +45,10 @@ import {
   type FeedbackPresentationCue,
 } from "../practice/feedback-presentation";
 import {
+  useReadableFeedback,
+  type ReadableFeedbackView,
+} from "../practice/use-readable-feedback";
+import {
   SongService,
   appError,
   type PracticeAssets,
@@ -223,14 +227,14 @@ function heading(
 }
 
 function feedbackSummary(
-  snapshot: PracticeControllerSnapshot,
+  feedbackView: ReadableFeedbackView,
   t: Translate,
 ): string {
-  const feedback = snapshot.feedback;
-  if (snapshot.observationState === "unvoiced") {
+  const feedback = feedbackView.feedback;
+  if (feedbackView.status === "waiting") {
     return t("practice.feedback.noPitch");
   }
-  if (snapshot.observationState === "no_reference") {
+  if (feedbackView.status === "no_reference") {
     return t("practice.feedback.noReference");
   }
   if (feedback === null) {
@@ -238,7 +242,7 @@ function feedbackSummary(
   }
   const direction = feedbackDirectionText(
     feedback,
-    snapshot.pitchEvaluationMode,
+    feedbackView.pitchEvaluationMode,
     t,
   );
   return t("practice.feedback.summary", {
@@ -650,7 +654,29 @@ function PracticeContent({
     lane === null || laneWidth <= 0
       ? 0.2
       : Math.min(1, Math.max(0, lane.nowX / laneWidth));
-  const feedback = snapshot.feedback;
+  const readableFeedbackInput = useMemo(
+    () => ({
+      feedback: snapshot.feedback,
+      micStatus: snapshot.micStatus,
+      observationState: snapshot.observationState,
+      pitchEvaluationMode: snapshot.pitchEvaluationMode,
+      playbackStatus: snapshot.playback.status,
+      segmentId: snapshot.playback.segmentId,
+    }),
+    [
+      snapshot.feedback,
+      snapshot.micStatus,
+      snapshot.observationState,
+      snapshot.pitchEvaluationMode,
+      snapshot.playback.segmentId,
+      snapshot.playback.status,
+    ],
+  );
+  const readableFeedback = useReadableFeedback(
+    readableFeedbackInput,
+    openPracticePanel !== null,
+  );
+  const feedback = readableFeedback.feedback;
   const recordingActive = snapshot.micStatus === "ready";
   const signedCents =
     feedback === null
@@ -659,7 +685,19 @@ function PracticeContent({
   const direction =
     feedback === null
       ? t("practice.direction.waiting")
-      : feedbackDirectionText(feedback, snapshot.pitchEvaluationMode, t);
+      : feedbackDirectionText(
+          feedback,
+          readableFeedback.pitchEvaluationMode,
+          t,
+        );
+  const readableFeedbackCue =
+    readableFeedback.status === "feedback"
+      ? direction
+      : readableFeedback.status === "waiting"
+        ? t("practice.feedback.waitingStable")
+        : readableFeedback.status === "no_reference"
+          ? t("practice.feedback.noReferenceShort")
+          : t("practice.direction.waiting");
   const currentPlaybackState = playbackState(snapshot);
   const currentMicState = micState(snapshot);
   const loaded = snapshot.playback.fixture !== null;
@@ -893,7 +931,7 @@ function PracticeContent({
             className="primary-layer practice-primary"
             data-layer="primary"
           >
-            <div className="practice-feedback-row">
+            <div className="practice-status-row">
               <div className="pitch-legend-control">
                 <Button
                   aria-controls="pitch-legend-panel"
@@ -957,35 +995,16 @@ function PracticeContent({
                   </span>
                 </div>
               </div>
-              <div
-                className="practice-feedback"
-                aria-label={t("practice.feedback.label")}
-              >
-                {recordingActive ? (
-                  <strong className="practice-recording-status">
-                    <i aria-hidden="true" />
-                    {t("practice.recording")}
-                  </strong>
-                ) : (
-                  <strong>{direction}</strong>
-                )}
-                {recordingActive && feedback !== null ? (
-                  <strong>{direction}</strong>
-                ) : null}
-                <span>
-                  {feedback === null
-                    ? t("practice.targetCurrent.empty")
-                    : t("practice.targetCurrent", {
-                        target: noteName(feedback.referenceMidi),
-                        current: noteName(feedback.evaluatedUserMidi),
-                      })}
-                </span>
-                {feedback === null ? null : (
-                  <span className="practice-feedback__cents">
-                    {signedCents} cents
-                  </span>
-                )}
-              </div>
+              {recordingActive ? (
+                <strong className="practice-recording-status">
+                  <i aria-hidden="true" />
+                  {t("practice.recording")}
+                </strong>
+              ) : (
+                <strong className="practice-recording-status practice-recording-status--idle">
+                  {t("practice.direction.waiting")}
+                </strong>
+              )}
             </div>
 
             {!loaded && assets === null ? (
@@ -1027,7 +1046,7 @@ function PracticeContent({
                 snapshot.pitchEvaluationMode === "absolute"
                   ? "practice.mode.summary.absolute"
                   : "practice.mode.summary.folded",
-              )} ${feedbackSummary(snapshot, t)}`}
+              )} ${feedbackSummary(readableFeedback, t)}`}
               data-now-position={laneNowRatio}
               data-pitch-evaluation-mode={snapshot.pitchEvaluationMode}
             >
@@ -1167,6 +1186,34 @@ function PracticeContent({
                 </span>
               </div>
             </figure>
+          </section>
+
+          <section
+            aria-hidden={openPracticePanel !== null}
+            aria-label={t("practice.feedback.label")}
+            aria-live="off"
+            className="practice-feedback-stage"
+            data-feedback-status={readableFeedback.status}
+            hidden={openPracticePanel !== null}
+          >
+            <strong className="practice-feedback-stage__cue">
+              {readableFeedbackCue}
+            </strong>
+            <div className="practice-feedback-stage__detail">
+              <span>
+                {feedback === null
+                  ? t("practice.targetCurrent.empty")
+                  : t("practice.targetCurrent", {
+                      target: noteName(feedback.referenceMidi),
+                      current: noteName(feedback.evaluatedUserMidi),
+                    })}
+              </span>
+              {feedback === null ? null : (
+                <span className="practice-feedback__cents">
+                  {signedCents} cents
+                </span>
+              )}
+            </div>
           </section>
 
           <section
@@ -1472,7 +1519,13 @@ function PracticeContent({
                 }
               />
             </label>
+          </section>
 
+          <section
+            aria-label={t("practice.tools.label")}
+            className="practice-disclosure-layer"
+            hidden={openPracticePanel === null}
+          >
             <div
               className="practice-disclosure-panel"
               hidden={openPracticePanel !== "loop"}

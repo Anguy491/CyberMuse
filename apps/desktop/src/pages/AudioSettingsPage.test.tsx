@@ -434,7 +434,9 @@ describe("FR-010 Audio Settings", () => {
     await user.click(screen.getByRole("button", { name: "允许访问麦克风" }));
 
     expect(controller.switchDevice).toHaveBeenCalledWith("usb-mic");
-    expect(screen.getByLabelText("输出设备")).toHaveValue("usb-speakers");
+    await waitFor(() =>
+      expect(screen.getByLabelText("输出设备")).toHaveValue("usb-speakers"),
+    );
     await waitFor(() =>
       expect(settingsService.update).toHaveBeenCalledTimes(1),
     );
