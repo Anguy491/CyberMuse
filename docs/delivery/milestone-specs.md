@@ -110,6 +110,17 @@
 - 输出：Pitch Lane v2、可访问的专业模式 switch、可逆 session 重算、`PracticeSession` 1.1 TypeScript/Rust/JSON Schema 契约及 M8 自动/人工证据。
 - 必跑验证：TC-PLV2-001..004、TC-SES-002、TC-A11Y-002、TC-PERF-005、TC-PIT-002；`pnpm check`、Rust fmt/clippy/test、Schema/contract compatibility、Tauri release build 和 Windows 人工矩阵。
 - 退出：自动矩阵、1,000 px/60 分钟性能、三层音高精度证据、发布构建视觉截图和至少一首真实歌曲人工验收全部通过；无阻塞风险；用户确认。实现完成或单元测试通过都不等同于 M8 门禁通过。
+- 门禁记录（2026-08-29）：用户明确声明“M8 门禁通过，授权开始 M9 产品实现”。该人工批准满足 M9 的进入授权，并接受 M8 evidence 中仍准确列出的颤音阈值失败、合法 vocal-stem、硬件回环、发布视觉和真实歌曲缺口继续保留为风险；不得把这些开放项改写为测试通过、NFR-023 已满足或外部分发获准。
+
+## M9 — Original Vocal Guide Mix
+
+- 责任域：desktop Practice、PlaybackEngine、音频 resource capability、双 stem 同步与性能 QA。
+- 允许：为既有 `vocals.wav` 签发独立 opaque URL、同 AudioContext 双 media 图、vocal gain/30 ms 过渡、原唱 switch、独立 vocal 错误/重试、中英文与验证证据。
+- 禁止：直接播放用户导入母带、修改 analyzer pipeline/模型/stem 文件、修改 AudioWorklet/Worker/F0/scoring/session/Review/AppSettings、增加生产依赖、让原唱状态持久化或穿过评分接口。
+- 输入：M8 已通过用户人工门禁；用户于 2026-08-29 批准的 M9 实施计划；FR-028、NFR-024、Proposed ADR-024。M8 未通过时只允许修改文档和验证设施。
+- 输出：双 stem Practice playback graph、`PracticeAssets.vocalsResourceUrl`、默认关闭的“原唱”switch、无评分副作用的运行时状态、故障降级及 M9 自动/人工证据。
+- 必跑验证：TC-VOC-001..004；`pnpm check`、Rust fmt/clippy/test、Tauri release build、NFR-003/004/006/007/012 回归和 Windows 真实歌曲人工矩阵。
+- 退出：十分钟 stem 差 ≤20 ms，十次 loop/seek/suspend 矩阵、30 ms gain、错误降级、session 不变、资源/性能/a11y/i18n 自动证据全部通过；至少一首真实歌曲在 release build 中完成纯伴奏↔原唱耳听与评分隔离验收；RISK-026 无阻塞项；用户确认。
 
 ## 变更和阻塞
 

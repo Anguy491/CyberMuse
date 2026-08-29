@@ -241,3 +241,14 @@
 - 切换与历史：练习中切换不暂停、不结束 take，也不改变 coverage 或 valid frame count；应用从已存绝对误差重算当前 session，并重置后重放最近 120 ms feedback 窗口。再次开启可逆恢复绝对评分。上次录唱只在 Practice 内按当前模式临时重算，不改写历史文件；Review 显示 session 的“专业/八度折叠”标识。
 - 异常：无声、丢帧、时间倒退，以及 80 ms 内超过 6 个半音的跳变必须断线但保留端点；专业模式下视窗外检测值只显示顶部/底部 overflow，不得钳制成合法音高。
 - 验收：同音、±25/50/100 cents、±1～3 八度与 ±600 边界有黄金测试；模式往返后 observations、take 边界和指标恢复一致；NOW、中心线和通道边界坐标误差小于 0.5 px；switch 支持 Tab/Space、文字状态、forced-colors、150% 缩放和至少 44 px 点击区域。
+
+## 原唱辅助
+
+### FR-028 — 在纯伴奏中切换原唱辅助人声
+
+- 优先级：Must（v0.2 M9）
+- 前置条件：歌曲有通过完整性验证且等长、同采样率的 `instrumental.wav` 与 `vocals.wav`，用户已经进入 Practice。
+- 行为：Practice 在“专业模式”右侧提供“原唱 开/关”原生 switch；每次进入页面默认关闭且不持久化。关闭时只输出伴奏，开启时在同一 master gain 前混合伴奏与原唱 stem。播放、暂停、seek、回到开头、loop 和 suspend/resume 必须让两条 stem 共享既有 `AudioContext` 时基。
+- 隔离：切换只改变原唱 gain，不暂停或重启 transport，不创建新逻辑 segment、不结束 take、不清空反馈、不改变参考轨、麦克风输入、音高观察、专业模式、评分、指标、session 或 Review 数据。
+- 异常：原唱媒体加载、播放或重同步失败时自动回到关闭状态，伴奏和评分继续可用；页面显示结构化安全错误、数据状态和“重试原唱”动作。伴奏或分析整体损坏继续使用既有 Practice 资产错误路径。
+- 验收：默认关闭、暂停态选择、播放中快速往返、seek、回零、十次 loop、suspend/resume 和原唱失败均有确定测试；开关前后的 position、segment、take、observations、feedback、pitch mode、metrics 和保存 session 保持一致；switch 支持 Tab/Space、可见文字状态、forced-colors、150% 缩放和至少 44 px 点击区域。

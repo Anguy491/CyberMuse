@@ -1299,6 +1299,43 @@ function PracticeContent({
                     )}
                   </strong>
                 </label>
+                <label
+                  className="practice-mode-toggle practice-original-vocal-toggle"
+                  title={t("practice.originalVocal.description")}
+                >
+                  <span>{t("practice.originalVocal.label")}</span>
+                  <input
+                    aria-label={`${t("practice.originalVocal.label")} · ${t(
+                      snapshot.playback.originalVocalStatus === "loading"
+                        ? "practice.originalVocal.loading"
+                        : snapshot.playback.originalVocalEnabled
+                          ? "practice.originalVocal.on"
+                          : "practice.originalVocal.off",
+                    )}. ${t("practice.originalVocal.description")}`}
+                    checked={snapshot.playback.originalVocalEnabled}
+                    disabled={
+                      !loaded ||
+                      snapshot.playback.originalVocalStatus !== "ready"
+                    }
+                    onChange={(event) =>
+                      controller.setOriginalVocalEnabled(
+                        event.currentTarget.checked,
+                      )
+                    }
+                    role="switch"
+                    type="checkbox"
+                  />
+                  <i aria-hidden="true" />
+                  <strong aria-hidden="true">
+                    {t(
+                      snapshot.playback.originalVocalStatus === "loading"
+                        ? "practice.originalVocal.loading"
+                        : snapshot.playback.originalVocalEnabled
+                          ? "practice.originalVocal.on"
+                          : "practice.originalVocal.off",
+                    )}
+                  </strong>
+                </label>
               </div>
               {snapshot.playback.error?.code ===
               "PRACTICE_CONTEXT_SUSPENDED" ? (
@@ -1311,6 +1348,21 @@ function PracticeContent({
                 {formatTime(snapshot.playback.durationMs)}
               </span>
             </div>
+
+            {snapshot.playback.originalVocalError === null ? null : (
+              <div className="practice-original-vocal-error" role="status">
+                <span>
+                  <strong>{t("practice.originalVocal.error.title")}</strong>
+                  {" · "}
+                  {t("practice.originalVocal.error.detail")}
+                  {" · "}
+                  <code>{snapshot.playback.originalVocalError.code}</code>
+                </span>
+                <Button onClick={() => void controller.retryOriginalVocal()}>
+                  {t("practice.originalVocal.retry")}
+                </Button>
+              </div>
+            )}
 
             {saveState === "failed" ? (
               <div className="practice-save-panel">

@@ -88,6 +88,7 @@ interface PracticeAssets {
   songId: string;
   analysisId: string;
   instrumentalResourceUrl: string; // opaque, read-only, current app session
+  vocalsResourceUrl: string;       // opaque, read-only, current app session
   referenceTrack: ReferenceTrack;
   durationMs: number;
   lyricsStatus: "none" | "ready" | "damaged";
@@ -137,7 +138,9 @@ interface SessionUnavailableRange {
 }
 ```
 
-`select_import_file` 的系统对话框、FFmpeg 完整解码预检和绝对路径全部留在 Rust；页面只收到 basename、格式、时长、空间摘要和五分钟 `candidateToken`。`confirm_import` 不接受路径。删除使用独立、绑定 `songId`/操作且五分钟有效的确认 token。`instrumentalResourceUrl` 是最长六小时、删除时立即撤销的只读 opaque 能力 URL，不含完整路径且不写入持久化 JSON；协议单次响应最多 1,000 KiB 并支持 HTTP range。Windows WebView2 按 Wry 的协议映射使用 `http://cybermuse.localhost/<token>`，其他桌面平台使用 `cybermuse://localhost/<token>`；两者都是同一进程内拦截的本地自定义协议，不发往网络。
+`select_import_file` 的系统对话框、FFmpeg 完整解码预检和绝对路径全部留在 Rust；页面只收到 basename、格式、时长、空间摘要和五分钟 `candidateToken`。`confirm_import` 不接受路径。删除使用独立、绑定 `songId`/操作且五分钟有效的确认 token。`instrumentalResourceUrl` 与 `vocalsResourceUrl` 分别是伴奏和原唱 stem 的最长六小时、删除时立即撤销的只读 opaque 能力 URL；两者 token 必须不同、绑定同一 `songId`/`analysisId`、不含完整路径且不写入持久化 JSON。协议单次响应最多 1,000 KiB 并支持 HTTP range。Windows WebView2 按 Wry 的协议映射使用 `http://cybermuse.localhost/<token>`，其他桌面平台使用 `cybermuse://localhost/<token>`；两者都是同一进程内拦截的本地自定义协议，不发往网络。
+
+M9 对 `PracticeAssets` 的字段增加保持 `apiVersion=1`：旧同版本读端忽略 `vocalsResourceUrl`，M9 前后端作为同一安装包同步升级，新读端把该字段视为必需。`get_practice_assets` 仍先按 manifest 校验两条 WAV 的 path、SHA-256、48 kHz/stereo/PCM24 与歌曲时长；不会把音频字节送过 IPC。页面内的 `originalVocalEnabled/status/error` 是 PlaybackEngine 运行时状态，不进入 Tauri command、AppSettings 或 session payload。
 
 歌词选择沿用原生路径 capability：Rust 在选择时读取并暂存最多 1 MiB，页面只收到预览和五分钟 token。确认提交单个版本化 `lyrics.json`；相同 SHA 为 deduplicated。替换与 offset 更新使用原子文件替换，失败保留最后有效文档；移除使用独立确认 token。`get_practice_assets` 只返回不含 `sourceText` 的 `LyricsView`；歌词损坏以 partial success 返回 `lyricsStatus=damaged` 与 `lyricsError`，音频/参考轨仍成功。
 

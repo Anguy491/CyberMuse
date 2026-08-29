@@ -53,7 +53,7 @@ UI 不拥有文件路径权限、不直接启动 Python、不把音频样本放�
 
 ### Web Audio realtime runtime
 
-- `PlaybackEngine`：解码/播放伴奏、seek、loop、主时钟。
+- `PlaybackEngine`：解码/播放伴奏、seek、loop、主时钟；M9 在同一时钟下混入可关闭的原唱 stem，混音状态不进入评分。
 - `MicrophoneEngine`：权限、输入源、设备生命周期。
 - `AudioWorkletProcessor`：PCM 环形缓冲、窗口与中心时间戳。
 - `PitchWorker`：Pitchy/McLeod、RMS、置信度过滤、轻量平滑。
@@ -108,11 +108,12 @@ File picker
 ### 实时练习
 
 ```text
-instrumental → PlaybackEngine ───────────────┐
-                                             │ AudioContext clock
-microphone → AudioWorklet → PitchWorker      │
-                               │             │
-                               ▼             ▼
+instrumental ────────────────┐
+vocals → page-only gain ─────┴→ PlaybackEngine ─┐
+                                                │ AudioContext clock
+microphone → AudioWorklet → PitchWorker          │
+                               │                 │
+                               ▼                 ▼
                          PitchObservation + ReferenceTrack
                                │ latency compensation
                                ▼
@@ -151,4 +152,3 @@ Python CLI → pipeline stages → audio/model adapters
 ## 部署形态
 
 v0.1 发布一个 Windows 11 x64 安装包。桌面应用包含 Web UI、Rust binary 和 analyzer binary；大型模型按用户同意下载到本地模型目录。安装包与 sidecar 版本绑定，模型由 manifest 固定兼容范围。
-

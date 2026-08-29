@@ -228,4 +228,87 @@ mod tests {
         assert_eq!(registry.handle(request).status(), StatusCode::NOT_FOUND);
         let _ignored = fs::remove_file(path);
     }
+
+    #[test]
+    fn tc_voc_001_dual_stem_capabilities_are_distinct_and_revoked_together() {
+        let suffix = format!("{}-{}", std::process::id(), new_job_id());
+        let instrumental =
+            std::env::temp_dir().join(format!("cybermuse-m9-instrumental-{suffix}.wav"));
+        let vocals = std::env::temp_dir().join(format!("cybermuse-m9-vocals-{suffix}.wav"));
+        fs::write(&instrumental, b"instrumental").expect("instrumental fixture");
+        fs::write(&vocals, b"vocals").expect("vocals fixture");
+
+        let song_id = "c".repeat(64);
+        let analysis_id = "d".repeat(32);
+        let registry = ResourceRegistry::new();
+        let instrumental_url = registry.issue(&song_id, &analysis_id, instrumental.clone());
+        let vocals_url = registry.issue(&song_id, &analysis_id, vocals.clone());
+        assert_ne!(instrumental_url, vocals_url);
+        assert!(!instrumental_url.contains(&instrumental.to_string_lossy().to_string()));
+        assert!(!vocals_url.contains(&vocals.to_string_lossy().to_string()));
+
+        let instrumental_token = instrumental_url.rsplit('/').next().expect("token");
+        let vocals_token = vocals_url.rsplit('/').next().expect("token");
+        {
+            let resources = registry
+                .0
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            for token in [instrumental_token, vocals_token] {
+                let capability = resources.get(token).expect("issued capability");
+                assert_eq!(capability.song_id, song_id);
+                assert_eq!(capability.analysis_id, analysis_id);
+            }
+        }
+
+        for url in [&instrumental_url, &vocals_url] {
+            let token = url.rsplit('/').next().expect("token");
+            let response = registry.handle(
+                Request::builder()
+                    .uri(format!("cybermuse://localhost/{token}"))
+                    .header("range", "bytes=0-3")
+                    .body(Vec::new())
+                    .expect("request"),
+            );
+            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+            assert_eq!(response.body().len(), 4);
+            assert_eq!(response.headers()["Cache-Control"], "no-store");
+            assert_eq!(
+                response.headers()["Cross-Origin-Resource-Policy"],
+                "cross-origin"
+            );
+        }
+
+        registry
+            .0
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .get_mut(vocals_token)
+            .expect("vocal capability")
+            .expires_at = Instant::now() - Duration::from_secs(1);
+        let expired_response = registry.handle(
+            Request::builder()
+                .uri(format!("cybermuse://localhost/{vocals_token}"))
+                .body(Vec::new())
+                .expect("request"),
+        );
+        assert_eq!(expired_response.status(), StatusCode::NOT_FOUND);
+
+        let replacement_vocals_url = registry.issue(&song_id, &analysis_id, vocals.clone());
+
+        registry.revoke_song(&song_id);
+        for url in [&instrumental_url, &replacement_vocals_url] {
+            let token = url.rsplit('/').next().expect("token");
+            let response = registry.handle(
+                Request::builder()
+                    .uri(format!("cybermuse://localhost/{token}"))
+                    .body(Vec::new())
+                    .expect("request"),
+            );
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        let _ignored = fs::remove_file(instrumental);
+        let _ignored = fs::remove_file(vocals);
+    }
 }

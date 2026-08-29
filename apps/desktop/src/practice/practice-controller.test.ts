@@ -31,6 +31,9 @@ const basePlayback: PlaybackEngineSnapshot = {
     listeners: 0,
   },
   error: null,
+  originalVocalEnabled: false,
+  originalVocalStatus: "unavailable",
+  originalVocalError: null,
 };
 
 const baseInput: AudioInputSnapshot = {
@@ -113,6 +116,19 @@ class FakePlayback implements PlaybackEnginePort {
 
   async resumeAfterSuspend(): Promise<void> {
     this.emit({ ...this.snapshot, status: "playing", contextState: "running" });
+  }
+
+  setOriginalVocalEnabled(enabled: boolean): void {
+    this.emit({ ...this.snapshot, originalVocalEnabled: enabled });
+  }
+
+  async retryOriginalVocal(): Promise<void> {
+    this.emit({
+      ...this.snapshot,
+      originalVocalEnabled: false,
+      originalVocalStatus: "ready",
+      originalVocalError: null,
+    });
   }
 
   seek(songTimeMs: number): number {
@@ -490,6 +506,7 @@ describe("M3 Practice controller integration", () => {
         songId: "a".repeat(64),
         analysisId: "b".repeat(32),
         instrumentalResourceUrl: "cybermuse://localhost/test",
+        vocalsResourceUrl: "cybermuse://localhost/vocals-test",
         referenceTrack: {
           ...PRACTICE_FIXTURE_V1.referenceTrack,
           frames: PRACTICE_FIXTURE_V1.referenceTrack.frames.map((frame) => ({
@@ -530,5 +547,86 @@ describe("M3 Practice controller integration", () => {
       metrics: { validFrameCount: 1 },
     });
     expect(session?.takes[0]?.observations[0]?.timeMs).toBe(1_000);
+  });
+
+  it("TC-VOC-004 keeps vocal toggles out of takes, observations, scoring and saved sessions", async () => {
+    const playback = new FakePlayback();
+    const input = new FakeInput();
+    const controller = new PracticeController({
+      playback,
+      inputFactory: () => input,
+      now: vi
+        .fn<() => Date>()
+        .mockReturnValueOnce(new Date("2026-08-29T01:00:00.000Z"))
+        .mockReturnValue(new Date("2026-08-29T01:00:10.000Z")),
+      sessionIdFactory: () => "00000000-0000-4000-8000-000000000028",
+    });
+    await controller.loadSong(
+      {
+        songId: "a".repeat(64),
+        analysisId: "b".repeat(32),
+        instrumentalResourceUrl: "cybermuse://localhost/test",
+        vocalsResourceUrl: "cybermuse://localhost/vocals-test",
+        referenceTrack: {
+          ...PRACTICE_FIXTURE_V1.referenceTrack,
+          frames: PRACTICE_FIXTURE_V1.referenceTrack.frames.map((frame) => ({
+            ...frame,
+          })),
+        },
+        durationMs: PRACTICE_FIXTURE_V1.referenceTrack.durationMs,
+        lyricsStatus: "none",
+        lyrics: null,
+        lyricsError: null,
+      },
+      "原唱隔离测试",
+    );
+    await controller.play();
+    await controller.startInput();
+    input.emit({
+      ...baseInput,
+      status: "ready",
+      observation: observation(1_000),
+    });
+
+    const before = controller.getSnapshot();
+    const invariantBefore = {
+      positionMs: before.playback.positionMs,
+      segmentId: before.playback.segmentId,
+      currentTakeId: before.currentTakeId,
+      takeCount: before.takeCount,
+      observationState: before.observationState,
+      feedback: before.feedback,
+      currentTakeMetrics: before.currentTakeMetrics,
+      previousTakeMetrics: before.previousTakeMetrics,
+      sessionMetrics: before.sessionMetrics,
+      pitchEvaluationMode: before.pitchEvaluationMode,
+      inputObservationCount: before.inputObservationCount,
+    };
+
+    controller.setOriginalVocalEnabled(true);
+    const enabled = controller.getSnapshot();
+    expect(enabled.playback.originalVocalEnabled).toBe(true);
+    expect({
+      positionMs: enabled.playback.positionMs,
+      segmentId: enabled.playback.segmentId,
+      currentTakeId: enabled.currentTakeId,
+      takeCount: enabled.takeCount,
+      observationState: enabled.observationState,
+      feedback: enabled.feedback,
+      currentTakeMetrics: enabled.currentTakeMetrics,
+      previousTakeMetrics: enabled.previousTakeMetrics,
+      sessionMetrics: enabled.sessionMetrics,
+      pitchEvaluationMode: enabled.pitchEvaluationMode,
+      inputObservationCount: enabled.inputObservationCount,
+    }).toEqual(invariantBefore);
+
+    controller.setOriginalVocalEnabled(false);
+    const session = controller.finalizeSession();
+    expect(session).not.toBeNull();
+    expect(session).not.toHaveProperty("originalVocalEnabled");
+    expect(session?.takes).toHaveLength(1);
+    expect(session?.takes[0]?.observations).toHaveLength(1);
+    expect(session?.metrics.validFrameCount).toBe(1);
+    expect(session?.pitchEvaluationMode).toBe("absolute");
   });
 });

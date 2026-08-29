@@ -38,7 +38,8 @@
 | RISK-022 | 用户提供的歌词版权内容进入 Git、诊断、安装包或网络 | Low | Critical | Privacy/Compliance/Desktop | 日志/diagnostic/SBOM 出现歌词文本或应用自动请求歌词源 | 只接受用户原生选择的本地 LRC；固定歌曲目录原子存储；无搜索/上传；日志与诊断禁歌词字段扫描；真实 LRC 保持 Git ignored | M7 | Mitigating |
 | RISK-023 | LRC 与歌曲错配、offset 方言或 cue 错误造成歌词误跟随 | Medium | High | Product/Desktop QA | 预览标题/时长异常、全部 cue 越界、真实播放持续提前/滞后 | 显式预览确认、严格方言、source/user offset 分离、±30 秒校准、同刻合组、受控时钟测试和 Moth To A Flame 真实播放验收 | M7 | Mitigating |
 | RISK-024 | 八度折叠掩盖真实声区错误，或视觉、反馈与持久指标使用不同误差 | Medium | High | Scoring/Desktop QA | 关闭专业模式后成绩提高但 raw 值丢失、模式往返不一致、Review 无法解释评分方式 | 始终保存 absolute error；单一 mode 驱动曲线/反馈/指标；1.1 契约显式 mode；1.0 只读归一；可逆性/边界/真实歌曲测试；Review 显示模式 | M8 | Mitigating |
-| RISK-025 | 既有实时 F0 长窗口在快速颤音上达不到 M8 合成精度门槛 | High | High | Audio/QA | 5.5 Hz、±35 cents fixture 的 median absolute error >5 cents | 当前实测与脚本保持失败；profile 窗口估计/时间对齐/平滑，任何调整复验 NFR-003/006/007、静音/噪声/低频与硬件；不得通过降低颤音或放宽阈值消除失败 | M8 | Materialized |
+| RISK-025 | 既有实时 F0 长窗口在快速颤音上达不到 M8 合成精度门槛 | High | High | Audio/QA | 5.5 Hz、±35 cents fixture 的 median absolute error >5 cents | 当前实测与脚本保持失败；profile 窗口估计/时间对齐/平滑，任何调整复验 NFR-003/006/007、静音/噪声/低频与硬件；用户接受其不阻止进入 M9，但不得降低颤音或放宽阈值消除失败 | M8/M9 review | Accepted |
+| RISK-026 | 双 media stem 起点/长时漂移、节点累积或原唱故障中断伴奏与评分 | Medium | High | Desktop Audio/QA | stem 差 >20 ms、切换产生 segment/take、vocal load/play 失败让 transport 进入 error、CPU/RAM/节点超预算 | 单 AudioContext、instrumental 主轨、同 song time 重锚、只校正 vocals、30 ms gain、独立 vocal error/fallback；TC-VOC-001..004、十分钟/loop/suspend、故障注入、NFR-003/004/007/012 与 Windows real-song soak | M9 | Open |
 
 ## 风险更新规则
 
@@ -88,4 +89,8 @@ M5 已对 RISK-010 增加导入复制中断、空间重检、分析失败/取消
 
 ## M8 风险结论
 
-M8 以不可变 `absoluteSignedCents`、显式 session mode 和单一重算路径缓解 RISK-024；SVG 预索引和像素桶限制绘制成本，避免把全曲样本直接送入 DOM。确定性合成矩阵已物化 RISK-025：正弦、谐波和滑音通过，但 5.5 Hz/±35 cents 颤音 median 7.8459 cents，高于 5 cents 门槛；该失败必须在不破坏既有实时边界的前提下解决。ADR-023 在该失败、合法 vocal-stem、校准硬件回环、发布视觉截图与真实歌曲人工验收完成前保持 Proposed。自动契约、坐标或性能通过不能被外推为检测算法已经达到 NFR-023 的三层精度，也不能自行关闭 M8 门禁。
+M8 以不可变 `absoluteSignedCents`、显式 session mode 和单一重算路径缓解 RISK-024；SVG 预索引和像素桶限制绘制成本，避免把全曲样本直接送入 DOM。确定性合成矩阵已物化 RISK-025：正弦、谐波和滑音通过，但 5.5 Hz/±35 cents 颤音 median 7.8459 cents，高于 5 cents 门槛；该失败必须在不破坏既有实时边界的前提下解决。ADR-023 在该失败、合法 vocal-stem、校准硬件回环、发布视觉截图与真实歌曲人工验收完成前保持 Proposed。用户于 2026-08-29 明确接受这些开放项不阻止进入 M9，RISK-025 因而转为 Accepted；这不能被外推为检测算法已经达到 NFR-023 的三层精度或开放项已经通过。
+
+## M9 风险结论
+
+M9 选择复用当前分析产物的 instrumental/vocals stems，而不是直接播放导入母带，以降低多格式解码延迟与起点差异。受控双 media 测试已覆盖 30 ms gain、20 ms vocal-only re-anchor、十分钟/十次 loop、load/play/re-anchor 故障和 session/scoring 隔离；Rust 覆盖 capability 绑定、range、expiry 与共同撤销，既有 NFR 性能回归和 release build 通过。RISK-026 仍保持 Open，直到实际 Windows WebView2 长时 CPU/RAM/node 资源和至少一首私有真实歌曲听感/显示矩阵形成证据。

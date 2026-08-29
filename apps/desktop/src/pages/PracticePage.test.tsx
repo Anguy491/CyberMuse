@@ -52,6 +52,9 @@ const baseSnapshot: PracticeControllerSnapshot = {
       listeners: 0,
     },
     error: null,
+    originalVocalEnabled: false,
+    originalVocalStatus: "unavailable",
+    originalVocalError: null,
   },
   micStatus: "not_requested",
   micError: null,
@@ -113,6 +116,8 @@ const practiceAssets: PracticeAssets = {
   analysisId: "b".repeat(32),
   instrumentalResourceUrl:
     "cybermuse://localhost/00000000-0000-4000-8000-000000000001",
+  vocalsResourceUrl:
+    "cybermuse://localhost/00000000-0000-4000-8000-000000000002",
   referenceTrack: {
     ...PRACTICE_FIXTURE_V1.referenceTrack,
     frames: PRACTICE_FIXTURE_V1.referenceTrack.frames.map((frame) => ({
@@ -131,6 +136,16 @@ class FakePracticeController implements PracticeControllerPort {
   readonly play = vi.fn(async () => undefined);
   readonly pause = vi.fn();
   readonly resumeAfterSuspend = vi.fn(async () => undefined);
+  readonly setOriginalVocalEnabled = vi.fn((enabled: boolean) => {
+    this.emit({
+      ...this.snapshot,
+      playback: {
+        ...this.snapshot.playback,
+        originalVocalEnabled: enabled,
+      },
+    });
+  });
+  readonly retryOriginalVocal = vi.fn(async () => undefined);
   readonly seek = vi.fn();
   readonly startOver = vi.fn();
   readonly startInput = vi.fn<PracticeControllerPort["startInput"]>(
@@ -328,6 +343,7 @@ function readySnapshot(
       fixture: PRACTICE_FIXTURE_V1,
       durationMs: 12_000,
       contextState: "running",
+      originalVocalStatus: "ready",
       resources: {
         ...baseSnapshot.playback.resources,
         contexts: 1,
@@ -632,7 +648,11 @@ describe("FR-009/012/014 Practice UI", () => {
       "octaveFolded",
     );
     expect(modeSwitch).not.toBeChecked();
-    expect(screen.getByText("关")).toBeVisible();
+    const modeLabel = modeSwitch.parentElement;
+    if (!(modeLabel instanceof HTMLElement)) {
+      throw new Error("professional mode label is missing");
+    }
+    expect(within(modeLabel).getByText("关")).toBeVisible();
 
     modeSwitch.focus();
     await user.keyboard(" ");
@@ -640,6 +660,56 @@ describe("FR-009/012/014 Practice UI", () => {
       "absolute",
     );
     expect(modeSwitch).toBeChecked();
+  });
+
+  it("places the default-off original-vocal switch after professional mode and recovers independently", async () => {
+    const user = userEvent.setup();
+    const controller = new FakePracticeController();
+    renderPractice(controller);
+    emit(controller, readySnapshot());
+
+    const professionalSwitch = screen.getByRole("switch", {
+      name: /专业模式 · 开/,
+    });
+    const vocalSwitch = screen.getByRole("switch", {
+      name: /原唱 · 关/,
+    });
+    expect(vocalSwitch).not.toBeChecked();
+    expect(professionalSwitch.compareDocumentPosition(vocalSwitch)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+    await user.click(vocalSwitch);
+    expect(controller.setOriginalVocalEnabled).toHaveBeenCalledWith(true);
+    expect(vocalSwitch).toBeChecked();
+    vocalSwitch.focus();
+    await user.keyboard(" ");
+    expect(controller.setOriginalVocalEnabled).toHaveBeenLastCalledWith(false);
+    expect(vocalSwitch).not.toBeChecked();
+
+    emit(
+      controller,
+      readySnapshot({
+        playback: {
+          ...controller.getSnapshot().playback,
+          originalVocalEnabled: false,
+          originalVocalStatus: "unavailable",
+          originalVocalError: {
+            schemaVersion: 1,
+            code: "PRACTICE_ORIGINAL_VOCAL_UNAVAILABLE",
+            messageKey: "practice.error.originalVocalUnavailable",
+            retryable: true,
+            safeDetails: {},
+            diagnosticId: "vocal-test",
+          },
+        },
+      }),
+    );
+    expect(vocalSwitch).toBeDisabled();
+    expect(screen.getByText("原唱暂不可用")).toBeVisible();
+    expect(screen.getByText(/播放和评分会继续运行/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "重试原唱" }));
+    expect(controller.retryOriginalVocal).toHaveBeenCalledTimes(1);
   });
 
   it("keeps NOW at 20% and discloses the line legend from the feedback row", async () => {

@@ -43,6 +43,7 @@
 | FR-025 | LyricsDocument；Rust LRC parser；ADR-022 | TC-LYR-002 编码/标签/offset/原子恢复 | M7 | Rust parser/store tests、跨语言 contract fixtures 与 [M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
 | FR-026 | UX Practice Lyrics；Playback clock；ADR-004/022 | TC-LYR-003 播放/seek/loop/导航/视口布局 | M7 | Practice page/model tests覆盖歌词列占用页头以下剩余视口和底部控制可见性；Windows Moth To A Flame smoke 与 [M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
 | FR-027 | Scoring mode；Pitch Lane index/model；Practice/Review；ADR-023 | TC-PLV2-001..004、TC-SES-002、TC-A11Y-002 | M8 | scoring/controller/lane/page/Rust/schema tests 与 [M8 evidence](../delivery/evidence/m8-pitch-lane-v2.md)；发布视觉和真实歌曲人工证据开放 |
+| FR-028 | Dual-stem PlaybackEngine；Practice 原唱 switch；ADR-024 | TC-VOC-001..004 capability/混音/同步/隔离/a11y | M9 | Rust `asset_protocol`/`tauri_api`、PlaybackEngine/controller/page/i18n/style 自动测试已通过；Windows real-song matrix 仍开放，详见 [M9 evidence](../delivery/evidence/m9-original-vocal-guide.md) |
 
 ## 非功能需求映射
 
@@ -71,11 +72,12 @@
 | NFR-021 | Reproducible build | TC-BUILD-001 干净 Win11 runbook | M4/M6 | `pnpm build:m6` 开发主机通过；10-file hash transfer package 与 standalone gate 已完成 diagnostic 演练，因 dirty/online/dev tools/SkipDefender 明确 gate=false；用户批准进入 M7 但独立 clean-host/Defender 继续阻止外部分发；[M6 evidence](../delivery/evidence/m6-review-and-release.md) |
 | NFR-022 | ADR-004/022；Lyrics cue lookup | TC-LYR-004 50 ms/10 分钟/无逐帧 IPC | M7 | 受控时钟与 Practice 性能/soak、Windows real-song smoke；[M7 evidence](../delivery/evidence/m7-lrc-lyrics.md) |
 | NFR-023 | ADR-023；Pitch Lane index/LOD；三层音高真值 | TC-PERF-005 4 ms P95/30–60 FPS；TC-PIT-002 三层精度 | M8 | 自动坐标/降采样/性能与合成证据；合法 vocal-stem、校准硬件回环和发布显示矩阵见 [M8 evidence](../delivery/evidence/m8-pitch-lane-v2.md) 开放项 |
+| NFR-024 | ADR-004/024；同 AudioContext 双 stem、vocal gain 与故障隔离 | TC-VOC-002..004 30 ms gain、10 分钟 ≤20 ms、fallback/session 不变、NFR 回归 | M9 | 受控双 media/AudioParam、十分钟/十次 loop、三类故障注入和既有 NFR 性能回归已通过；真实 WebView2/歌曲/硬件资源证据仍开放，详见 [M9 evidence](../delivery/evidence/m9-original-vocal-guide.md) |
 
 ## M0 一致性证据
 
-- 所有 FR-001..FR-027 在本表出现一次。
-- 所有 NFR-001..NFR-023 在本表出现一次。
+- 所有 FR-001..FR-028 在本表出现一次。
+- 所有 NFR-001..NFR-024 在本表出现一次。
 - Must 需求均有设计、测试和里程碑。
 - 测试 ID 在 Test Strategy 的层级或 Milestone Specs 中有执行位置。
 - 实现证据在相应里程碑完成后替换“Required evidence”的类别描述为实际相对路径；不得删除历史需求行。
@@ -130,3 +132,8 @@
 - TC-PRIV-001/TC-NET-001/TC-DIA-002 的开发主机捕获显示应用控制 endpoint class 0、静态非许可网络匹配 0、诊断禁字段 0；系统 WebView2 `Established` 类别继续按 RISK-018 单独披露。
 - Standalone package diagnostic 在真实 Spleeter 分析后发现安装目录生成 `~/.keras` 与字面 `%SystemDrive%/ProgramData`；ADR-018 将全部工具可写状态映射到 `staging/work/process-state`，Analyzer 全量 32+1 项和重新封装后的真实分析/三 artifact hash/干净卸载通过。诊断主机在线、有开发工具且跳过 Defender，所以 `cleanHostGateSatisfied=false`。
 - 独立 clean Windows 11 build/install/Defender/offline、30 分钟/25 loop 实机 soak、硬件延迟校准、发布 E2E 与完整显示/可访问性人工矩阵仍是硬门禁。详细结果和开放项见 [M6 Review and Windows Release Evidence](../delivery/evidence/m6-review-and-release.md)。M6 gate 尚未由用户批准。
+
+## M9 实现证据
+
+- FR-028/NFR-024 已映射到 ADR-024、RISK-026、TC-VOC-001..004 与 M9 milestone；`PracticeAssets` 的双 capability 和不持久化原唱运行时边界已同步到 Data Model/API Contracts。
+- 用户于 2026-08-29 明确批准 M8 gate 后完成 Tauri 双 capability、共享 AudioContext 双 media 图、30 ms vocal gain、“原唱”switch、独立 fallback/retry 及 session/scoring 隔离。`pnpm check`、Rust fmt/clippy/test、受控 10 分钟/loop/故障矩阵、既有 NFR 性能回归和 Tauri release build 通过；Windows 私有真实歌曲耳听、显示/硬件矩阵和实际 WebView2 长时资源采样仍阻止 M9 退出，执行状态见 [M9 Original Vocal Guide Evidence](../delivery/evidence/m9-original-vocal-guide.md)。

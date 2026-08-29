@@ -44,6 +44,7 @@
     "test:m6:soak": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m6-windows-soak.ps1",
     "test:m8:performance": "vite build --config tooling/vite.m8-performance.config.ts && node artifacts/m8/performance-bundle/m8-pitch-lane-performance.mjs",
     "test:m8:quality": "vite build --config tooling/vite.m8-quality.config.ts && node artifacts/m8/quality-bundle/m8-pitch-quality.mjs",
+    "test:m9:docs": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File tooling/m9-document-readiness.ps1",
     "typecheck": "tsc --noEmit -p packages/domain/tsconfig.json && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/audio/tsconfig.json && tsc --noEmit -p packages/scoring/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json"
   },
   "devDependencies": {

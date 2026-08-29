@@ -5,7 +5,7 @@
 | 状态 | Baseline |
 | 版本 | 0.1.0 |
 | 责任域 | 桌面端与实时音频 |
-| 上游依据 | FR-009 至 FR-016、NFR-003 至 NFR-007、ADR-003/004/011 |
+| 上游依据 | FR-009 至 FR-016、FR-028、NFR-003 至 NFR-007、NFR-024、ADR-003/004/011/024 |
 | 关联文件 | `data-model.md`、`test-strategy.md`、Desktop `AGENTS.md` |
 
 ## 时钟模型
@@ -30,7 +30,8 @@ alignedSongTimeMs = observedSongTimeMs - latencyMs
 ## 音频图
 
 ```text
-instrumental buffer/source ── gain ── destination
+instrumental media ───────────────────── master gain ── destination
+vocals media ── vocal gain (0.0 / 1.0) ────────┘
 
 microphone MediaStreamSource
   └─ AudioWorklet (ring buffer + windows)
@@ -43,7 +44,7 @@ microphone MediaStreamSource
                       └─ PitchObservation
 ```
 
-麦克风源不连接 destination，防止监听回授。伴奏和校准音使用独立 gain 节点。
+麦克风源不连接 destination，防止监听回授。伴奏和校准音使用独立 gain 节点。M9 的两条媒体 stem 使用同一 `AudioContext`，伴奏是播放主轨；`vocals.wav` 只经独立 vocal gain 混入 master，不接触麦克风或评分链路。每次进入 Practice vocal gain 为 `0`，切换用 30 ms 线性过渡防止爆音。
 
 ## 采样与窗口
 
@@ -93,6 +94,9 @@ Worker 每个 hop 最多发一个观察。Practice view model：
 - `seek` 停止旧 source，清空 Worker 平滑、关闭跨 seek 匹配，并从新位置建立 anchor。
 - AudioContext `suspended` 时 UI 进入暂停；恢复时重新 anchor，不补算暂停期间帧。
 - 设备切换销毁旧 MediaStream tracks 和 audio nodes，防止资源累积。
+- 真实歌曲的 instrumental/vocals media 在 play、seek、loop、回零和恢复时从同一 `songTimeMs` 重锚；逻辑 segment 只创建一次，不按 stem 计数。
+- transport 播放期间两条 stem 保持同步，即使 vocal gain 为零也不能让“原唱”切换重启 source。两者媒体时间差超过 20 ms 时只重锚 vocals，不修改 timeline、instrumental、NOW 或评分时钟。
+- `setOriginalVocalEnabled` 只调度 vocal gain。加载、播放或重锚 vocals 失败时将其归零、标记独立可恢复错误并继续 instrumental；`retryOriginalVocal` 只重建/重锚 vocals 分支。
 
 ## A-B Loop
 

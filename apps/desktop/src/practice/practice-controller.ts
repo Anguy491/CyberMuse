@@ -92,6 +92,8 @@ export interface PlaybackEnginePort {
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
+  setOriginalVocalEnabled(enabled: boolean): void;
+  retryOriginalVocal(): Promise<void>;
   seek(songTimeMs: number): number;
   setLoopRegion(region: LoopRegion | null): LoopValidationResult | null;
   songTimeAtContextTimeMs(contextTimeMs: number): number | null;
@@ -113,6 +115,8 @@ export interface PracticeControllerPort {
   play(): Promise<void>;
   pause(): void;
   resumeAfterSuspend(): Promise<void>;
+  setOriginalVocalEnabled(enabled: boolean): void;
+  retryOriginalVocal(): Promise<void>;
   seek(songTimeMs: number): void;
   startOver(): void;
   startInput(
@@ -411,6 +415,14 @@ export class PracticeController implements PracticeControllerPort {
     if (this.playback.getSnapshot().status === "playing") {
       this.ensureCurrentTake();
     }
+  }
+
+  setOriginalVocalEnabled(enabled: boolean): void {
+    this.playback.setOriginalVocalEnabled(enabled);
+  }
+
+  retryOriginalVocal(): Promise<void> {
+    return this.playback.retryOriginalVocal();
   }
 
   seek(songTimeMs: number): void {

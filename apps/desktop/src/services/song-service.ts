@@ -84,6 +84,7 @@ export interface PracticeAssets {
   songId: string;
   analysisId: string;
   instrumentalResourceUrl: string;
+  vocalsResourceUrl: string;
   referenceTrack: ReferenceTrack;
   durationMs: number;
   lyricsStatus: LyricsStatus;
@@ -254,6 +255,7 @@ export class SongService implements SongServicePort {
         songId: string;
         analysisId: string;
         instrumentalResourceUrl: string;
+        vocalsResourceUrl: string;
         referenceTrack: unknown;
         durationMs: number;
         lyricsStatus: LyricsStatus;

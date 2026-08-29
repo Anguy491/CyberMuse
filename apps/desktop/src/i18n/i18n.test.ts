@@ -41,4 +41,21 @@ describe("TC-I18N-001 translation packs", () => {
     expect(resolveLocale("system", ["en-AU"])).toBe("en-US");
     expect(resolveLocale("en-US", ["zh-CN"])).toBe("en-US");
   });
+
+  it("TC-VOC-004 exposes the original-vocal control, isolation copy and retry in both packs", () => {
+    const english = translationEntries("en-US");
+    const chinese = translationEntries("zh-CN");
+    expect(english["practice.originalVocal.label"]).toBe("Original vocal");
+    expect(english["practice.originalVocal.description"]).toMatch(
+      /without changing scoring or practice records/i,
+    );
+    expect(english["practice.originalVocal.retry"]).toBe(
+      "Retry original vocal",
+    );
+    expect(chinese["practice.originalVocal.label"]).toBe("原唱");
+    expect(chinese["practice.originalVocal.description"]).toMatch(
+      /不影响评分或练习记录/,
+    );
+    expect(chinese["practice.originalVocal.retry"]).toBe("重试原唱");
+  });
 });

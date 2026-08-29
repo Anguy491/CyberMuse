@@ -117,3 +117,7 @@ v0.1 只允许用户触发的模型下载和显式更新检查；首次联网前
 ### NFR-023 — 音高通道精度、性能与可访问性
 
 Pitch Lane 的 NOW、参考中心线和 ±25/50 cents 边界坐标误差必须小于 0.5 px；在 1,000 px 宽、60 分钟有界样本集上，预索引后的 lane model P95 不超过 4 ms，输出规模与像素宽度成正比，并维持 30–60 FPS。模式切换不得增加 NFR-003 延迟或 AudioWorklet/Worker 负载。精度证据分三层：合成正弦、谐波、颤音和滑音的中位误差 ≤5 cents、P95 ≤20 cents；Demucs + SwiftF0 对合法真值 vocal stems 的 RPA50 ≥85%、中位误差 ≤30 cents、八度错误率 ≤5%；Windows 校准后硬件回环中位误差 ≤15 cents、P95 ≤35 cents。专业模式 switch、越界和未评分状态必须同时以文字、形状/线型及位置表达，并通过键盘、dark/light、灰度、forced-colors、1024×720 和 150% 缩放验证。
+
+### NFR-024 — 原唱混音同步、隔离与降级
+
+原唱与伴奏只允许在现有播放图中混合，不得进入 AudioWorklet、Worker、React PCM state、Tauri IPC PCM 或 scoring/session 数据流。伴奏继续作为播放主轨；连续播放 10 分钟以及 play、seek、loop、回零和恢复边界后，两条 stem 的媒体时间绝对差不得超过 20 ms，原唱 gain 切换使用 30 ms 防爆音过渡且不得改变逻辑 `segmentId`。原唱资源或媒体失败必须在不停止伴奏、不丢失 take、不过写 session 的情况下恢复为关闭并提供重试。双 stem 模式必须复验 NFR-003/004/006/007/012；验证使用受控媒体时钟、故障注入、Windows release 实播和资源/性能采样。

@@ -1196,6 +1196,24 @@ select {
   font-size: 11px;
 }
 
+.practice-original-vocal-error {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-warning);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-raised);
+  font-size: 12px;
+}
+
+.practice-original-vocal-error strong,
+.practice-original-vocal-error code {
+  color: var(--color-text-display);
+}
+
 .icon-button {
   position: relative;
   display: inline-grid;
@@ -2098,6 +2116,7 @@ select {
   .pitch-lane-shell,
   .pitch-legend-panel,
   .practice-mode-toggle,
+  .practice-original-vocal-error,
   .practice-mic-dialog,
   .practice-empty-session-dialog,
   .loop-values input,

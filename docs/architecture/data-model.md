@@ -75,6 +75,33 @@ interface ReferenceTrack {
 
 约束：`voiced=false` 时 `hz`、`midi` 必须为 null；`voiced=true` 时两者均为有限正数。`midi = 69 + 12 * log2(hz / 440)`，容许序列化误差 0.01 MIDI。
 
+### Practice 运行时音源视图（不持久化）
+
+```ts
+type OriginalVocalStatus = "loading" | "ready" | "unavailable";
+
+interface PracticeAudioAssets {
+  songId: string;
+  analysisId: string;
+  instrumentalResourceUrl: string; // opaque current-session capability
+  vocalsResourceUrl: string;       // opaque current-session capability
+  referenceTrack: ReferenceTrack;
+  durationMs: number;
+}
+
+interface OriginalVocalRuntimeState {
+  originalVocalEnabled: boolean;
+  originalVocalStatus: OriginalVocalStatus;
+  originalVocalError: {
+    code: string;
+    messageKey: string;
+    retryable: boolean;
+  } | null;
+}
+```
+
+API `PracticeAssets` 在该音频视图之外组合歌词 view/error。上述对象只存在于当前应用/Practice 生命周期，不含 `schemaVersion`，不得写入 `Song`、`AppSettings`、`PracticeSession` 或 Review。每次加载 Practice 时 `originalVocalEnabled=false`；状态变化只能改变输出 vocal gain。
+
 ```ts
 interface ModelFingerprint {
   modelId: string;

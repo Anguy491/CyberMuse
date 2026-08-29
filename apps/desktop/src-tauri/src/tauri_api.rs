@@ -548,6 +548,7 @@ pub struct PracticeAssetsResponse {
     song_id: String,
     analysis_id: String,
     instrumental_resource_url: String,
+    vocals_resource_url: String,
     reference_track: serde_json::Value,
     duration_ms: u64,
     lyrics_status: LyricsStatus,
@@ -1690,6 +1691,16 @@ fn load_practice_assets(
             .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?
             .canonicalize()
             .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let vocals = validated
+        .manifest
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.kind == ArtifactKind::Vocals)
+        .ok_or_else(|| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
+    let vocals_path = resolve_relative(&validated.root, Path::new(&vocals.relative_path))
+        .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?
+        .canonicalize()
+        .map_err(|_| ApiError::new("ASSET_INVALID", "practice.error.assetInvalid", true))?;
     let reference_path = resolve_relative(
         &validated.root,
         Path::new(&validated.manifest.reference_track_relative_path),
@@ -1729,6 +1740,11 @@ fn load_practice_assets(
             song_id,
             &validated.manifest.analysis_id,
             instrumental_path,
+        ),
+        vocals_resource_url: state.resources.issue(
+            song_id,
+            &validated.manifest.analysis_id,
+            vocals_path,
         ),
         reference_track,
         duration_ms: song.duration_ms,
@@ -1917,6 +1933,28 @@ mod tests {
             .expect("response should serialize");
         assert_eq!(value["ok"], false);
         assert_eq!(value["error"]["code"], "API_VERSION_UNSUPPORTED");
+    }
+
+    #[test]
+    fn tc_voc_001_practice_assets_serialize_distinct_stem_capabilities() {
+        let response = PracticeAssetsResponse {
+            song_id: "a".repeat(64),
+            analysis_id: "b".repeat(32),
+            instrumental_resource_url: "cybermuse://localhost/instrumental".to_owned(),
+            vocals_resource_url: "cybermuse://localhost/vocals".to_owned(),
+            reference_track: serde_json::json!({ "schemaVersion": 1 }),
+            duration_ms: 1_000,
+            lyrics_status: LyricsStatus::None,
+            lyrics: None,
+            lyrics_error: None,
+        };
+        let value = serde_json::to_value(response).expect("practice assets should serialize");
+        assert_eq!(
+            value["instrumentalResourceUrl"],
+            "cybermuse://localhost/instrumental"
+        );
+        assert_eq!(value["vocalsResourceUrl"], "cybermuse://localhost/vocals");
+        assert_ne!(value["instrumentalResourceUrl"], value["vocalsResourceUrl"]);
     }
 
     #[test]

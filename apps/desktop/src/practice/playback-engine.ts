@@ -22,6 +22,8 @@ export type PlaybackEngineStatus =
   | "recoverable_error"
   | "fatal_error";
 
+export type OriginalVocalStatus = "loading" | "ready" | "unavailable";
+
 export interface PracticeRuntimeError {
   schemaVersion: 1;
   code: string;
@@ -50,6 +52,9 @@ export interface PlaybackEngineSnapshot {
     listeners: number;
   };
   error: PracticeRuntimeError | null;
+  originalVocalEnabled: boolean;
+  originalVocalStatus: OriginalVocalStatus;
+  originalVocalError: PracticeRuntimeError | null;
 }
 
 interface PlaybackEnvironment {
@@ -60,6 +65,9 @@ interface PlaybackEnvironment {
 }
 
 type SnapshotListener = (snapshot: PlaybackEngineSnapshot) => void;
+
+const ORIGINAL_VOCAL_GAIN_TRANSITION_SECONDS = 0.03;
+const ORIGINAL_VOCAL_MAX_DRIFT_SECONDS = 0.02;
 
 const INITIAL_SNAPSHOT: PlaybackEngineSnapshot = Object.freeze({
   status: "empty",
@@ -80,6 +88,9 @@ const INITIAL_SNAPSHOT: PlaybackEngineSnapshot = Object.freeze({
     listeners: 0,
   },
   error: null,
+  originalVocalEnabled: false,
+  originalVocalStatus: "unavailable",
+  originalVocalError: null,
 });
 
 function browserEnvironment(): PlaybackEnvironment {
@@ -154,6 +165,16 @@ function mapLoadError(error: unknown): PracticeRuntimeError {
   );
 }
 
+function mapOriginalVocalError(error: unknown): PracticeRuntimeError {
+  const mapped = mapLoadError(error);
+  return runtimeError(
+    "PRACTICE_ORIGINAL_VOCAL_UNAVAILABLE",
+    "practice.error.originalVocalUnavailable",
+    true,
+    mapped.safeDetails,
+  );
+}
+
 class MediaLoadError extends Error {
   constructor(
     readonly phase: "error" | "timeout",
@@ -205,11 +226,15 @@ export class PlaybackEngine {
   private snapshot: PlaybackEngineSnapshot = INITIAL_SNAPSHOT;
   private context: AudioContext | null = null;
   private gain: GainNode | null = null;
+  private vocalGain: GainNode | null = null;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
-  private media: HTMLAudioElement | null = null;
-  private mediaSource: MediaElementAudioSourceNode | null = null;
+  private instrumentalMedia: HTMLAudioElement | null = null;
+  private instrumentalMediaSource: MediaElementAudioSourceNode | null = null;
+  private vocalsMedia: HTMLAudioElement | null = null;
+  private vocalsMediaSource: MediaElementAudioSourceNode | null = null;
   private mediaRestartTimer: number | null = null;
+  private vocalLoadGeneration = 0;
   private timeline: PlaybackTimeline | null = null;
   private frameHandle: number | null = null;
   private removeContextListener: (() => void) | null = null;
@@ -233,6 +258,29 @@ export class PlaybackEngine {
     if (!Number.isFinite(value)) return;
     this.volume = Math.max(0, Math.min(1, value));
     if (this.gain !== null) this.gain.gain.value = this.volume;
+  }
+
+  setOriginalVocalEnabled(enabled: boolean): void {
+    const next = enabled && this.snapshot.originalVocalStatus === "ready";
+    if (next === this.snapshot.originalVocalEnabled) return;
+    this.applyVocalGain(next, false);
+    this.update({ originalVocalEnabled: next });
+  }
+
+  async retryOriginalVocal(): Promise<void> {
+    const media = this.vocalsMedia;
+    if (media === null || this.context === null || this.vocalGain === null) {
+      return;
+    }
+    this.applyVocalGain(false, true);
+    media.pause();
+    const generation = ++this.vocalLoadGeneration;
+    this.update({
+      originalVocalEnabled: false,
+      originalVocalStatus: "loading",
+      originalVocalError: null,
+    });
+    await this.prepareOriginalVocal(media, generation);
   }
 
   subscribe(listener: SnapshotListener): () => void {
@@ -298,19 +346,32 @@ export class PlaybackEngine {
     this.update({ status: "loading", error: null });
     try {
       const context = this.environment.createAudioContext();
-      const media = this.environment.createMediaElement?.() ?? new Audio();
+      const instrumentalMedia =
+        this.environment.createMediaElement?.() ?? new Audio();
+      const vocalsMedia =
+        this.environment.createMediaElement?.() ?? new Audio();
       this.context = context;
-      this.media = media;
+      this.instrumentalMedia = instrumentalMedia;
+      this.vocalsMedia = vocalsMedia;
       await selectAudioOutput(context, outputDeviceId);
-      media.preload = "metadata";
-      media.crossOrigin = "anonymous";
-      media.src = assets.instrumentalResourceUrl;
-      await waitForMediaReady(media);
+      instrumentalMedia.preload = "metadata";
+      instrumentalMedia.crossOrigin = "anonymous";
+      instrumentalMedia.src = assets.instrumentalResourceUrl;
+      vocalsMedia.preload = "metadata";
+      vocalsMedia.crossOrigin = "anonymous";
+      vocalsMedia.src = assets.vocalsResourceUrl;
+      await waitForMediaReady(instrumentalMedia);
       const gain = context.createGain();
+      const vocalGain = context.createGain();
       gain.gain.value = this.volume;
+      vocalGain.gain.value = 0;
       gain.connect(context.destination);
-      const mediaSource = context.createMediaElementSource(media);
-      mediaSource.connect(gain);
+      vocalGain.connect(gain);
+      const instrumentalMediaSource =
+        context.createMediaElementSource(instrumentalMedia);
+      const vocalsMediaSource = context.createMediaElementSource(vocalsMedia);
+      instrumentalMediaSource.connect(gain);
+      vocalsMediaSource.connect(vocalGain);
       const fixture: PracticeFixture = {
         schemaVersion: 1,
         fixtureId: assets.analysisId,
@@ -319,8 +380,10 @@ export class PlaybackEngine {
         sampleRateHz: 48_000,
         referenceTrack: assets.referenceTrack,
       };
-      this.mediaSource = mediaSource;
+      this.instrumentalMediaSource = instrumentalMediaSource;
+      this.vocalsMediaSource = vocalsMediaSource;
       this.gain = gain;
+      this.vocalGain = vocalGain;
       this.timeline = new PlaybackTimeline(assets.durationMs);
       this.removeContextListener = addListener(context, "statechange", () =>
         this.handleContextStateChange(),
@@ -331,15 +394,20 @@ export class PlaybackEngine {
         fixture,
         durationMs: assets.durationMs,
         contextState: context.state,
+        originalVocalEnabled: false,
+        originalVocalStatus: "loading",
+        originalVocalError: null,
         resources: {
           contexts: 1,
-          gainNodes: 1,
+          gainNodes: 2,
           activeSources: 0,
           createdSources: 0,
           listeners: 1,
         },
       };
       this.emit();
+      const generation = ++this.vocalLoadGeneration;
+      void this.prepareOriginalVocal(vocalsMedia, generation);
     } catch (error) {
       const mapped = mapLoadError(error);
       await this.releaseAudioGraph();
@@ -356,7 +424,7 @@ export class PlaybackEngine {
     if (
       context === null ||
       timeline === null ||
-      (this.buffer === null && this.media === null)
+      (this.buffer === null && this.instrumentalMedia === null)
     )
       return;
     try {
@@ -506,16 +574,26 @@ export class PlaybackEngine {
       return;
     }
     this.stopSource();
-    const media = this.media;
-    if (media !== null) {
+    const instrumentalMedia = this.instrumentalMedia;
+    if (instrumentalMedia !== null) {
       const delayMs = Math.max(
         0,
         (contextTimeSec - context.currentTime) * 1_000,
       );
-      media.currentTime = songTimeMs / 1_000;
+      instrumentalMedia.currentTime = songTimeMs / 1_000;
+      const vocalsMedia = this.vocalsMedia;
+      const vocalsReady =
+        vocalsMedia !== null && this.snapshot.originalVocalStatus === "ready";
+      if (vocalsReady) {
+        try {
+          vocalsMedia.currentTime = songTimeMs / 1_000;
+        } catch (error) {
+          this.handleOriginalVocalFailure(error);
+        }
+      }
       const start = () => {
         this.mediaRestartTimer = null;
-        void media.play().catch(() => {
+        void instrumentalMedia.play().catch(() => {
           this.update({
             status: "recoverable_error",
             error: runtimeError(
@@ -525,18 +603,41 @@ export class PlaybackEngine {
             ),
           });
         });
+        if (
+          vocalsMedia !== null &&
+          this.snapshot.originalVocalStatus === "ready"
+        ) {
+          void vocalsMedia
+            .play()
+            .catch((error) => this.handleOriginalVocalFailure(error));
+          if (!vocalsReady) {
+            this.update({
+              resources: {
+                ...this.snapshot.resources,
+                activeSources: Math.min(
+                  2,
+                  this.snapshot.resources.activeSources + 1,
+                ),
+                createdSources: this.snapshot.resources.createdSources + 1,
+              },
+            });
+          }
+        }
       };
       if (delayMs > 2) {
         this.mediaRestartTimer = window.setTimeout(start, delayMs);
       } else {
         start();
       }
+      const activeMediaCount =
+        this.snapshot.originalVocalStatus === "ready" ? 2 : 1;
       this.update({
         segmentId: this.snapshot.segmentId + 1,
         resources: {
           ...this.snapshot.resources,
-          activeSources: 1,
-          createdSources: this.snapshot.resources.createdSources + 1,
+          activeSources: activeMediaCount,
+          createdSources:
+            this.snapshot.resources.createdSources + activeMediaCount,
         },
       });
       return;
@@ -570,7 +671,8 @@ export class PlaybackEngine {
       window.clearTimeout(this.mediaRestartTimer);
       this.mediaRestartTimer = null;
     }
-    this.media?.pause();
+    this.instrumentalMedia?.pause();
+    this.vocalsMedia?.pause();
     const source = this.source;
     this.source = null;
     if (source !== null) {
@@ -586,6 +688,117 @@ export class PlaybackEngine {
       this.update({
         resources: { ...this.snapshot.resources, activeSources: 0 },
       });
+    }
+  }
+
+  private applyVocalGain(enabled: boolean, immediate: boolean): void {
+    const context = this.context;
+    const gain = this.vocalGain?.gain;
+    if (context === null || gain === undefined) return;
+    const now = context.currentTime;
+    const target = enabled ? 1 : 0;
+    if (typeof gain.cancelAndHoldAtTime === "function") {
+      gain.cancelAndHoldAtTime(now);
+    } else {
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(gain.value, now);
+    }
+    if (immediate) {
+      gain.setValueAtTime(target, now);
+    } else {
+      gain.linearRampToValueAtTime(
+        target,
+        now + ORIGINAL_VOCAL_GAIN_TRANSITION_SECONDS,
+      );
+    }
+  }
+
+  private async prepareOriginalVocal(
+    media: HTMLAudioElement,
+    generation: number,
+  ): Promise<void> {
+    try {
+      await waitForMediaReady(media);
+      if (
+        this.disposed ||
+        generation !== this.vocalLoadGeneration ||
+        media !== this.vocalsMedia
+      ) {
+        return;
+      }
+      this.update({
+        originalVocalEnabled: false,
+        originalVocalStatus: "ready",
+        originalVocalError: null,
+      });
+      const context = this.context;
+      const timeline = this.timeline;
+      if (
+        context === null ||
+        timeline === null ||
+        timeline.getStatus() !== "playing"
+      ) {
+        return;
+      }
+      media.currentTime = timeline.songTimeAt(context.currentTime) / 1_000;
+      await media.play();
+      if (
+        generation !== this.vocalLoadGeneration ||
+        media !== this.vocalsMedia ||
+        this.timeline?.getStatus() !== "playing"
+      ) {
+        media.pause();
+        return;
+      }
+      this.update({
+        resources: {
+          ...this.snapshot.resources,
+          activeSources: Math.min(2, this.snapshot.resources.activeSources + 1),
+          createdSources: this.snapshot.resources.createdSources + 1,
+        },
+      });
+    } catch (error) {
+      if (
+        generation === this.vocalLoadGeneration &&
+        media === this.vocalsMedia
+      ) {
+        this.handleOriginalVocalFailure(error);
+      }
+    }
+  }
+
+  private handleOriginalVocalFailure(error: unknown): void {
+    this.applyVocalGain(false, true);
+    this.vocalsMedia?.pause();
+    this.update({
+      originalVocalEnabled: false,
+      originalVocalStatus: "unavailable",
+      originalVocalError: mapOriginalVocalError(error),
+      resources: {
+        ...this.snapshot.resources,
+        activeSources: Math.min(1, this.snapshot.resources.activeSources),
+      },
+    });
+  }
+
+  private synchronizeOriginalVocal(): void {
+    const instrumentalMedia = this.instrumentalMedia;
+    const vocalsMedia = this.vocalsMedia;
+    if (
+      instrumentalMedia === null ||
+      vocalsMedia === null ||
+      this.snapshot.originalVocalStatus !== "ready"
+    ) {
+      return;
+    }
+    const driftSeconds = Math.abs(
+      vocalsMedia.currentTime - instrumentalMedia.currentTime,
+    );
+    if (driftSeconds <= ORIGINAL_VOCAL_MAX_DRIFT_SECONDS) return;
+    try {
+      vocalsMedia.currentTime = instrumentalMedia.currentTime;
+    } catch (error) {
+      this.handleOriginalVocalFailure(error);
     }
   }
 
@@ -611,6 +824,8 @@ export class PlaybackEngine {
     if (result.status === "ended") {
       this.stopSource();
       this.resumePlaybackAfterSuspend = false;
+    } else if (result.status === "playing") {
+      this.synchronizeOriginalVocal();
     }
     const errors =
       result.boundary === null
@@ -663,6 +878,7 @@ export class PlaybackEngine {
   }
 
   private async releaseAudioGraph(): Promise<void> {
+    this.vocalLoadGeneration += 1;
     if (this.frameHandle !== null) {
       this.environment.cancelAnimationFrame(this.frameHandle);
       this.frameHandle = null;
@@ -670,17 +886,24 @@ export class PlaybackEngine {
     this.stopSource();
     this.removeContextListener?.();
     this.removeContextListener = null;
+    this.instrumentalMediaSource?.disconnect();
+    this.vocalsMediaSource?.disconnect();
+    this.vocalGain?.disconnect();
     this.gain?.disconnect();
-    this.mediaSource?.disconnect();
-    if (this.media !== null) {
-      this.media.removeAttribute("src");
-      this.media.load();
+    for (const media of [this.instrumentalMedia, this.vocalsMedia]) {
+      if (media !== null) {
+        media.removeAttribute("src");
+        media.load();
+      }
     }
     const context = this.context;
     this.context = null;
     this.gain = null;
-    this.media = null;
-    this.mediaSource = null;
+    this.vocalGain = null;
+    this.instrumentalMedia = null;
+    this.instrumentalMediaSource = null;
+    this.vocalsMedia = null;
+    this.vocalsMediaSource = null;
     this.buffer = null;
     this.timeline = null;
     if (context !== null && context.state !== "closed") {

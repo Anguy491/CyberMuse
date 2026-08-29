@@ -47,6 +47,7 @@
 - Rust 启动 fake analyzer → 进度 → manifest 验证 → 原子提交。
 - 失败/取消/强制终止后保留最后有效 analysis。
 - PlaybackEngine + ReferenceTrack + scoring 的受控时钟集成。
+- PlaybackEngine 双 stem capability、同锚播放、vocal gain、只校正人声的漂移保护和原唱故障降级。
 - session 保存、重启加载、删除级联与引用保护。
 - model 下载使用本地测试服务器，覆盖同意、哈希错误、中断和清理。
 
@@ -63,7 +64,7 @@
 
 UI 自动化不伪造硬件结论；真实麦克风/声卡行为归入人工矩阵。
 
-UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Pitch Lane 测试同时断言 figure 可访问摘要、20% NOW 时间映射、目标中心与 ±25/50 cents 通道、半音/C 网格、包络/极值/overflow/未评分线型、反馈行最左侧默认收起的“?”图例入口及非颜色线型；Practice 还断言紧凑 feedback、ready/unvoiced 时绿色圆点加“正在录唱”、transport 图标的 accessible name、录唱/循环/数据/专业模式顺序、switch 的 checked 与文字状态、操作区与 seek 无拉伸空白、最近有效的部分 take 可恢复且不被空预览遮蔽、自然结束显式封口，以及录唱说明与空会话决定只在对应操作后的居中模态对话框显示，不以像素截图替代时间语义断言。
+UI 视觉回归覆盖 Library、Import、统一 Settings 六分类、Practice、Review 的适用状态矩阵，并至少保存 dark/light、1024×720、1280×800、100%/150% 缩放、灰度和 reduced-motion 证据。评审同时核对主任务/支持内容层级、没有独立技术右栏、一个 deliberate pattern break，以及字体/字号/字重预算。Pitch Lane 测试同时断言 figure 可访问摘要、20% NOW 时间映射、目标中心与 ±25/50 cents 通道、半音/C 网格、包络/极值/overflow/未评分线型、反馈行最左侧默认收起的“?”图例入口及非颜色线型；Practice 还断言紧凑 feedback、ready/unvoiced 时绿色圆点加“正在录唱”、transport 图标的 accessible name、录唱/循环/数据/专业模式/原唱顺序、两个 switch 的 checked 与文字状态、原唱“不影响评分”说明及错误重试、操作区与 seek 无拉伸空白、最近有效的部分 take 可恢复且不被空预览遮蔽、自然结束显式封口，以及录唱说明与空会话决定只在对应操作后的居中模态对话框显示，不以像素截图替代时间语义断言。
 
 `TC-I18N-001` 必须比较 `zh-CN.json` 与 `en-US.json` 的全部 key 和占位符，并在两种语言下遍历 Library、Practice、Review、设置六分类、动态状态、错误与 ARIA 文本；除品牌、稳定错误码、标准单位和批准技术专名外不得混入另一语言。另测 `system` 解析、`languagechange`、即时切换、重启恢复、清除设置、旧 v1 缺字段、非法值与 revision 冲突回滚。
 
@@ -75,6 +76,7 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 
 - 实时软件路径至少 1,000 个观察，报告 P50/P95/P99。
 - 10 分钟同步/漂移和 10 次 loop 边界测试。
+- 双 stem 10 分钟媒体时间差、30 ms gain 过渡、10 次 loop/seek/suspend 与双 media/gain 节点 teardown；同时复验单轨评分时钟无变化。
 - 30 分钟练习、25 次 loop 的 CPU/RAM/node 数 soak。
 - 3、5、10 分钟歌曲 analyzer CPU 实时倍数、峰值 RAM、临时空间。
 - 1,000 首元数据（使用虚拟小资产）的 Library 启动和滚动基准，防止 O(total pitch frames) 加载。
@@ -94,6 +96,7 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 | `corrupt-audio` | 截断/无音轨/错误扩展名 | 导入错误 |
 | `unicode-path-set` | 中文、空格、长路径 | Windows 路径契约 |
 | `fake-analyzer-streams` | 正常、乱序、超大、无 terminal NDJSON | sidecar 防御 |
+| `dual-stem-playback` | 程序生成、等长 48 kHz stereo accompaniment/vocals 与可控 media clock | 原唱混音、漂移、gain、故障降级 |
 
 夹具优先程序生成。任何真实音乐片段必须短小、来源可证明、允许仓库分发，并在 `fixtures/README.md` 记录许可证；否则只用于本地人工测试且不提交。
 
@@ -125,6 +128,14 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 - `TC-PIT-002` 分三层：合成正弦/谐波/颤音/滑音中位 ≤5 cents、P95 ≤20；Demucs + SwiftF0 合法真值 vocal stems 的 RPA50 ≥85%、中位 ≤30 cents、八度错误率 ≤5%；Windows 校准后硬件回环中位 ≤15 cents、P95 ≤35 cents。后两层不能用单元测试模拟结论。
 - M8 退出还要求发布构建视觉截图和至少一首真实歌曲人工验收；音频、stems、歌曲名、完整路径和私有截图不提交。
 
+## M9 原唱辅助验证
+
+- `TC-VOC-001` 覆盖 `get_practice_assets` 的两个非空且不同 opaque URL、同 song/analysis 绑定、WAV range/CORS/no-store、六小时到期和删除时共同撤销；响应和诊断不得含路径或音频，API v1 额外字段由旧读端忽略。
+- `TC-VOC-002` 使用受控双 media 与 AudioParam 事件验证默认关闭、master/vocal gain 拓扑、30 ms 线性过渡、暂停态选择、播放中快速往返，以及切换不调用 play/pause/seek/startSource、不改变 logical `segmentId`。
+- `TC-VOC-003` 覆盖 play、pause、回零、seek、至少十次 loop、AudioContext suspend/resume 和十分钟连续播放；每个边界同 song time 重锚、instrumental 为主、stem 差 ≤20 ms、只校正 vocals，dispose 后 media/source/gain/listener 全归零。
+- `TC-VOC-004` 在 controller/page/session 层对切换前后 position、segment、take ID/count、observations、feedback、pitch mode、metrics 和序列化 session 做深比较；另注入 vocal metadata/load/play/re-anchor 失败，断言自动关闭、instrumental/评分不中断、错误安全可操作、重试只恢复 vocals 分支。
+- 可访问性/i18n 矩阵断言“原唱”紧邻专业模式右侧、默认 unchecked、Tab/Space、ARIA checked、可见开/关、44 px、中英文、不影响评分说明、dark/light、灰度、forced-colors、1024×720、150% 与歌词双列。Windows release build 至少用一首本地私有真实歌曲耳听两种混音并采集 NFR-003/004/006/007/012；只提交匿名指标，不提交音频、歌名、路径或私有截图。
+
 ## 算法容限
 
 - 单音 F0：有效稳定区 median absolute error ≤ 15 cents，gross octave error = 0。
@@ -135,7 +146,7 @@ M1 字体测试必须证明：生产包无远程 font/icon 请求；断网启动
 
 ## 失败注入
 
-必须覆盖：文件复制中断、磁盘空间不足、JSON 半写、sidecar 启动失败/崩溃/挂起、模型哈希错误、网络中断、权限拒绝、设备拔出、AudioContext suspend、seek/loop 竞争、session payload 超限和删除部分失败。
+必须覆盖：文件复制中断、磁盘空间不足、JSON 半写、sidecar 启动失败/崩溃/挂起、模型哈希错误、网络中断、权限拒绝、设备拔出、AudioContext suspend、seek/loop 竞争、原唱 media load/play/re-anchor 失败、session payload 超限和删除部分失败。
 
 ## Windows 人工矩阵
 

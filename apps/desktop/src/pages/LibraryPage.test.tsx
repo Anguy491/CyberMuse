@@ -60,6 +60,8 @@ const assets: PracticeAssets = {
   analysisId,
   instrumentalResourceUrl:
     "cybermuse://localhost/00000000-0000-4000-8000-000000000002",
+  vocalsResourceUrl:
+    "cybermuse://localhost/00000000-0000-4000-8000-000000000003",
   durationMs: 180_000,
   lyricsStatus: "none",
   lyrics: null,

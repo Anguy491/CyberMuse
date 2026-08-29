@@ -137,7 +137,7 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
   });
 
-  it("keeps the M8 mode switch keyboard-sized and visible in forced colors", async () => {
+  it("keeps the M8/M9 switches and vocal fallback keyboard-sized in forced colors", async () => {
     const css = await readFile(stylesheetPath, "utf8");
     expect(css).toMatch(/\.practice-mode-toggle\s*\{[^}]*min-height:\s*44px/s);
     expect(css).toMatch(
@@ -148,6 +148,9 @@ describe("TC-A11Y-001 Signal UI foundation", () => {
     );
     expect(css).toMatch(
       /@media \(forced-colors: active\)[\s\S]*\.practice-mode-toggle i,[\s\S]*forced-color-adjust:\s*auto/s,
+    );
+    expect(css).toMatch(
+      /@media \(forced-colors: active\)[\s\S]*\.practice-original-vocal-error,[\s\S]*border-color:\s*CanvasText/s,
     );
   });
 

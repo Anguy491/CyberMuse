@@ -155,6 +155,36 @@ Set-Location ..\..\..
 
 TC-PIT-002 的 Demucs + SwiftF0 真值 stems 与校准硬件回环必须使用合法私有资产，报告只写匿名 ID 和聚合指标。缺任一层就保持 ADR-023 Proposed 和 M8 gate 开放，不得用合成测试代替。
 
+## M9：原唱辅助混音
+
+M9 产品实现只能在用户明确确认 M8 gate 后开始；用户已于 2026-08-29 给出该确认并授权实施。产品实现与复验从仓库根执行：
+
+`pnpm test:m9:docs` 只检查 FR/NFR/ADR/RISK、双 capability 契约、追踪、里程碑、证据链接以及 M8 开放项仍被准确保留；它不运行或声称产品功能通过。
+
+```powershell
+pnpm check
+pnpm exec vitest run `
+  apps/desktop/src/practice/playback-engine.test.ts `
+  apps/desktop/src/practice/practice-controller.test.ts `
+  apps/desktop/src/pages/PracticePage.test.tsx `
+  apps/desktop/src/signal-ui.test.ts `
+  --config tooling/vitest.unit.config.ts
+
+Set-Location .\apps\desktop\src-tauri
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace tc_voc
+Set-Location ..\..\..
+
+pnpm tauri build
+```
+
+自动结果必须覆盖 TC-VOC-001..004：双 opaque capability、默认关闭/30 ms vocal gain、同锚 play/seek/loop/suspend、十分钟 stem 差不超过 20 ms、切换不产生 segment/take/session 差异、vocal load/play/re-anchor 失败只降级原唱，以及 teardown 资源归零。测试只使用程序生成的等长双 stem/media clock；不得提交真实歌曲或从真实音频生成仓库夹具。
+
+在 Windows release executable 中打开至少一首已有 ready 私有歌曲，先确认默认“原唱 关”和纯伴奏，再在播放/录唱、seek、loop 与暂停状态切换。耳听人声加入/移除没有 transport 跳点或爆音；对照切换前后的 take、专业模式、即时反馈和练习指标不变。记录匿名 stem drift、gain 过渡、CPU/RAM、node/source 起止计数和错误降级，不记录歌名、路径、音频、歌词或设备标识。dark/light、forced-colors、1024×720、150% 和歌词双列矩阵确认原唱 switch 位于专业模式右侧且键盘/ARIA/错误重试可用。
+
+如果 vocals 分支失败，报告必须证明 instrumental 继续、逻辑 segment/take/session 未变化并可单独重试；若 transport 或评分被中断，TC-VOC-004 直接失败。M9 不修改 analyzer、AppSettings、PracticeSession schema 或评分包，任何此类差异都必须停止并重新走需求/ADR 门禁。
+
 ## M4：Analyzer 环境约定
 
 ```powershell

@@ -2,7 +2,7 @@
 
 | 元数据 | 值 |
 |---|---|
-| 状态 | In progress |
+| 状态 | User-approved gate with accepted open risks |
 | 日期 | 2026-08-29 |
 | 需求 | FR-027、NFR-023 |
 | 决定 | Proposed ADR-023 |
@@ -56,4 +56,4 @@
 - RISK-025 已 Materialized：`pnpm test:m8:quality` 以非零退出保留颤音 median 7.8459 cents，不得降低阈值或用重跑掩盖。
 - ADR-023 保持 Proposed，直到 TC-PERF-005、三层精度、发布显示矩阵与真实歌曲人工验收完成。
 - M6 延续的 clean-host/Defender、硬件与外部分发限制没有被 M8 改写或关闭。
-- 当前 M8 退出条件未满足；只有上述开放项全部关闭且用户明确确认后，才能申请 M8 gate。
+- 自动退出条件仍有上述未满足项，不能声称 NFR-023 已验证完成。用户于 2026-08-29 明确批准 M8 人工门禁并授权开始 M9；该决定接受开放风险作为进入 M9 的例外，但不把失败/开放证据改写为通过，也不关闭 M6 的外部分发限制。

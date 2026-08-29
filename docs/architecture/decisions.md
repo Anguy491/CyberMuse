@@ -273,6 +273,18 @@
 - 被替代条目：细化 ADR-012 的 Pitch Lane/评分呈现及 ADR-017 的 session 契约，不改变 ADR-004 的 AudioContext 时基、ADR-011 的实时 F0 链路或 ADR-022 的歌词同步边界。
 - 相关需求/风险：FR-012/013/016/017/018/027、NFR-003/005/006/017/019/020/023、RISK-015/017/024/025。
 
+## ADR-024 — 同时钟双 stem 原唱辅助混音
+
+- 状态：Proposed
+- 日期：2026-08-29
+- 背景：用户希望在 Practice 的纯伴奏与带原唱辅助之间即时切换，同时明确原唱不能改变评分或其他练习行为。应用已经保存与参考轨等长、48 kHz stereo PCM24 的 `instrumental.wav`/`vocals.wav`，但当前 PlaybackEngine 只签发并播放伴奏。
+- 选项：切换到用户导入的 MP3/WAV/FLAC 原文件；切换时替换单个 media element 的 URL；在同一 AudioContext 中持续对齐两条已验证 stem，并只切换 vocals gain。
+- 决定：采用第三项。`get_practice_assets` 为两条 stem 签发独立、同 song/analysis 绑定的 opaque URL。PlaybackEngine 以 instrumental 为播放主轨，两条 media 在 play/seek/loop/回零/恢复边界从同一 song time 重锚；vocals 经独立 gain 汇入 master。页面默认 `originalVocalEnabled=false`，切换只调度 30 ms gain 过渡，媒体差超过 20 ms 时只校正 vocals。原唱分支失败则归零并提供独立重试，instrumental、timeline 和 scoring 不停。
+- 理由：现有 stems 已由同一 analyzer 时间轴生成，可避免原始压缩格式的浏览器解码支持、encoder delay 和起点差异；只改变 gain 能保证不产生逻辑 segment/take 边界，也不需要修改 scoring/session schema。双 capability 继续复用已有路径隐藏、range 与撤销边界，不新增依赖、模型或网络。
+- 影响：新增 FR-028/NFR-024、`PracticeAssets.vocalsResourceUrl`、PlaybackEngine 原唱运行时状态与 Practice switch；增加双媒体节点和 Windows 同步/资源预算。`AppSettings`、`PracticeSession`、Review、analyzer pipeline、AudioWorklet/Worker 和评分包不变。用户已于 2026-08-29 批准 M8 gate 并完成产品实现；双 stem 真实 WebView2 长时同步、资源预算和真实歌曲证据完成前保持 Proposed。
+- 被替代条目：扩展 ADR-004 的单时钟播放图和 ADR-016 的音频 capability，不改变 ADR-021 的 stem 生成/语义门禁、ADR-011 的实时 F0 或 ADR-023 的评分模式。
+- 相关需求/风险：FR-009/014/016/017/028、NFR-003/004/006/007/011/012/017/018/019/020/024、RISK-008/010/016/017/026。
+
 ## 新决定模板
 
 新增条目必须包含状态、日期、背景、互斥选项、决定、理由、影响、被替代条目和相关需求/风险。需要实测的决定在证据完成前保持 Proposed，不得作为 Accepted 依赖。
